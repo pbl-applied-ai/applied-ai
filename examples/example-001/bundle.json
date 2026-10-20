@@ -1,0 +1,26 @@
+{
+  "schema_version": "0.1",
+  "video_id": "example-001",
+  "source": {
+    "kind": "upload",
+    "title": "5분 김치볶음밥 (예시 데이터)",
+    "duration_ms": 42000
+  },
+  "run": {
+    "run_id": "example-run-001",
+    "created_at": "2026-10-19T00:00:00Z",
+    "stages": {
+      "asr": { "tool": "manual-example", "version": "0" },
+      "ocr": { "tool": "manual-example", "version": "0" }
+    }
+  },
+  "segments": [
+    { "id": "title-0", "type": "title", "text": "5분 김치볶음밥" },
+    { "id": "desc-0", "type": "description", "text": "재료: 밥 1공기, 김치, 대파, 간장, 참기름" },
+    { "id": "ocr-0", "type": "ocr", "start_ms": 1000, "end_ms": 3000, "text": "김치 1컵" },
+    { "id": "asr-0", "type": "asr", "start_ms": 2500, "end_ms": 6000, "text": "대파를 송송 썰어서 기름에 먼저 볶아 주세요" },
+    { "id": "asr-1", "type": "asr", "start_ms": 6000, "end_ms": 11000, "text": "김치 넣고 볶다가 간장 한 큰술 넣어 줍니다" },
+    { "id": "asr-2", "type": "asr", "start_ms": 11000, "end_ms": 16000, "text": "밥 넣고 잘 섞어서 볶아 주세요" },
+    { "id": "asr-3", "type": "asr", "start_ms": 16000, "end_ms": 20000, "text": "마지막에 참기름 둘러서 마무리" }
+  ]
+}

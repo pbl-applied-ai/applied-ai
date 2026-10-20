@@ -1,0 +1,20 @@
+{
+  "schema_version": "0.1",
+  "video_id": "example-001",
+  "title": "김치볶음밥",
+  "servings_raw": null,
+  "ingredients": [
+    { "name": "밥", "amount_raw": "1공기", "amount_status": "confirmed", "evidence": ["desc-0", "asr-2"] },
+    { "name": "김치", "amount_raw": "1컵", "amount_status": "confirmed", "evidence": ["ocr-0", "asr-1"] },
+    { "name": "대파", "amount_raw": null, "amount_status": "unconfirmed", "evidence": ["desc-0", "asr-0"] },
+    { "name": "간장", "amount_raw": "1큰술","amount_status": "confirmed", "evidence": ["asr-1"] },
+    { "name": "참기름", "amount_raw": null, "amount_status": "unconfirmed", "evidence": ["desc-0", "asr-3"] },
+    { "name": "식용유", "name_raw": "기름", "amount_raw": null, "amount_status": "unconfirmed", "evidence": ["asr-0"] }
+  ],
+  "steps": [
+    { "order": 1, "text": "대파를 송송 썰어 기름에 먼저 볶는다.", "evidence": ["asr-0"] },
+    { "order": 2, "text": "김치를 넣고 볶다가 간장을 넣는다.", "evidence": ["asr-1"] },
+    { "order": 3, "text": "밥을 넣고 잘 섞으며 볶는다.", "evidence": ["asr-2"] },
+    { "order": 4, "text": "참기름을 둘러 마무리한다.", "evidence": ["asr-3"] }
+  ]
+}
