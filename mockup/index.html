@@ -1,0 +1,628 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>해먹자 앱 목업</title>
+<meta name="description" content="저장한 요리 영상, 지금 냉장고 재료로 해먹게 — 클릭 가능한 앱 화면 목업 v0.1">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard.min.css">
+<style>
+:root{
+  --bg:#ECEAE6; --app:#FFFFFF; --surface:#F6F5F2; --line:#E7E4DF;
+  --ink:#1D1B19; --ink2:#5F5A54; --ink3:#9A948C;
+  --brand:#FF6A3D; --brand-ink:#fff; --brand-soft:#FFF0EA;
+  --ok:#1F9D6B; --ok-soft:#E6F6EF; --warn:#C98200; --warn-soft:#FFF5DE;
+  --bad:#D84141; --bad-soft:#FDECEC; --info:#3A6FD8; --info-soft:#EAF0FC;
+  --r:16px;
+}
+*{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent}
+html,body{height:100%}
+body{background:var(--bg);font-family:Pretendard,-apple-system,system-ui,sans-serif;color:var(--ink);
+  display:flex;align-items:center;justify-content:center;gap:40px;min-height:100vh;padding:24px 16px}
+button{font:inherit;color:inherit;background:none;border:0;cursor:pointer}
+input{font:inherit;color:inherit}
+
+/* 데스크톱 안내 패널 */
+.side{width:260px;font-size:13px;color:var(--ink2);line-height:1.6}
+.side h1{font-size:20px;color:var(--ink);margin-bottom:4px}
+.side .ver{font-size:12px;color:var(--ink3);margin-bottom:18px}
+.side h2{font-size:12px;color:var(--ink3);font-weight:600;margin:18px 0 8px;letter-spacing:.02em}
+.side .jump{display:block;width:100%;text-align:left;padding:7px 10px;border-radius:8px;font-size:13px;color:var(--ink)}
+.side .jump:hover{background:#fff}
+.side .jump.on{background:#fff;font-weight:600}
+.side label{display:flex;gap:8px;align-items:center;padding:4px 10px;cursor:pointer}
+
+/* 폰 프레임 */
+.phone{width:390px;height:min(844px,calc(100vh - 48px));min-height:640px;background:#111;border-radius:54px;padding:12px;box-shadow:0 30px 60px rgba(0,0,0,.18);flex-shrink:0}
+.screen{position:relative;width:100%;height:100%;background:var(--app);border-radius:42px;overflow:hidden;display:flex;flex-direction:column}
+.island{position:absolute;top:11px;left:50%;transform:translateX(-50%);width:120px;height:34px;background:#000;border-radius:20px;z-index:50}
+.status{height:50px;flex-shrink:0;display:flex;justify-content:space-between;align-items:flex-end;padding:0 30px 8px 34px;font-size:15px;font-weight:600;z-index:40;background:var(--app)}
+.status .ic{display:flex;gap:5px;align-items:center}
+
+@media (max-width:760px){
+  body{padding:0;display:block;background:var(--app)}
+  .side{display:none}
+  .phone{width:100%;height:100dvh;border-radius:0;padding:0;box-shadow:none;background:var(--app)}
+  .screen{border-radius:0}
+  .island{display:none}
+  .status{height:env(safe-area-inset-top,0);padding:0;min-height:8px}
+  .status *{display:none}
+}
+
+/* 내비게이션 바 */
+.nav{height:48px;flex-shrink:0;display:flex;align-items:center;justify-content:space-between;padding:0 8px;background:var(--app);position:relative}
+.nav .t{position:absolute;left:50%;transform:translateX(-50%);font-size:17px;font-weight:600;white-space:nowrap}
+.nav .btn{height:40px;min-width:40px;display:flex;align-items:center;justify-content:center;border-radius:20px;padding:0 8px;font-size:15px;color:var(--ink)}
+.nav .btn.txt{color:var(--brand);font-weight:600}
+.big{font-size:28px;font-weight:700;padding:4px 20px 12px;letter-spacing:-.02em}
+
+.body{flex:1;overflow-y:auto;overflow-x:hidden;padding-bottom:24px;scrollbar-width:none}
+.body::-webkit-scrollbar{display:none}
+.pad{padding:0 20px}
+
+/* 탭바 */
+.tabbar{height:84px;flex-shrink:0;border-top:1px solid var(--line);display:flex;padding:8px 8px 26px;background:rgba(255,255,255,.96)}
+.tabbar button{flex:1;display:flex;flex-direction:column;align-items:center;gap:3px;font-size:11px;font-weight:500;color:var(--ink3)}
+.tabbar button.on{color:var(--ink)}
+.tabbar button.on svg{stroke:var(--brand)}
+@media (max-width:760px){.tabbar{padding-bottom:max(10px,env(safe-area-inset-bottom))}}
+
+/* 공통 요소 */
+.cta{display:flex;align-items:center;justify-content:center;gap:8px;width:100%;height:54px;border-radius:14px;background:var(--brand);color:var(--brand-ink);font-size:16px;font-weight:600}
+.cta.sec{background:var(--surface);color:var(--ink)}
+.cta.ghost{background:none;color:var(--ink2);height:44px;font-size:14px}
+.cta:disabled{opacity:.45}
+.bottom{padding:12px 20px 16px;border-top:1px solid var(--line);background:var(--app);flex-shrink:0;display:flex;gap:8px}
+.bottom .cta{flex:1}
+.chip{display:inline-flex;align-items:center;gap:4px;height:22px;padding:0 8px;border-radius:11px;font-size:11.5px;font-weight:600;white-space:nowrap}
+.c-ok{background:var(--ok-soft);color:var(--ok)} .c-warn{background:var(--warn-soft);color:var(--warn)}
+.c-bad{background:var(--bad-soft);color:var(--bad)} .c-info{background:var(--info-soft);color:var(--info)}
+.c-gray{background:var(--surface);color:var(--ink2)} .c-brand{background:var(--brand-soft);color:var(--brand)}
+.sec-h{display:flex;justify-content:space-between;align-items:baseline;padding:22px 20px 10px}
+.sec-h h3{font-size:17px;font-weight:700}
+.sec-h a{font-size:13px;color:var(--ink3);cursor:pointer}
+.card{background:var(--app);border:1px solid var(--line);border-radius:var(--r)}
+.muted{color:var(--ink3);font-size:13px}
+.row{display:flex;align-items:center;gap:12px}
+.thumb{border-radius:12px;display:flex;align-items:center;justify-content:center;flex-shrink:0;position:relative;overflow:hidden}
+.thumb .plat{position:absolute;left:6px;bottom:6px;background:rgba(0,0,0,.55);color:#fff;font-size:10px;font-weight:600;padding:2px 6px;border-radius:6px}
+.toast{position:absolute;left:50%;bottom:110px;transform:translate(-50%,20px);background:#222;color:#fff;font-size:14px;padding:11px 18px;border-radius:12px;opacity:0;transition:.25s;pointer-events:none;z-index:90;white-space:nowrap}
+.toast.on{opacity:1;transform:translate(-50%,0)}
+
+/* 홈 */
+.hero{margin:4px 20px 0;padding:20px;border-radius:20px;background:linear-gradient(135deg,#FF7A4F,#FF9F5A);color:#fff}
+.hero p{font-size:13px;opacity:.9}
+.hero h2{font-size:20px;font-weight:700;margin:4px 0 16px;line-height:1.35}
+.hero .hb{display:flex;gap:8px}
+.hero .hb button{flex:1;height:44px;border-radius:12px;background:#fff;color:var(--brand);font-weight:600;font-size:14px}
+.hero .hb button.alt{background:rgba(255,255,255,.22);color:#fff}
+.fridge-sum{margin:12px 20px 0;padding:14px 16px;display:flex;align-items:center;gap:12px;cursor:pointer}
+.fridge-sum .em{width:40px;height:40px;border-radius:12px;background:var(--info-soft);display:flex;align-items:center;justify-content:center;font-size:20px}
+.fridge-sum b{font-size:15px}
+.rgrid{display:grid;grid-template-columns:1fr 1fr;gap:12px;padding:0 20px}
+.rcard{cursor:pointer;text-align:left}
+.rcard .thumb{width:100%;aspect-ratio:3/4;font-size:54px}
+.rcard h4{font-size:15px;font-weight:600;margin:8px 2px 4px}
+.rcard .meta{display:flex;gap:4px;flex-wrap:wrap;padding:0 2px}
+.empty{padding:40px 30px;text-align:center}
+.empty .em{font-size:44px;margin-bottom:12px}
+.empty h4{font-size:17px;margin-bottom:6px}
+.empty p{font-size:14px;color:var(--ink2);line-height:1.5;margin-bottom:18px}
+
+/* 영상 추가 */
+.field{display:flex;align-items:center;gap:8px;height:56px;padding:0 16px;border-radius:14px;background:var(--surface);border:1.5px solid transparent}
+.field:focus-within{border-color:var(--brand);background:#fff}
+.field input{flex:1;border:0;background:none;outline:none;font-size:15px;min-width:0}
+.paste{font-size:13px;font-weight:600;color:var(--brand);padding:6px 10px;border-radius:8px;background:var(--brand-soft)}
+.support{display:flex;gap:6px;flex-wrap:wrap;margin-top:12px}
+.or{display:flex;align-items:center;gap:10px;color:var(--ink3);font-size:12px;margin:22px 0}
+.or:before,.or:after{content:"";flex:1;height:1px;background:var(--line)}
+.upload{border:1.5px dashed var(--line);border-radius:16px;padding:22px;text-align:center;cursor:pointer}
+.upload b{display:block;font-size:15px;margin:6px 0 2px}
+.recent{margin-top:28px}
+.recent h5{font-size:13px;color:var(--ink3);font-weight:600;margin-bottom:8px}
+.recent .r{display:flex;align-items:center;gap:10px;padding:10px 0;border-bottom:1px solid var(--line);font-size:14px}
+.recent .r span{flex:1;color:var(--ink2);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+
+/* 분석 중 */
+.anal{padding:30px 24px;text-align:center}
+.anal .vid{width:150px;height:200px;margin:0 auto 24px;font-size:64px}
+.anal h3{font-size:20px;margin-bottom:6px}
+.steps{text-align:left;margin:28px auto 0;max-width:300px}
+.steps .s{display:flex;align-items:center;gap:12px;padding:10px 0;font-size:15px;color:var(--ink3)}
+.steps .s .dot{width:24px;height:24px;border-radius:50%;border:2px solid var(--line);display:flex;align-items:center;justify-content:center;font-size:12px;flex-shrink:0}
+.steps .s.done{color:var(--ink)} .steps .s.done .dot{background:var(--ok);border-color:var(--ok);color:#fff}
+.steps .s.now{color:var(--ink);font-weight:600} .steps .s.now .dot{border-color:var(--brand);border-top-color:transparent;animation:spin .8s linear infinite}
+@keyframes spin{to{transform:rotate(360deg)}}
+.err{margin:24px 20px;padding:24px 20px;border-radius:18px;background:var(--bad-soft);text-align:center}
+.err .em{font-size:36px}
+.err h4{font-size:17px;margin:8px 0 6px}
+.err p{font-size:14px;color:var(--ink2);line-height:1.5;margin-bottom:16px}
+
+/* 레시피 상세 */
+.rhead{display:flex;gap:14px;padding:4px 20px 0}
+.rhead .thumb{width:96px;height:128px;font-size:46px}
+.rhead h2{font-size:22px;font-weight:700;letter-spacing:-.02em;margin:2px 0 6px}
+.src{display:flex;align-items:center;gap:6px;font-size:13px;color:var(--ink2);margin-top:8px}
+.src a{color:var(--info);text-decoration:none;font-weight:500}
+.notice{margin:16px 20px 0;padding:12px 14px;border-radius:12px;background:var(--warn-soft);font-size:13px;color:#7A5300;line-height:1.5;display:flex;gap:8px}
+.seg{display:flex;margin:18px 20px 0;background:var(--surface);border-radius:12px;padding:3px}
+.seg button{flex:1;height:36px;border-radius:9px;font-size:14px;font-weight:600;color:var(--ink3)}
+.seg button.on{background:#fff;color:var(--ink);box-shadow:0 1px 3px rgba(0,0,0,.08)}
+.ing{display:flex;align-items:center;gap:10px;padding:13px 20px;border-bottom:1px solid var(--line)}
+.ing .n{flex:1;font-size:15px}
+.ing .q{font-size:15px;font-weight:600;text-align:right}
+.ing .q.miss{color:var(--warn);font-weight:500;font-size:13px}
+.ing .from{font-size:11px;color:var(--ink3);display:block;margin-top:2px;font-weight:400}
+.ing.changed{background:#FFF8F3}
+.ing .old{text-decoration:line-through;color:var(--ink3);font-weight:400;font-size:13px;margin-right:6px}
+.step{display:flex;gap:12px;padding:14px 20px}
+.step .no{width:26px;height:26px;border-radius:50%;background:var(--ink);color:#fff;font-size:13px;font-weight:700;display:flex;align-items:center;justify-content:center;flex-shrink:0}
+.step p{font-size:15px;line-height:1.55}
+.step .ts{font-size:12px;color:var(--info);margin-top:4px;font-weight:500}
+.edit-btn{font-size:13px;color:var(--ink3);padding:4px 8px}
+
+/* 냉장고 */
+.fstat{margin:0 20px;padding:16px;border-radius:16px;background:var(--surface);display:flex;justify-content:space-between;align-items:center}
+.fstat b{font-size:24px;font-weight:700}
+.fcat{padding:18px 20px 6px;font-size:13px;font-weight:600;color:var(--ink3)}
+.fitem{display:flex;align-items:center;gap:12px;padding:10px 20px}
+.fitem .em{width:42px;height:42px;border-radius:12px;background:var(--surface);display:flex;align-items:center;justify-content:center;font-size:22px}
+.fitem .n{flex:1;font-size:15px;font-weight:500}
+.fitem .n small{display:block;font-size:12px;color:var(--ink3);font-weight:400;margin-top:1px}
+.fab{position:absolute;right:20px;bottom:100px;height:52px;padding:0 20px;border-radius:26px;background:var(--ink);color:#fff;font-weight:600;display:flex;align-items:center;gap:8px;box-shadow:0 8px 20px rgba(0,0,0,.2);z-index:20}
+
+/* 인식 결과 */
+.photo{margin:0 20px;height:190px;border-radius:18px;background:linear-gradient(160deg,#DCE7EE,#F3F6F8);position:relative;overflow:hidden}
+.photo .box{position:absolute;border:2px solid var(--brand);border-radius:8px;font-size:11px;font-weight:700;color:#fff}
+.photo .box span{position:absolute;top:-2px;left:-2px;background:var(--brand);padding:1px 6px;border-radius:6px 0 6px 0}
+.photo .shelf{position:absolute;left:0;right:0;height:2px;background:rgba(0,0,0,.08)}
+.photo .em{position:absolute;font-size:34px}
+.cand{display:flex;align-items:center;gap:12px;padding:12px 20px;border-bottom:1px solid var(--line)}
+.cb{width:24px;height:24px;border-radius:7px;border:2px solid var(--line);display:flex;align-items:center;justify-content:center;flex-shrink:0;color:#fff;font-size:14px}
+.cb.on{background:var(--brand);border-color:var(--brand)}
+.cand .n{flex:1;min-width:0}
+.cand .n input{border:0;background:none;font-size:15px;font-weight:500;width:100%;outline:none;padding:2px 0;border-bottom:1px dashed transparent}
+.cand .n input:focus{border-bottom-color:var(--brand)}
+.cand .n small{font-size:12px;color:var(--ink3)}
+.cand.off .n input{color:var(--ink3);text-decoration:line-through}
+.qty{height:30px;padding:0 10px;border-radius:8px;background:var(--surface);font-size:12.5px;color:var(--ink2)}
+.del{width:30px;height:30px;border-radius:8px;color:var(--ink3);font-size:18px}
+.addrow{display:flex;align-items:center;gap:8px;padding:14px 20px;color:var(--brand);font-weight:600;font-size:15px}
+.merge{margin:16px 20px 0;padding:12px 14px;border-radius:12px;background:var(--info-soft);font-size:13px;color:#24498F;line-height:1.5}
+
+/* 요리 도우미 */
+.agent-start{margin:8px 20px 0;padding:22px 20px;border-radius:20px;background:var(--surface)}
+.agent-start .av{width:44px;height:44px;border-radius:14px;background:var(--brand);display:flex;align-items:center;justify-content:center;font-size:24px;margin-bottom:12px}
+.agent-start h3{font-size:19px;line-height:1.4;margin-bottom:6px}
+.agent-start p{font-size:14px;color:var(--ink2);line-height:1.5;margin-bottom:16px}
+.conds{display:flex;gap:8px;overflow-x:auto;padding:14px 20px 4px;scrollbar-width:none}
+.conds::-webkit-scrollbar{display:none}
+.cond{height:36px;padding:0 14px;border-radius:18px;border:1px solid var(--line);font-size:14px;white-space:nowrap;background:#fff}
+.cond.on{background:var(--ink);color:#fff;border-color:var(--ink)}
+.msg{margin:14px 20px 0;display:flex;gap:10px}
+.msg .av{width:32px;height:32px;border-radius:10px;background:var(--brand);display:flex;align-items:center;justify-content:center;font-size:17px;flex-shrink:0}
+.msg .bub{background:var(--surface);padding:12px 14px;border-radius:4px 16px 16px 16px;font-size:14.5px;line-height:1.5}
+.msg.me{justify-content:flex-end}
+.msg.me .bub{background:var(--ink);color:#fff;border-radius:16px 4px 16px 16px}
+.rec{margin:12px 20px 0;padding:16px;overflow:hidden}
+.rec .top{display:flex;gap:12px}
+.rec .thumb{width:62px;height:62px;font-size:32px}
+.rec h4{font-size:16px;font-weight:700}
+.rec .why{font-size:13.5px;color:var(--ink2);margin-top:3px;line-height:1.45}
+.rec .ings{margin-top:12px;display:grid;grid-template-columns:62px 1fr;gap:6px 8px;font-size:13.5px;align-items:start}
+.rec .ings dt{color:var(--ink3);font-size:12.5px;padding-top:1px}
+.rec .acts{display:flex;gap:8px;margin-top:14px}
+.rec .acts button{flex:1;height:42px;border-radius:11px;background:var(--surface);font-size:14px;font-weight:600}
+.rec .acts button.p{background:var(--brand-soft);color:var(--brand)}
+.composer{display:flex;align-items:center;gap:8px;padding:10px 16px;border-top:1px solid var(--line);flex-shrink:0;background:#fff}
+.composer input{flex:1;height:42px;border-radius:21px;border:0;background:var(--surface);padding:0 16px;outline:none;font-size:15px}
+.composer .send{width:42px;height:42px;border-radius:50%;background:var(--brand);color:#fff;display:flex;align-items:center;justify-content:center}
+
+/* 바텀 시트 */
+.dim{position:absolute;inset:0;background:rgba(0,0,0,.38);opacity:0;pointer-events:none;transition:.25s;z-index:60}
+.dim.on{opacity:1;pointer-events:auto}
+.sheet{position:absolute;left:0;right:0;bottom:0;max-height:86%;background:#fff;border-radius:24px 24px 0 0;transform:translateY(100%);transition:transform .3s cubic-bezier(.2,.8,.2,1);z-index:70;display:flex;flex-direction:column}
+.sheet.on{transform:none}
+.grab{width:38px;height:5px;border-radius:3px;background:var(--line);margin:8px auto 4px;flex-shrink:0}
+.sheet .sh{padding:10px 20px 6px}
+.sheet .sh h3{font-size:19px;font-weight:700}
+.sheet .sb{overflow-y:auto;padding:4px 20px 8px}
+.opt{border:1.5px solid var(--line);border-radius:16px;padding:14px;margin-top:10px;cursor:pointer;display:block;width:100%;text-align:left}
+.opt.on{border-color:var(--brand);background:#FFFBF9}
+.opt .h{display:flex;justify-content:space-between;align-items:center;gap:8px}
+.opt .h b{font-size:16px}
+.opt ul{list-style:none;margin-top:10px;font-size:13.5px;color:var(--ink2);line-height:1.5}
+.opt li{display:flex;gap:8px;padding:2px 0}
+.opt li em{font-style:normal;color:var(--ink3);width:52px;flex-shrink:0}
+.miss-list .m{display:flex;align-items:center;gap:10px;padding:12px 0;border-bottom:1px solid var(--line)}
+.miss-list .m .n{flex:1;font-size:15px}
+
+.screen-v{display:none;flex:1;flex-direction:column;min-height:0}
+.screen-v.on{display:flex}
+</style>
+</head>
+<body>
+
+<aside class="side">
+  <h1>해먹자 · 앱 목업</h1>
+  <div class="ver">v0.1 · 2026-10-19 · 10/20 시연용 (가칭)</div>
+  <p>저장한 요리 숏폼을 레시피로 바꾸고, 냉장고 재료로 지금 해먹을 요리를 추천받는 앱의 클릭 목업입니다. 화면 안 버튼을 눌러 흐름을 따라가 보세요.</p>
+  <h2>화면 바로 가기</h2>
+  <div id="jumps"></div>
+  <h2>상태 보기</h2>
+  <label><input type="checkbox" id="optEmpty"> 첫 사용 (빈 상태)</label>
+  <label><input type="checkbox" id="optFail"> 영상 분석 실패</label>
+  <h2>흐름</h2>
+  <p>홈 → 영상 추가 → 분석 → 레시피 저장 → 냉장고 찍기 → 인식 확인 → 추천 → 부족 재료 대체 → 조리용 레시피</p>
+</aside>
+
+<div class="phone">
+<div class="screen" id="app">
+  <div class="island"></div>
+  <div class="status"><span>9:41</span><span class="ic">
+    <svg width="18" height="12" viewBox="0 0 18 12"><rect x="0" y="8" width="3" height="4" rx="1" fill="#000"/><rect x="5" y="5" width="3" height="7" rx="1" fill="#000"/><rect x="10" y="2.5" width="3" height="9.5" rx="1" fill="#000"/><rect x="15" y="0" width="3" height="12" rx="1" fill="#000"/></svg>
+    <svg width="26" height="12" viewBox="0 0 26 12"><rect x=".5" y=".5" width="22" height="11" rx="3.5" fill="none" stroke="#000" opacity=".4"/><rect x="2" y="2" width="17" height="8" rx="2" fill="#000"/><rect x="24" y="4" width="1.5" height="4" rx=".75" fill="#000" opacity=".4"/></svg>
+  </span></div>
+
+  <!-- 1. 홈 / 내 레시피 -->
+  <section class="screen-v" data-s="home">
+    <div class="nav"><span class="btn" style="font-size:20px;font-weight:800;color:var(--brand);padding-left:12px">해먹자</span><button class="btn" data-go="add" aria-label="영상 추가"><svg width="24" height="24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg></button></div>
+    <div class="body" id="homeBody"></div>
+  </section>
+
+  <!-- 2. 영상 추가 -->
+  <section class="screen-v" data-s="add">
+    <div class="nav"><button class="btn" data-back>취소</button><span class="t">영상 추가</span><span class="btn"></span></div>
+    <div class="body pad" id="addBody">
+      <div class="big" style="padding:8px 0 6px;font-size:24px">해먹고 싶은 영상을<br>붙여넣어 주세요</div>
+      <p class="muted" style="margin-bottom:20px">영상 속 자막·음성·화면 글씨에서 재료와 순서를 찾아요.</p>
+      <div class="field"><svg width="20" height="20" fill="none" stroke="#9A948C" stroke-width="2" stroke-linecap="round"><path d="M8.5 11.5a3.5 3.5 0 0 0 5 0l3-3a3.5 3.5 0 0 0-5-5l-1 1M11.5 8.5a3.5 3.5 0 0 0-5 0l-3 3a3.5 3.5 0 0 0 5 5l1-1"/></svg><input id="link" placeholder="youtube.com/shorts/…" autocomplete="off"><button class="paste" id="pasteBtn">붙여넣기</button></div>
+      <div class="support"><span class="chip c-ok">유튜브 숏츠 지원</span><span class="chip c-gray">인스타 릴스 준비 중</span><span class="chip c-gray">3분 이하 권장</span></div>
+      <div class="or">또는</div>
+      <div class="upload" data-act="analyze"><div style="font-size:28px">🎞️</div><b>갤러리에서 영상 선택</b><span class="muted">링크가 안 열릴 때 파일로 넣을 수 있어요</span></div>
+      <div class="recent"><h5>공유 메뉴로 받은 링크</h5>
+        <div class="r">▶️ <span>youtube.com/shorts/tofu-jorim-3min</span><button class="paste" data-act="useShared">사용</button></div>
+      </div>
+    </div>
+    <div class="bottom"><button class="cta" id="makeBtn" data-act="analyze" disabled>레시피 만들기</button></div>
+  </section>
+
+  <!-- 2-1. 분석 중 / 실패 -->
+  <section class="screen-v" data-s="analyzing">
+    <div class="nav"><button class="btn" data-go="home" aria-label="닫기"><svg width="22" height="22" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M6 6l10 10M16 6L6 16"/></svg></button><span class="t">레시피 만드는 중</span><span class="btn"></span></div>
+    <div class="body" id="analBody"></div>
+  </section>
+
+  <!-- 3. 레시피 상세 -->
+  <section class="screen-v" data-s="detail">
+    <div class="nav"><button class="btn" data-back aria-label="뒤로"><svg width="24" height="24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 5l-7 7 7 7"/></svg></button><span class="t" id="detailTitle"></span><button class="btn txt" id="editBtn">수정</button></div>
+    <div class="body" id="detailBody"></div>
+    <div class="bottom" id="detailBottom"></div>
+  </section>
+
+  <!-- 4. 내 냉장고 -->
+  <section class="screen-v" data-s="fridge">
+    <div class="nav"><span class="btn"></span><span class="btn"></span><button class="btn txt" data-toast="직접 편집 모드 (목업)">편집</button></div>
+    <div class="big">내 냉장고</div>
+    <div class="body" id="fridgeBody"></div>
+  </section>
+
+  <!-- 5. 인식 결과 확인 -->
+  <section class="screen-v" data-s="review">
+    <div class="nav"><button class="btn" data-back aria-label="뒤로"><svg width="24" height="24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 5l-7 7 7 7"/></svg></button><span class="t">찾은 재료 확인</span><button class="btn txt" data-toast="다시 찍으면 기존 목록과 비교해 합쳐요">재촬영</button></div>
+    <div class="body" id="reviewBody"></div>
+    <div class="bottom"><button class="cta" data-act="saveFridge" id="saveFridgeBtn">이 재료로 저장</button></div>
+  </section>
+
+  <!-- 6. 요리 도우미 -->
+  <section class="screen-v" data-s="agent">
+    <div class="nav"><span class="btn"></span><span class="t">요리 도우미</span><button class="btn" data-act="resetAgent" aria-label="새로 시작"><svg width="22" height="22" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M4 11a7 7 0 1 1 2 5M4 17v-5h5"/></svg></button></div>
+    <div class="body" id="agentBody"></div>
+    <div class="composer" id="composer"><input placeholder="예: 두부 쓰는 걸로, 간장 없는데?" id="ask"><button class="send" data-act="ask" aria-label="보내기"><svg width="20" height="20" fill="none" stroke="#fff" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M10 16V4M5 9l5-5 5 5"/></svg></button></div>
+  </section>
+
+  <div class="fab" id="fab" data-act="camera" style="display:none">📷 사진으로 추가</div>
+
+  <nav class="tabbar" id="tabbar">
+    <button data-tab="home"><svg width="26" height="26" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M5 4h12a2 2 0 0 1 2 2v15l-4-2.5-4 2.5-4-2.5L3 21V6a2 2 0 0 1 2-2z" transform="translate(1 0)"/><path d="M9 9h8M9 13h5"/></svg>내 레시피</button>
+    <button data-tab="fridge"><svg width="26" height="26" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><rect x="6" y="3" width="14" height="20" rx="2.5"/><path d="M6 10h14M9.5 6v2M9.5 13v3"/></svg>내 냉장고</button>
+    <button data-tab="agent"><svg width="26" height="26" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M13 3l1.8 4.7L19.5 9.5l-4.7 1.8L13 16l-1.8-4.7L6.5 9.5l4.7-1.8z"/><path d="M6 16l.8 2.2L9 19l-2.2.8L6 22l-.8-2.2L3 19l2.2-.8z"/></svg>요리 도우미</button>
+  </nav>
+
+  <div class="dim" id="dim"></div>
+  <div class="sheet" id="sheet"><div class="grab"></div><div id="sheetIn"></div></div>
+  <div class="toast" id="toast"></div>
+</div>
+</div>
+
+<script>
+const $ = (s, el=document) => el.querySelector(s);
+const $$ = (s, el=document) => [...el.querySelectorAll(s)];
+
+// ── 샘플 데이터 ──
+const SRC = {sub:['자막','c-info'], voice:['음성','c-info'], text:['화면 글씨','c-info'], desc:['설명란','c-info'], need:['확인 필요','c-warn']};
+const RECIPES = {
+  tofu:{id:'tofu', name:'매콤 두부조림', em:'🥘', bg:'#F9E3D3', time:'15분', plat:'숏츠', ch:'@집밥요정', saved:'10/18',
+    ings:[['두부','1모 (300g)','text'],['대파','1/2대','voice'],['간장','3큰술','sub'],['설탕','1큰술','sub'],['고춧가루','1큰술','sub'],['다진 마늘','1큰술','voice'],['물','1/2컵','voice'],['참기름','','need']],
+    steps:[['두부를 1cm 두께로 썰어 키친타월로 물기를 빼요.','0:04'],['팬에 기름을 두르고 두부 양면을 노릇하게 구워요.','0:11'],['간장·설탕·고춧가루·다진 마늘·물을 섞어 양념장을 만들어요.','0:22'],['구운 두부에 양념장을 붓고 중약불에서 5분 졸여요.','0:35'],['대파를 올리고 참기름을 둘러 마무리해요.','0:48']]},
+  rice:{id:'rice', name:'대파 계란볶음밥', em:'🍳', bg:'#FBEFC7', time:'10분', plat:'숏츠', ch:'@자취생밥상', saved:'10/16',
+    ings:[['밥','1공기','voice'],['계란','2개','text'],['대파','1대','text'],['간장','1큰술','sub'],['굴소스','1/2큰술','sub']], steps:[]},
+  kimchi:{id:'kimchi', name:'참치 김치찌개', em:'🍲', bg:'#F7D9D2', time:'20분', plat:'숏츠', ch:'@오늘뭐먹지', saved:'10/12',
+    ings:[['김치','2컵','voice'],['참치캔','1캔','text'],['양파','1/2개','voice'],['두부','1/2모','voice'],['고춧가루','1큰술','sub']], steps:[]},
+  egg:{id:'egg', name:'명란 계란말이', em:'🥚', bg:'#FDF3D6', time:'10분', plat:'숏츠', ch:'@한끼뚝딱', saved:'10/09',
+    ings:[['계란','4개','text'],['명란젓','1줄','voice'],['쪽파','2줄','voice']], steps:[]},
+};
+const FRIDGE_BASE = [
+  ['채소','🥬','대파','1대','ok'],['채소','🧅','양파','2개','ok'],['채소','🥕','당근','양 미확인','warn'],
+  ['단백질','🥚','계란','6개','ok'],['단백질','⬜','두부','1모','ok'],['단백질','🥫','참치캔','양 미확인','warn'],
+  ['양념','🫙','간장','양 미확인','warn'],['양념','🌶️','고추장','양 미확인','warn'],['양념','🧄','다진 마늘','양 미확인','warn'],['양념','🍯','설탕','양 미확인','warn'],
+  ['기타','🥬','김치','반 통','ok'],
+];
+const CANDS0 = [
+  ['두부','🟨',true,'1모'],['대파','🥬',true,''],['계란','🥚',true,'6개?'],['양파','🧅',true,''],['고추장','🌶️',true,''],['우유','🥛',true,''],['당근','🥕',false,''],
+];
+
+// ── 상태 ──
+const S = {screen:'home', hist:[], empty:false, fail:false, savedNew:false, fridgeSaved:false,
+  cands: CANDS0.map(c=>[...c]), agentStage:0, subPick:0, cookCopy:false, showOrig:false, link:'', tab:'home', detailId:'tofu', detailMode:'new'};
+
+const TAB_OF = {home:'home',add:null,analyzing:null,detail:null,fridge:'fridge',review:null,agent:'agent'};
+const SCREENS = [['home','① 내 레시피 (홈)'],['add','② 영상 추가'],['analyzing','②-1 분석 중'],['detail','③ 레시피 상세'],['fridge','④ 내 냉장고'],['review','⑤ 인식 결과 확인'],['agent','⑥ 요리 도우미']];
+
+function go(s, push=true){
+  if(push && S.screen!==s) S.hist.push(S.screen);
+  S.screen=s; closeSheet(); render();
+  const b = $(`[data-s="${s}"] .body`); if(b) b.scrollTop=0;
+}
+function back(){ const p=S.hist.pop()||'home'; S.screen=p; render(); }
+function toast(t){ const el=$('#toast'); el.textContent=t; el.classList.add('on'); clearTimeout(el._t); el._t=setTimeout(()=>el.classList.remove('on'),1800); }
+function chip(k){ const [t,c]=SRC[k]; return `<span class="chip ${c}">${t}</span>`; }
+function thumb(r,w,h,fs){ return `<div class="thumb" style="background:${r.bg};${w?`width:${w}px;height:${h}px;font-size:${fs}px`:''}">${r.em}${w&&w<80?'':`<span class="plat">▶ ${r.plat}</span>`}</div>`; }
+
+// ── 렌더 ──
+function render(){
+  $$('.screen-v').forEach(v=>v.classList.toggle('on', v.dataset.s===S.screen));
+  const tab=TAB_OF[S.screen];
+  $('#tabbar').style.display = tab? 'flex':'none';
+  if(tab) S.tab=tab;
+  $$('#tabbar button').forEach(b=>b.classList.toggle('on', b.dataset.tab===S.tab));
+  $('#fab').style.display = S.screen==='fridge' && !S.empty ? 'flex':'none';
+  $$('#jumps .jump').forEach(b=>b.classList.toggle('on', b.dataset.j===S.screen));
+  ({home:rHome, add:rAdd, analyzing:rAnal, detail:rDetail, fridge:rFridge, review:rReview, agent:rAgent})[S.screen]();
+}
+
+function myRecipes(){
+  if(S.empty) return S.savedNew? [RECIPES.tofu] : [];
+  return S.savedNew? [RECIPES.tofu,RECIPES.rice,RECIPES.kimchi,RECIPES.egg] : [RECIPES.rice,RECIPES.kimchi,RECIPES.egg];
+}
+function hasFridge(){ return !S.empty || S.fridgeSaved; }
+
+function rHome(){
+  const rs=myRecipes();
+  let h=`<div class="hero"><p>${rs.length? `저장한 레시피 ${rs.length}개`:'처음 오셨네요'}</p><h2>저장한 요리,<br>지금 있는 재료로 해먹어요</h2>
+    <div class="hb"><button data-go="add">＋ 영상 추가</button><button class="alt" data-act="${hasFridge()?'recommend':'camera'}">${hasFridge()?'지금 재료로 추천':'냉장고부터 등록'}</button></div></div>`;
+  h+= hasFridge()
+    ? `<div class="card fridge-sum" data-tabgo="fridge"><div class="em">🧊</div><div style="flex:1"><b>내 냉장고 · 재료 ${fridgeItems().length}개</b><div class="muted">마지막 확인 ${S.fridgeSaved?'오늘':'10/17 (2일 전)'}</div></div><span class="muted">›</span></div>`
+    : `<div class="card fridge-sum" data-act="camera"><div class="em">📷</div><div style="flex:1"><b>냉장고가 비어 있어요</b><div class="muted">사진 한 장이면 재료를 찾아드려요</div></div><span class="muted">›</span></div>`;
+  h+=`<div class="sec-h"><h3>내 레시피</h3>${rs.length?'<a>최근 저장순 ▾</a>':''}</div>`;
+  if(!rs.length){
+    h+=`<div class="empty"><div class="em">🎬</div><h4>아직 저장한 레시피가 없어요</h4><p>저장만 해둔 요리 숏츠 링크를<br>하나 붙여넣어 보세요.</p><button class="cta" style="max-width:220px;margin:0 auto" data-go="add">영상 하나 추가</button></div>`;
+  } else {
+    h+=`<div class="rgrid">`+rs.map(r=>`<button class="rcard" data-open="${r.id}">${thumb(r)}<h4>${r.name}</h4><div class="meta"><span class="chip c-gray">${r.time}</span>${r.id==='tofu'&&S.savedNew?'<span class="chip c-brand">방금 저장</span>':''}${r.id==='kimchi'?'<span class="chip c-ok">재료 충분</span>':''}</div></button>`).join('')+`</div>`;
+  }
+  $('#homeBody').innerHTML=h;
+}
+
+function rAdd(){ $('#link').value=S.link; $('#makeBtn').disabled=!S.link; }
+
+let analTimer=null;
+function rAnal(){
+  const el=$('#analBody'); clearTimeout(analTimer);
+  if(S.fail){
+    el.innerHTML=`<div class="err"><div class="em">😵</div><h4>영상을 열 수 없어요</h4><p>비공개이거나 지역 제한이 걸린 영상일 수 있어요.<br>영상 파일로 넣으면 바로 분석할 수 있어요.</p>
+      <div style="display:flex;flex-direction:column;gap:8px"><button class="cta" data-act="retry">다시 시도</button><button class="cta sec" data-act="fileFallback">영상 파일로 넣기</button></div></div>
+      <div class="pad muted" style="text-align:center">입력한 링크는 보관해 둘게요</div>`;
+    return;
+  }
+  const steps=['영상 불러오기','자막·음성 읽기','화면 글씨 찾기','재료·순서 정리'];
+  let i=0;
+  const draw=()=>{ el.innerHTML=`<div class="anal">${thumb(RECIPES.tofu,150,200,64).replace('class="thumb"','class="thumb vid"')}<h3>레시피를 정리하고 있어요</h3><p class="muted">보통 20초 정도 걸려요. 앱을 닫아도 계속돼요.</p>
+    <div class="steps">${steps.map((s,k)=>`<div class="s ${k<i?'done':k===i?'now':''}"><span class="dot">${k<i?'✓':''}</span>${s}</div>`).join('')}</div></div>`; };
+  draw();
+  const tick=()=>{ i++; draw(); if(i<steps.length) analTimer=setTimeout(tick,750); else analTimer=setTimeout(()=>{S.detailId='tofu';S.detailMode='new';S.cookCopy=false;go('detail',false);},600); };
+  analTimer=setTimeout(tick,750);
+}
+
+let detailTab='ing';
+function rDetail(){
+  const r=RECIPES[S.detailId], isNew=S.detailMode==='new', cook=S.detailMode==='cook';
+  $('#detailTitle').textContent = cook? '조리용 레시피' : isNew? '분석 결과' : '';
+  $('#editBtn').style.visibility = cook? 'hidden':'visible';
+  const sub=SUBS[S.subPick];
+  let ings=r.ings.map(([n,q,src])=>{
+    if(cook && !S.showOrig){
+      if(n==='고춧가루') return `<div class="ing changed"><span class="n">${sub.name} <span class="chip c-brand">대체</span><span class="from">고춧가루 1큰술 대신</span></span><span class="q">${sub.qty}</span></div>`;
+      if(n==='설탕' && sub.sugar) return `<div class="ing changed"><span class="n">설탕 <span class="chip c-brand">조정</span><span class="from">${sub.name} 단맛만큼 줄였어요</span></span><span class="q"><span class="old">1큰술</span>${sub.sugar}</span></div>`;
+    }
+    const have = cook ? fridgeHas(n) : null;
+    return `<div class="ing"><span class="n">${n}${cook&&have===false?' <span class="chip c-warn">확인 필요</span>':''}<span class="from">${src==='need'?'영상에서 분량이 확인되지 않음':'출처 · '+SRC[src][0]}</span></span>${q?`<span class="q">${q}</span>`:`<span class="q miss">분량 확인 필요</span>`}</div>`;
+  }).join('');
+  let steps=(r.steps.length? r.steps : [['샘플 목업에는 두부조림만 순서가 들어 있어요.','']]).map(([t,ts],k)=>{
+    let tt=t;
+    if(cook && !S.showOrig && t.includes('고춧가루')) tt=t.replace('고춧가루',`<b style="color:var(--brand)">${sub.name}</b>`);
+    return `<div class="step"><span class="no">${k+1}</span><div><p>${tt}</p>${ts?`<div class="ts">▶ 영상 ${ts}</div>`:''}</div></div>`;
+  }).join('');
+  let h=`<div class="rhead">${thumb(r,96,128,46)}<div style="flex:1;min-width:0"><div style="display:flex;gap:4px;flex-wrap:wrap">${isNew?'<span class="chip c-brand">새 레시피</span>':''}${cook?'<span class="chip c-brand">대체 적용 사본</span>':''}<span class="chip c-gray">${r.time}</span></div>
+    <h2>${r.name}</h2><div class="src">▶️ <a>${r.ch}</a> · 유튜브 숏츠</div><div class="src muted">${isNew?'방금 분석':'저장 '+r.saved}</div></div></div>`;
+  if(isNew) h+=`<div class="notice">⚠️<span>참기름 분량은 영상에서 확인되지 않았어요. 아는 만큼 직접 채우거나 그대로 저장해도 돼요.</span></div>`;
+  if(cook) h+=`<div class="notice" style="background:var(--brand-soft);color:#8A3418">🔁<span><b>고춧가루 → ${sub.name}</b>로 바꾼 사본이에요. 저장한 원본은 그대로 있어요.</span></div>
+    <div class="seg"><button class="${!S.showOrig?'on':''}" data-act="cookView">바뀐 레시피</button><button class="${S.showOrig?'on':''}" data-act="origView">원본 보기</button></div>`;
+  else h+=`<div class="seg"><button class="${detailTab==='ing'?'on':''}" data-dt="ing">재료 ${r.ings.length}</button><button class="${detailTab==='step'?'on':''}" data-dt="step">순서 ${r.steps.length||'-'}</button></div>`;
+  h+= cook ? `<div class="sec-h" style="padding-top:16px"><h3>재료</h3></div>${ings}<div class="sec-h"><h3>순서</h3></div>${steps}` : (detailTab==='ing'? `<div style="height:8px"></div>${ings}` : steps);
+  if(!cook) h+=`<div class="pad muted" style="margin-top:14px;line-height:1.5">출처 태그는 재료·분량을 영상의 어디에서 찾았는지 보여줘요. 영상에 없는 내용은 만들어 넣지 않아요.</div>`;
+  $('#detailBody').innerHTML=h;
+  $('#detailBottom').innerHTML = cook
+    ? `<button class="cta sec" data-act="revert">되돌리기</button><button class="cta" data-act="startCook">요리 시작</button>`
+    : isNew ? `<button class="cta" data-act="saveRecipe">내 레시피에 저장</button>`
+    : `<button class="cta" data-act="canMake">이 레시피 가능할까?</button>`;
+}
+
+function fridgeItems(){
+  if(S.empty && !S.fridgeSaved) return [];
+  let base = S.empty? [] : FRIDGE_BASE.map(x=>[...x]);
+  if(S.fridgeSaved){
+    S.cands.filter(c=>c[2]).forEach(c=>{ if(!base.find(b=>b[2]===c[0])) base.push(['새로 추가',c[1],c[0],c[3]||'양 미확인',c[3]?'ok':'warn']); });
+  }
+  return base;
+}
+function fridgeHas(n){ return fridgeItems().some(f=>f[2]===n); }
+
+function rFridge(){
+  const items=fridgeItems();
+  if(!items.length){
+    $('#fridgeBody').innerHTML=`<div class="empty" style="padding-top:60px"><div class="em">🧊</div><h4>냉장고가 비어 있어요</h4><p>사진을 찍으면 보이는 재료를 찾아드려요.<br>찾은 재료는 꼭 확인한 뒤 저장해요.</p>
+      <div style="display:flex;flex-direction:column;gap:8px;max-width:240px;margin:0 auto"><button class="cta" data-act="camera">📷 냉장고 찍기</button><button class="cta sec" data-toast="직접 입력 (목업)">직접 재료 입력</button></div></div>`;
+    return;
+  }
+  const cats=[...new Set(items.map(i=>i[0]))];
+  let h=`<div class="fstat"><div><div class="muted">확인한 재료</div><b>${items.length}개</b></div><div style="text-align:right"><div class="muted">마지막 확인</div><b style="font-size:16px">${S.fridgeSaved?'오늘':'2일 전'}</b></div></div>`;
+  if(!S.fridgeSaved) h+=`<div class="merge" style="background:var(--warn-soft);color:#7A5300">마지막 확인 후 2일이 지났어요. 다 쓴 재료가 있으면 정리해 주세요.</div>`;
+  cats.forEach(c=>{ h+=`<div class="fcat">${c}</div>`+items.filter(i=>i[0]===c).map(([,em,n,q,st])=>`<div class="fitem"><div class="em">${em}</div><div class="n">${n}<small>${q}</small></div>${st==='warn'?'<span class="chip c-warn">양 미확인</span>':''}</div>`).join(''); });
+  h+=`<div style="padding:20px"><button class="cta sec" data-act="recommend">이 재료로 추천받기</button></div><div style="height:60px"></div>`;
+  $('#fridgeBody').innerHTML=h;
+}
+
+function rReview(){
+  const on=S.cands.filter(c=>c[2]).length;
+  let h=`<div class="photo">
+    <div class="shelf" style="top:62px"></div><div class="shelf" style="top:126px"></div>
+    <div class="em" style="left:28px;top:14px">🧈</div><div class="em" style="left:110px;top:16px">🥚</div><div class="em" style="left:210px;top:12px">🥛</div><div class="em" style="left:290px;top:18px">🫙</div>
+    <div class="em" style="left:40px;top:78px">🧅</div><div class="em" style="left:150px;top:80px">🥬</div><div class="em" style="left:250px;top:76px">🌶️</div>
+    <div class="em" style="left:80px;top:140px;opacity:.55">🥕</div><div class="em" style="left:200px;top:142px">🥡</div>
+    <div class="box" style="left:22px;top:10px;width:50px;height:48px"><span>두부</span></div>
+    <div class="box" style="left:104px;top:12px;width:50px;height:46px"><span>계란</span></div>
+    <div class="box" style="left:204px;top:8px;width:50px;height:50px"><span>우유</span></div>
+    <div class="box" style="left:34px;top:74px;width:50px;height:46px"><span>양파</span></div>
+    <div class="box" style="left:144px;top:76px;width:50px;height:46px"><span>대파</span></div>
+    <div class="box" style="left:244px;top:72px;width:56px;height:50px"><span>고추장</span></div>
+    <div class="box" style="left:74px;top:136px;width:50px;height:46px;border-style:dashed;opacity:.8"><span>당근?</span></div>
+  </div>
+  <div class="pad" style="margin-top:14px"><b style="font-size:17px">재료 ${S.cands.length}개를 찾았어요</b><p class="muted" style="margin-top:4px">맞는 재료만 체크해 주세요. 이름은 눌러서 고칠 수 있어요. 양은 아는 것만 적어도 돼요.</p></div>
+  <div style="margin-top:8px;border-top:1px solid var(--line)">`;
+  h+=S.cands.map(([n,em,ck,q],i)=>`<div class="cand ${ck?'':'off'}"><button class="cb ${ck?'on':''}" data-ck="${i}">${ck?'✓':''}</button><div class="n"><input value="${n}" data-nm="${i}"><small>${i===6?'흐릿해서 확실하지 않아요':i===2?'개수는 사진 추정이에요':'사진에서 찾음'}</small></div><button class="qty" data-qty="${i}">${q||'양 +'}</button><button class="del" data-del="${i}" aria-label="삭제">×</button></div>`).join('');
+  h+=`</div><button class="addrow" data-act="addCand">＋ 빠진 재료 추가</button>
+  <div class="merge">💡 기존 냉장고 목록과 합쳐서 저장해요. 이번 사진에 안 보였다고 기존 재료를 지우지 않아요.</div>`;
+  $('#reviewBody').innerHTML=h;
+  $('#saveFridgeBtn').textContent=`재료 ${on}개 저장`;
+  $('#saveFridgeBtn').disabled=!on;
+}
+
+const SUBS=[
+  {name:'고추장', qty:'1/2큰술', sugar:'1/2큰술', tag:['c-ok','보유 재료'], role:'매운맛·붉은 색', change:'단맛과 감칠맛이 조금 늘고 양념이 걸쭉해져요', how:'물에 먼저 풀어서 넣어요', unc:'고추장 남은 양은 확인되지 않았어요'},
+  {name:'생략', qty:'0', sugar:null, tag:['c-gray','재료 없이'], role:'—', change:'안 매운 간장 두부조림이 돼요', how:'나머지 양념은 그대로', unc:'없음'},
+];
+
+function recCard(r, why, have, need, miss){
+  return `<div class="card rec"><div class="top">${thumb(r,62,62,32)}<div style="flex:1"><div style="display:flex;justify-content:space-between;gap:6px"><h4>${r.name}</h4>${miss?'<span class="chip c-warn">대체안 있어요</span>':'<span class="chip c-ok">보유 재료 맞아요</span>'}</div><div class="why">${why}</div></div></div>
+    <dl class="ings"><dt>있음</dt><dd>${have}</dd>${miss?`<dt>없음</dt><dd style="color:var(--bad)">${miss}</dd>`:''}<dt>확인 필요</dt><dd style="color:var(--warn)">${need}</dd></dl>
+    <div class="acts"><button data-open="${r.id}">레시피 보기</button>${miss?`<button class="p" data-act="missing">부족 재료 확인</button>`:`<button class="p" data-open="${r.id}">이걸로 할래요</button>`}</div></div>`;
+}
+
+function rAgent(){
+  const el=$('#agentBody'); const rs=myRecipes();
+  $('#composer').style.display = S.agentStage? 'flex':'none';
+  if(!rs.length || !hasFridge()){
+    el.innerHTML=`<div class="empty" style="padding-top:70px"><div class="em">✨</div><h4>${!rs.length?'추천할 레시피가 아직 없어요':'냉장고 재료를 먼저 알려주세요'}</h4><p>${!rs.length?'요리 도우미는 내가 저장한 레시피 중에서 골라드려요.':'지금 있는 재료를 알아야 해먹을 수 있는 요리를 찾을 수 있어요.'}</p>
+      <button class="cta" style="max-width:220px;margin:0 auto" data-${!rs.length?'go="add"':'act="camera"'}>${!rs.length?'영상 하나 추가':'📷 냉장고 찍기'}</button></div>`;
+    return;
+  }
+  let h=`<div class="agent-start"><div class="av">✨</div><h3>저장한 ${rs.length}개 레시피 중에서<br>지금 해먹을 만한 걸 골라드려요</h3><p>냉장고 재료 ${fridgeItems().length}개 기준 · 마지막 확인 ${S.fridgeSaved?'오늘':'2일 전'}</p>${S.agentStage?'':`<button class="cta" data-act="runRec">지금 재료로 추천받기</button>`}</div>
+   <div class="conds"><button class="cond on">전체</button><button class="cond" data-toast="조건 반영 (목업)">⚡ 15분 이내</button><button class="cond" data-toast="조건 반영 (목업)">두부 쓰기</button><button class="cond" data-toast="조건 반영 (목업)">계란 쓰기</button><button class="cond" data-toast="조건 반영 (목업)">알레르기 설정</button></div>`;
+  if(S.agentStage>=1){
+    h+=`<div class="msg"><div class="av">✨</div><div class="bub">지금 재료로 해먹기 좋은 저장 레시피 3개예요. 양념은 남은 양을 확인하지 않아서 따로 표시했어요.</div></div>`;
+    if(rs.includes(RECIPES.tofu)) h+=recCard(RECIPES.tofu,'2일 전 확인한 두부와 대파를 바로 쓸 수 있어요.','두부, 대파, 간장, 설탕, 다진 마늘','양념 남은 양 · 참기름','고춧가루');
+    h+=recCard(RECIPES.kimchi,'김치·참치·양파·두부가 모두 있어요.','김치, 참치캔, 양파, 두부','참치캔 개수 · 고춧가루','');
+    h+=recCard(RECIPES.rice,'계란과 대파만 있으면 10분이면 돼요.','밥(?), 계란, 대파, 간장','밥 · 굴소스','');
+  }
+  if(S.agentStage>=2){
+    h+=`<div class="msg me"><div class="bub">${S.lastAsk||'간장 없는데?'}</div></div><div class="msg"><div class="av">✨</div><div class="bub">냉장고 목록에는 간장이 있어요. 다 썼다면 냉장고에서 지워 주시면 간장 없이 되는 레시피로 다시 골라드릴게요. <span class="muted">(목업 응답)</span></div></div>`;
+  }
+  el.innerHTML=h+'<div style="height:12px"></div>';
+}
+
+// ── 바텀 시트 ──
+function openSheet(html){ $('#sheetIn').innerHTML=html; $('#sheet').classList.add('on'); $('#dim').classList.add('on'); }
+function closeSheet(){ $('#sheet').classList.remove('on'); $('#dim').classList.remove('on'); }
+function sheetMissing(){
+  openSheet(`<div class="sh"><span class="chip c-gray">매콤 두부조림</span><h3 style="margin-top:8px">부족한 재료 1개</h3></div><div class="sb miss-list">
+    <div class="m"><span class="n">🌶️ 고춧가루 <span class="muted">1큰술</span></span><span class="chip c-bad">냉장고에 없음</span></div>
+    <div class="m"><span class="n">🫙 참기름 <span class="muted">분량 확인 필요</span></span><span class="chip c-warn">확인 필요</span></div>
+    <div class="m"><span class="n">🧂 간장·설탕·다진 마늘</span><span class="chip c-warn">양 미확인</span></div>
+    <p class="muted" style="margin:12px 0;line-height:1.5">기본 양념도 확인하지 않은 건 있다고 단정하지 않아요.</p></div>
+    <div class="bottom" style="border:0"><button class="cta sec" data-act="closeSheet">괜찮아요</button><button class="cta" data-act="subSheet">고춧가루 없어요</button></div>`);
+}
+function sheetSub(){
+  const o=SUBS.map((s,i)=>`<button class="opt ${S.subPick===i?'on':''}" data-sub="${i}"><div class="h"><b>${s.name==='생략'?'고춧가루 빼고 만들기':s.name+' '+s.qty}</b><span class="chip ${s.tag[0]}">${s.tag[1]}</span></div><ul>
+    ${s.name!=='생략'?`<li><em>역할</em>${s.role}</li>`:''}<li><em>맛 변화</em>${s.change}</li><li><em>만드는 법</em>${s.how}${s.sugar?` · 설탕 1큰술 → ${s.sugar}`:''}</li><li><em>불확실</em>${s.unc}</li></ul></button>`).join('');
+  openSheet(`<div class="sh"><span class="chip c-gray">매콤 두부조림 · 고춧가루 1큰술</span><h3 style="margin-top:8px">내 냉장고로 바꿀 수 있어요</h3></div>
+    <div class="sb">${o}<p class="muted" style="margin:14px 0 4px">보유 확인된 재료를 먼저 보여줘요. 대체가 어려우면 다른 저장 레시피를 추천해요.</p></div>
+    <div class="bottom" style="border:0"><button class="cta" data-act="applySub">이 대체로 보기</button></div>`);
+}
+
+// ── 이벤트 ──
+document.addEventListener('click', e=>{
+  const t=e.target.closest('[data-go],[data-back],[data-tab],[data-tabgo],[data-act],[data-open],[data-toast],[data-ck],[data-del],[data-qty],[data-dt],[data-sub],[data-j]');
+  if(!t) return;
+  const d=t.dataset;
+  if(d.j){ S.hist=[]; S.screen=d.j; if(d.j==='detail'){S.detailMode='new';} if(d.j==='agent'&&!S.agentStage&&!S.empty) S.agentStage=1; render(); return; }
+  if(d.go) return go(d.go);
+  if('back' in d) return back();
+  if(d.tab){ S.hist=[]; return go(d.tab,false); }
+  if(d.tabgo){ S.hist=[]; return go(d.tabgo,false); }
+  if(d.open){ S.detailId=d.open; S.detailMode='saved'; detailTab='ing'; return go('detail'); }
+  if(d.dt){ detailTab=d.dt; return rDetail(); }
+  if(d.toast) return toast(d.toast);
+  if(d.ck){ const c=S.cands[+d.ck]; c[2]=!c[2]; return rReview(); }
+  if(d.del){ S.cands.splice(+d.del,1); toast('후보에서 뺐어요'); return rReview(); }
+  if(d.qty){ const c=S.cands[+d.qty]; const v=prompt(`${c[0]} 양 (모르면 비워두세요)`, c[3]); if(v!==null){c[3]=v.trim();} return rReview(); }
+  if(d.sub){ S.subPick=+d.sub; return sheetSub(); }
+  const A={
+    analyze(){ go('analyzing'); },
+    useShared(){ S.link='youtube.com/shorts/tofu-jorim-3min'; rAdd(); },
+    retry(){ S.fail=false; $('#optFail').checked=false; rAnal(); },
+    fileFallback(){ S.fail=false; $('#optFail').checked=false; toast('갤러리에서 영상을 골랐어요 (목업)'); rAnal(); },
+    saveRecipe(){ S.savedNew=true; S.hist=[]; go('home',false); setTimeout(()=>openSheet(`<div class="sh" style="text-align:center;padding-top:16px"><div style="font-size:40px">🎉</div><h3 style="margin-top:6px">내 레시피에 저장했어요</h3><p class="muted" style="margin-top:6px">${hasFridge()?'지금 냉장고 재료로 만들 수 있는지 확인할까요?':'지금 만들 수 있는지 확인하려면 냉장고 재료가 필요해요.'}</p></div>
+      <div class="bottom" style="border:0;flex-direction:column"><button class="cta" data-act="${hasFridge()?'recommend':'camera'}">${hasFridge()?'지금 재료로 추천받기':'📷 냉장고 찍기'}</button><button class="cta ghost" data-act="closeSheet">나중에</button></div>`),250); },
+    canMake(){ S.agentStage=Math.max(1,S.agentStage); S.hist=[]; go('agent',false); if(S.detailId==='tofu') setTimeout(sheetMissing,300); },
+    camera(){ openSheet(`<div class="sh"><h3>냉장고 사진 추가</h3><p class="muted" style="margin-top:4px">보이는 재료만 찾을 수 있어요. 가려진 칸은 나눠 찍어주세요.</p></div><div class="sb" style="display:flex;flex-direction:column;gap:8px;padding-bottom:20px;padding-top:10px"><button class="cta" data-act="shoot">📷 사진 찍기</button><button class="cta sec" data-act="shoot">🖼️ 앨범에서 선택</button><button class="cta ghost" data-act="closeSheet">취소</button></div>`); },
+    shoot(){ S.cands=CANDS0.map(c=>[...c]); closeSheet(); go('review'); },
+    addCand(){ const v=prompt('빠진 재료 이름'); if(v&&v.trim()){ S.cands.push([v.trim(),'🥗',true,'']); rReview(); } },
+    saveFridge(){ S.fridgeSaved=true; S.hist=[]; go('fridge',false); toast('냉장고에 합쳐서 저장했어요'); },
+    recommend(){ closeSheet(); S.hist=[]; S.agentStage=Math.max(1,S.agentStage); go('agent',false); },
+    runRec(){ S.agentStage=1; rAgent(); },
+    resetAgent(){ S.agentStage=0; rAgent(); },
+    ask(){ const v=$('#ask').value.trim(); S.lastAsk=v||'간장 없는데?'; $('#ask').value=''; S.agentStage=2; rAgent(); const b=$('#agentBody'); b.scrollTop=b.scrollHeight; },
+    missing(){ sheetMissing(); },
+    subSheet(){ sheetSub(); },
+    applySub(){ closeSheet(); S.detailId='tofu'; S.detailMode='cook'; S.showOrig=false; go('detail'); },
+    cookView(){ S.showOrig=false; rDetail(); },
+    origView(){ S.showOrig=true; rDetail(); },
+    revert(){ S.detailMode='saved'; detailTab='ing'; rDetail(); toast('원본 레시피로 되돌렸어요'); },
+    startCook(){ toast('조리 모드는 다음 버전에서 (목업)'); },
+    closeSheet(){ closeSheet(); },
+  };
+  if(d.act && A[d.act]) A[d.act]();
+});
+$('#dim').addEventListener('click', closeSheet);
+$('#link').addEventListener('input', e=>{ S.link=e.target.value; $('#makeBtn').disabled=!S.link.trim(); });
+$('#pasteBtn').addEventListener('click', ()=>{ S.link='https://youtube.com/shorts/tofu-jorim-3min'; rAdd(); });
+$('#ask').addEventListener('keydown', e=>{ if(e.key==='Enter') document.querySelector('[data-act="ask"]').click(); });
+document.addEventListener('input', e=>{ if(e.target.dataset.nm) S.cands[+e.target.dataset.nm][0]=e.target.value; });
+$('#jumps').innerHTML=SCREENS.map(([k,l])=>`<button class="jump" data-j="${k}">${l}</button>`).join('');
+$('#optEmpty').addEventListener('change', e=>{ S.empty=e.target.checked; S.savedNew=false; S.fridgeSaved=false; S.agentStage=0; S.hist=[]; S.screen='home'; render(); });
+$('#optFail').addEventListener('change', e=>{ S.fail=e.target.checked; if(S.screen==='analyzing') rAnal(); else toast('영상 추가 → 레시피 만들기에서 확인하세요'); });
+render();
+</script>
+</body>
+</html>
