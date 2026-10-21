@@ -6,7 +6,7 @@
 ## 구조
 - `schemas/` 팀 계약(EvidenceBundle, Recipe). 소유: 김선규
 - `scripts/validate.py` 스키마 검증 (사용법은 README)
-- `pipeline/` 추출 파이프라인(Node 20+, 외부 의존성 없음). 소유: 전수빈. 테스트: `cd pipeline && npm test`
+- `pipeline/` 추출 파이프라인(Node 22+, 외부 의존성 없음). 소유: 전수빈. 테스트: `cd pipeline && npm test`
 - `docs/` 기획·계획·UX·라벨링 문서
 
 ## 협업 규칙
