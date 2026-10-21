@@ -380,3 +380,34 @@ test('Anthropic request forces the save_recipe tool and reads its input', async 
   assert.deepEqual(cap.body.tool_choice, { type: 'tool', name: 'save_recipe' });
   assert.equal(out.data.steps.length, llmFixture.steps.length);
 });
+
+const openai = { provider: 'openai', apiKey: 'k', model: 'm' };
+const anthropic = { provider: 'anthropic', apiKey: 'k', model: 'm' };
+
+test('a stalled LLM request fails with a timeout error', async () => {
+  const fetchImpl = (_url, init) => new Promise((_resolve, reject) => init.signal.addEventListener('abort', () => reject(init.signal.reason)));
+  await assert.rejects(extractRecipe(openai, 'prompt', { fetchImpl, timeoutMs: 20 }), /OpenAI request timed out after 0\.02s/);
+  await assert.rejects(extractRecipe(anthropic, 'prompt', { fetchImpl, timeoutMs: 20 }), /Anthropic request timed out after 0\.02s/);
+});
+
+test('an HTML error page from the API is reported with its status', async () => {
+  const fetchImpl = async () => ({
+    ok: false,
+    status: 502,
+    headers: { get: () => 'text/html' },
+    json: async () => JSON.parse('<html>Bad Gateway</html>'),
+  });
+  await assert.rejects(extractRecipe(openai, 'prompt', { fetchImpl }), /OpenAI 502: response is not JSON \(text\/html\)/);
+  await assert.rejects(extractRecipe(anthropic, 'prompt', { fetchImpl }), /Anthropic 502: response is not JSON \(text\/html\)/);
+});
+
+test('a response cut off at the token limit is an error, not a partial recipe', async () => {
+  const openaiCut = async () => ({
+    ok: true, status: 200, json: async () => ({ choices: [{ finish_reason: 'length', message: { content: '{"not_a_recipe": false, "ti' } }] }),
+  });
+  await assert.rejects(extractRecipe(openai, 'prompt', { fetchImpl: openaiCut }), /cut off \(finish_reason "length"\)/);
+  const anthropicCut = async () => ({
+    ok: true, status: 200, json: async () => ({ stop_reason: 'max_tokens', content: [{ type: 'tool_use', name: 'save_recipe', input: {} }] }),
+  });
+  await assert.rejects(extractRecipe(anthropic, 'prompt', { fetchImpl: anthropicCut }), /cut off \(stop_reason "max_tokens"\)/);
+});
