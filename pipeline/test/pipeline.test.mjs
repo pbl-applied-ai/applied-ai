@@ -1,7 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
-import { decodeCaptionText, parseCaptionXml, parseVideoId, watchUrl } from '../src/youtube.mjs';
+import { decodeCaptionText, fetchTranscript, parseCaptionXml, parseVideoId, watchUrl } from '../src/youtube.mjs';
 import { descriptionSegments, normalizeSegments, renderForPrompt } from '../src/segments.mjs';
 import { parseAmount } from '../src/ingredients.mjs';
 import { resolveRecipe } from '../src/resolve.mjs';
@@ -410,4 +410,37 @@ test('a response cut off at the token limit is an error, not a partial recipe', 
     ok: true, status: 200, json: async () => ({ stop_reason: 'max_tokens', content: [{ type: 'tool_use', name: 'save_recipe', input: {} }] }),
   });
   await assert.rejects(extractRecipe(anthropic, 'prompt', { fetchImpl: anthropicCut }), /cut off \(stop_reason "max_tokens"\)/);
+});
+
+// Player responses for both clients point at one caption URL; captionStatus[i] is the caption reply for the i-th client.
+const youtubeFetch = (captionStatus) => {
+  let caption = 0;
+  return async (url) => {
+    if (url.includes('/player')) {
+      return {
+        ok: true,
+        status: 200,
+        json: async () => ({
+          playabilityStatus: { status: 'OK' },
+          videoDetails: { title: 't', author: 'a', lengthSeconds: '10', shortDescription: '' },
+          captions: { playerCaptionsTracklistRenderer: { captionTracks: [{ languageCode: 'ko', kind: 'asr', baseUrl: 'https://example.test/caption' }] } },
+        }),
+      };
+    }
+    const status = captionStatus[caption++];
+    return { ok: status === 200, status, text: async () => (status === 200 ? '<transcript><text start="1" dur="2">계란</text></transcript>' : 'Forbidden') };
+  };
+};
+
+test('a failed caption download falls through to the next client', async () => {
+  const t = await fetchTranscript('Smpl0Gochu1', { fetchImpl: youtubeFetch([403, 200]) });
+  assert.equal(t.caption.client, 'IOS');
+  assert.deepEqual(t.segments, [{ startMs: 1000, durMs: 2000, text: '계란' }]);
+});
+
+test('caption HTTP errors are reported when every client fails', async () => {
+  await assert.rejects(
+    fetchTranscript('Smpl0Gochu1', { fetchImpl: youtubeFetch([403, 429]) }),
+    /ANDROID: track ko caption HTTP 403; IOS: track ko caption HTTP 429/,
+  );
 });
