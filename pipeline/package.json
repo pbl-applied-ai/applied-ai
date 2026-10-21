@@ -9,5 +9,5 @@
     "start": "node src/cli.mjs",
     "test": "node --test"
   },
-  "engines": { "node": ">=20" }
+  "engines": { "node": ">=22" }
 }

@@ -2,7 +2,7 @@
 
 YouTube 요리 영상 링크를 받아 자막과 설명란을 가져오고, LLM(사용자 본인 키)으로 재료·단계·팁을 추출한다. 모든 항목은 근거 세그먼트 ID에 연결되고, 시각은 코드가 근거에서 계산한다.
 
-- 런타임: Node.js 20 이상, 외부 의존성 없음 (ESM, `"type": "module"`)
+- 런타임: Node.js 22 이상, 외부 의존성 없음 (ESM, `"type": "module"`)
 - 현재 프롬프트 버전: `recipe-extract-v6` (`src/schema.mjs`의 `PROMPT_VERSION`)
 - 기본 모델: `gpt-4.1` (`src/llm.mjs`의 `DEFAULT_MODELS.openai`)
 - 테스트: `npm test` (LLM·네트워크 호출 없음)
