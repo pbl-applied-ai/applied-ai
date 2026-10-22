@@ -385,7 +385,16 @@ const openai = { provider: 'openai', apiKey: 'k', model: 'm' };
 const anthropic = { provider: 'anthropic', apiKey: 'k', model: 'm' };
 
 test('a stalled LLM request fails with a timeout error', async () => {
-  const fetchImpl = (_url, init) => new Promise((_resolve, reject) => init.signal.addEventListener('abort', () => reject(init.signal.reason)));
+  // A real stalled request holds an open socket; the held timer stands in for it, since AbortSignal.timeout alone
+  // does not keep the event loop alive and Node 22 would end the test before the abort fires.
+  const fetchImpl = (_url, init) =>
+    new Promise((_resolve, reject) => {
+      const socket = setTimeout(() => {}, 10_000);
+      init.signal.addEventListener('abort', () => {
+        clearTimeout(socket);
+        reject(init.signal.reason);
+      });
+    });
   await assert.rejects(extractRecipe(openai, 'prompt', { fetchImpl, timeoutMs: 20 }), /OpenAI request timed out after 0\.02s/);
   await assert.rejects(extractRecipe(anthropic, 'prompt', { fetchImpl, timeoutMs: 20 }), /Anthropic request timed out after 0\.02s/);
 });
