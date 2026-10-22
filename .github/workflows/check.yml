@@ -16,3 +16,9 @@ jobs:
       - run: pip install -r requirements-dev.txt
       - name: Validate schemas and examples
         run: python scripts/validate.py
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - name: Pipeline tests
+        working-directory: pipeline
+        run: npm test

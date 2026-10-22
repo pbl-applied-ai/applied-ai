@@ -1,0 +1,13 @@
+{
+  "name": "recipe-pipeline",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Video captions -> LLM recipe extraction -> step timestamps",
+  "bin": { "recipe-pipeline": "src/cli.mjs" },
+  "scripts": {
+    "start": "node src/cli.mjs",
+    "test": "node --test"
+  },
+  "engines": { "node": ">=22" }
+}

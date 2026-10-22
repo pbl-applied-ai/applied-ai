@@ -218,3 +218,10 @@ __marimo__/
 
 # Streamlit
 .streamlit/secrets.toml
+
+# pipeline: run outputs, model comparisons, raw captions
+pipeline/compare/
+pipeline/dev-candidates/
+pipeline/out/
+*.transcript.json
+!pipeline/test/fixtures/*.transcript.json
