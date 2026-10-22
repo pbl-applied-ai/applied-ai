@@ -147,14 +147,24 @@ function warnLikelyDuplicates(ingredients, warnings) {
   }
 }
 
-// A step that restates a tip from the same evidence is advice, not an action.
-function dropStepsDuplicatingTips(steps, tips, warnings) {
+const validIds = (ids, byId) => [...new Set((ids || []).filter((id) => byId.has(id)))].sort();
+
+// A step is dropped only when it restates a tip almost word for word from exactly the same evidence.
+// A step that merely resembles a tip ("전분을 빼고 바삭하게 볶는다" vs "전분을 빼야 바삭하다") can be a real action, so it is kept with a warning.
+function dropStepsDuplicatingTips(steps, tips, byId, warnings) {
   return steps.filter((step, i) => {
-    const dup = tips.find(
-      (tip) => (tip.evidence || []).some((id) => (step.evidence || []).includes(id)) && similarity(step.text, tip.text) >= 0.5,
-    );
-    if (dup) warnings.push(`step ${i + 1} ("${step.text}") repeats tip "${dup.text}", dropped`);
-    return !dup;
+    const stepIds = validIds(step.evidence, byId);
+    const matches = tips
+      .filter((tip) => validIds(tip.evidence, byId).some((id) => stepIds.includes(id)))
+      .map((tip) => ({ tip, score: similarity(step.text, tip.text), same: validIds(tip.evidence, byId).join() === stepIds.join() }))
+      .filter((m) => m.score >= 0.5);
+    const dup = matches.find((m) => m.same && m.score >= 0.8);
+    if (dup) {
+      warnings.push(`step ${i + 1} ("${step.text}") duplicates tip "${dup.tip.text}" (similarity ${dup.score.toFixed(2)}, same evidence ${stepIds.join(',')}), dropped`);
+      return false;
+    }
+    for (const m of matches) warnings.push(`step ${i + 1} ("${step.text}") resembles tip "${m.tip.text}" (similarity ${m.score.toFixed(2)}), kept`);
+    return true;
   });
 }
 
@@ -188,7 +198,7 @@ export function resolveRecipe(llm, segments) {
 
   warnLikelyDuplicates(ingredients, warnings);
 
-  const steps = dropStepsDuplicatingTips(llm.steps || [], llm.tips || [], warnings).map((step, i) => {
+  const steps = dropStepsDuplicatingTips(llm.steps || [], llm.tips || [], byId, warnings).map((step, i) => {
     const ids = citations(step.evidence, byId, `step ${i + 1}`, warnings);
     return {
       id: `step_${String(i + 1).padStart(2, '0')}`,

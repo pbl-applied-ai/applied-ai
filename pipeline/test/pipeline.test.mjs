@@ -1,7 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
-import { decodeCaptionText, parseCaptionXml, parseVideoId, watchUrl } from '../src/youtube.mjs';
+import { decodeCaptionText, fetchTranscript, parseCaptionXml, parseVideoId, watchUrl } from '../src/youtube.mjs';
 import { descriptionSegments, normalizeSegments, renderForPrompt } from '../src/segments.mjs';
 import { parseAmount } from '../src/ingredients.mjs';
 import { resolveRecipe } from '../src/resolve.mjs';
@@ -216,7 +216,7 @@ test('adjacent ingredients offered as alternatives are merged into one item', ()
   assert.equal(r.summary.ingredients, 2);
 });
 
-test('a step that repeats a tip from the same evidence is dropped', () => {
+test('a step that only resembles a tip is kept with a warning', () => {
   const r = resolveRecipe(
     draft({
       steps: [
@@ -228,8 +228,57 @@ test('a step that repeats a tip from the same evidence is dropped', () => {
     }),
     tinySegments(),
   );
-  assert.deepEqual(r.steps.map((s) => [s.id, s.text]), [['step_01', '고추장을 넣는다.'], ['step_02', '볶는다.']]);
-  assert.ok(r.warnings.some((w) => /repeats tip/.test(w)));
+  assert.deepEqual(r.steps.map((s) => s.text), ['고추장을 넣는다.', '설탕은 넣어야 맛있다.', '볶는다.']);
+  assert.deepEqual(r.warnings, ['step 2 ("설탕은 넣어야 맛있다.") resembles tip "설탕을 넣어야 맛있다." (similarity 0.75), kept']);
+});
+
+const tipSegments = () => [
+  ...normalizeSegments([
+    { startMs: 0, durMs: 1000, text: '감자를 채 썰어요' },
+    { startMs: 5000, durMs: 1000, text: '전분을 빼야 바삭해요' },
+  ]),
+  ...descriptionSegments('양파는 미리 찬물에 담가 두세요'),
+];
+
+test('a step identical to a tip with the same evidence is dropped and the drop is warned', () => {
+  const r = resolveRecipe(
+    draft({
+      steps: [
+        { text: '감자를 채 썬다.', is_group_header: false, evidence: ['S01'] },
+        { text: '양파는 미리 찬물에 담가 둔다.', is_group_header: false, evidence: ['D01'] },
+      ],
+      tips: [{ text: '양파는 미리 찬물에 담가 둔다.', evidence: ['D01'] }],
+    }),
+    tipSegments(),
+  );
+  assert.deepEqual(r.steps.map((s) => [s.id, s.text]), [['step_01', '감자를 채 썬다.']]);
+  assert.deepEqual(r.warnings, [
+    'step 2 ("양파는 미리 찬물에 담가 둔다.") duplicates tip "양파는 미리 찬물에 담가 둔다." (similarity 1.00, same evidence D01), dropped',
+  ]);
+});
+
+test('a real step that resembles a tip but cites different evidence is kept', () => {
+  const r = resolveRecipe(
+    draft({
+      steps: [{ text: '감자는 전분을 빼고 바삭하게 볶는다.', is_group_header: false, evidence: ['S01', 'S02'] }],
+      tips: [{ text: '감자는 전분을 빼야 바삭하다.', evidence: ['S02'] }],
+    }),
+    tipSegments(),
+  );
+  assert.deepEqual(r.steps.map((s) => s.text), ['감자는 전분을 빼고 바삭하게 볶는다.']);
+  assert.deepEqual(r.warnings, ['step 1 ("감자는 전분을 빼고 바삭하게 볶는다.") resembles tip "감자는 전분을 빼야 바삭하다." (similarity 0.64), kept']);
+});
+
+test('a near-identical step is kept when its evidence differs from the tip', () => {
+  const r = resolveRecipe(
+    draft({
+      steps: [{ text: '양파는 미리 찬물에 담가 둔다.', is_group_header: false, evidence: ['S02', 'D01'] }],
+      tips: [{ text: '양파는 미리 찬물에 담가 둔다.', evidence: ['D01'] }],
+    }),
+    tipSegments(),
+  );
+  assert.equal(r.steps.length, 1);
+  assert.ok(r.warnings.some((w) => /resembles tip .* \(similarity 1\.00\), kept/.test(w)));
 });
 
 test('an ingredient name contained in another with shared evidence is warned as a duplicate', () => {
@@ -330,4 +379,77 @@ test('Anthropic request forces the save_recipe tool and reads its input', async 
   assert.equal(cap.init.headers['x-api-key'], 'ak');
   assert.deepEqual(cap.body.tool_choice, { type: 'tool', name: 'save_recipe' });
   assert.equal(out.data.steps.length, llmFixture.steps.length);
+});
+
+const openai = { provider: 'openai', apiKey: 'k', model: 'm' };
+const anthropic = { provider: 'anthropic', apiKey: 'k', model: 'm' };
+
+test('a stalled LLM request fails with a timeout error', async () => {
+  // A real stalled request holds an open socket; the held timer stands in for it, since AbortSignal.timeout alone
+  // does not keep the event loop alive and Node 22 would end the test before the abort fires.
+  const fetchImpl = (_url, init) =>
+    new Promise((_resolve, reject) => {
+      const socket = setTimeout(() => {}, 10_000);
+      init.signal.addEventListener('abort', () => {
+        clearTimeout(socket);
+        reject(init.signal.reason);
+      });
+    });
+  await assert.rejects(extractRecipe(openai, 'prompt', { fetchImpl, timeoutMs: 20 }), /OpenAI request timed out after 0\.02s/);
+  await assert.rejects(extractRecipe(anthropic, 'prompt', { fetchImpl, timeoutMs: 20 }), /Anthropic request timed out after 0\.02s/);
+});
+
+test('an HTML error page from the API is reported with its status', async () => {
+  const fetchImpl = async () => ({
+    ok: false,
+    status: 502,
+    headers: { get: () => 'text/html' },
+    json: async () => JSON.parse('<html>Bad Gateway</html>'),
+  });
+  await assert.rejects(extractRecipe(openai, 'prompt', { fetchImpl }), /OpenAI 502: response is not JSON \(text\/html\)/);
+  await assert.rejects(extractRecipe(anthropic, 'prompt', { fetchImpl }), /Anthropic 502: response is not JSON \(text\/html\)/);
+});
+
+test('a response cut off at the token limit is an error, not a partial recipe', async () => {
+  const openaiCut = async () => ({
+    ok: true, status: 200, json: async () => ({ choices: [{ finish_reason: 'length', message: { content: '{"not_a_recipe": false, "ti' } }] }),
+  });
+  await assert.rejects(extractRecipe(openai, 'prompt', { fetchImpl: openaiCut }), /cut off \(finish_reason "length"\)/);
+  const anthropicCut = async () => ({
+    ok: true, status: 200, json: async () => ({ stop_reason: 'max_tokens', content: [{ type: 'tool_use', name: 'save_recipe', input: {} }] }),
+  });
+  await assert.rejects(extractRecipe(anthropic, 'prompt', { fetchImpl: anthropicCut }), /cut off \(stop_reason "max_tokens"\)/);
+});
+
+// Player responses for both clients point at one caption URL; captionStatus[i] is the caption reply for the i-th client.
+const youtubeFetch = (captionStatus) => {
+  let caption = 0;
+  return async (url) => {
+    if (url.includes('/player')) {
+      return {
+        ok: true,
+        status: 200,
+        json: async () => ({
+          playabilityStatus: { status: 'OK' },
+          videoDetails: { title: 't', author: 'a', lengthSeconds: '10', shortDescription: '' },
+          captions: { playerCaptionsTracklistRenderer: { captionTracks: [{ languageCode: 'ko', kind: 'asr', baseUrl: 'https://example.test/caption' }] } },
+        }),
+      };
+    }
+    const status = captionStatus[caption++];
+    return { ok: status === 200, status, text: async () => (status === 200 ? '<transcript><text start="1" dur="2">계란</text></transcript>' : 'Forbidden') };
+  };
+};
+
+test('a failed caption download falls through to the next client', async () => {
+  const t = await fetchTranscript('Smpl0Gochu1', { fetchImpl: youtubeFetch([403, 200]) });
+  assert.equal(t.caption.client, 'IOS');
+  assert.deepEqual(t.segments, [{ startMs: 1000, durMs: 2000, text: '계란' }]);
+});
+
+test('caption HTTP errors are reported when every client fails', async () => {
+  await assert.rejects(
+    fetchTranscript('Smpl0Gochu1', { fetchImpl: youtubeFetch([403, 429]) }),
+    /ANDROID: track ko caption HTTP 403; IOS: track ko caption HTTP 429/,
+  );
 });

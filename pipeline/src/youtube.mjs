@@ -108,8 +108,12 @@ export async function fetchTranscript(videoId, { languages = ['ko', 'en'], fetch
       continue;
     }
     const track = pickTrack(tracks, languages);
-    const xml = await (await fetchImpl(track.baseUrl, { headers: { 'user-agent': client.userAgent } })).text();
-    const segments = parseCaptionXml(xml);
+    const captionRes = await fetchImpl(track.baseUrl, { headers: { 'user-agent': client.userAgent } });
+    if (!captionRes.ok) {
+      attempts.push(`${client.name}: track ${track.languageCode} caption HTTP ${captionRes.status}`);
+      continue;
+    }
+    const segments = parseCaptionXml(await captionRes.text());
     if (!segments.length) {
       attempts.push(`${client.name}: track ${track.languageCode} returned no segments`);
       continue;
