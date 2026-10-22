@@ -167,6 +167,56 @@ test('an amount missing from its cited text needs review', () => {
   assert.ok(r.warnings.some((w) => /does not appear verbatim/.test(w)));
 });
 
+test('an amount found only inside a larger number needs review', () => {
+  const segs = normalizeSegments([
+    { startMs: 0, durMs: 1000, text: '간장 12스푼 넣고' },
+    { startMs: 5000, durMs: 1000, text: '설탕 1.2스푼, 식초 1~2스푼' },
+    { startMs: 9000, durMs: 1000, text: '물엿 열두 스푼' },
+  ]);
+  const r = resolveRecipe(
+    draft({
+      ingredients: [ing('간장', '2스푼', ['S01']), ing('설탕', '2스푼', ['S02']), ing('식초', '2스푼', ['S02']), ing('물엿', '두 스푼', ['S03'])],
+    }),
+    segs,
+  );
+  assert.deepEqual(r.ingredients.map((i) => [i.amounts[0].verbatim, i.amount_status]), Array(4).fill([false, 'needs_review']));
+  assert.equal(r.summary.amounts_confirmed, 0);
+});
+
+test('a whole amount next to its ingredient is still confirmed', () => {
+  const segs = normalizeSegments([{ startMs: 0, durMs: 1000, text: '간장 12스푼, 설탕 2스푼, 2스푼의 식초' }]);
+  const r = resolveRecipe(
+    draft({ ingredients: [ing('간장', '12스푼', ['S01']), ing('설탕', '2스푼', ['S01']), ing('식초', '2스푼', ['S01'])] }),
+    segs,
+  );
+  assert.deepEqual(r.ingredients.map((i) => i.amount_status), ['confirmed', 'confirmed', 'confirmed']);
+});
+
+test("another ingredient's amount in the same evidence needs review", () => {
+  const segs = normalizeSegments([{ startMs: 0, durMs: 1000, text: '간장 2스푼 설탕 1스푼 넣어요' }]);
+  const r = resolveRecipe(draft({ ingredients: [ing('간장', '1스푼', ['S01']), ing('설탕', '2스푼', ['S01'])] }), segs);
+  assert.deepEqual(r.ingredients.map((i) => [i.amounts[0].verbatim, i.amounts[0].linked, i.amount_status]), [
+    [true, false, 'needs_review'],
+    [true, false, 'needs_review'],
+  ]);
+  assert.ok(r.warnings.some((w) => /"1스푼" is not tied to this ingredient/.test(w)));
+});
+
+test('an amount is tied to the longer ingredient name it follows', () => {
+  const segs = normalizeSegments([{ startMs: 0, durMs: 1000, text: '참치 한 캔이랑 참치액 1스푼' }]);
+  const r = resolveRecipe(draft({ ingredients: [ing('참치', '1스푼', ['S01']), ing('참치액', '한 캔', ['S01'])] }), segs);
+  assert.deepEqual(r.ingredients.map((i) => i.amount_status), ['needs_review', 'needs_review']);
+});
+
+test('an ingredient named in the previous caption keeps its amount', () => {
+  const segs = normalizeSegments([
+    { startMs: 0, durMs: 1000, text: '다진 마늘은' },
+    { startMs: 2000, durMs: 1000, text: '한 스푼 넣어요' },
+  ]);
+  const r = resolveRecipe(draft({ ingredients: [ing('다진 마늘', '한 스푼', ['S02'], ['S01', 'S02'])] }), segs);
+  assert.equal(r.ingredients[0].amount_status, 'confirmed');
+});
+
 test('speech and description amounts are both kept and compared', () => {
   const r = resolveRecipe(
     draft({
