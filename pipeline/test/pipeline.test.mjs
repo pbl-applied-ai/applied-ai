@@ -208,6 +208,27 @@ test('an amount is tied to the longer ingredient name it follows', () => {
   assert.deepEqual(r.ingredients.map((i) => i.amount_status), ['needs_review', 'needs_review']);
 });
 
+test("a full ingredient name wins over another ingredient's head word", () => {
+  const segs = normalizeSegments([{ startMs: 0, durMs: 1000, text: '마늘 두 쪽 넣고' }]);
+  const r = resolveRecipe(draft({ ingredients: [ing('다진 마늘', '두 쪽', ['S01']), ing('마늘', '두 쪽', ['S01'])] }), segs);
+  assert.deepEqual(r.ingredients.map((i) => i.amount_status), ['needs_review', 'confirmed']);
+});
+
+test('an amount after a head word shared by two ingredients needs review', () => {
+  const segs = normalizeSegments([{ startMs: 0, durMs: 1000, text: '마늘 두 쪽 넣고' }]);
+  const r = resolveRecipe(draft({ ingredients: [ing('다진 마늘', '두 쪽', ['S01']), ing('통 마늘', '두 쪽', ['S01'])] }), segs);
+  assert.deepEqual(r.ingredients.map((i) => i.amount_status), ['needs_review', 'needs_review']);
+});
+
+test('a number ending the previous caption does not join the next amount', () => {
+  const segs = normalizeSegments([
+    { startMs: 0, durMs: 1000, text: '물은 1' },
+    { startMs: 2000, durMs: 1000, text: '2스푼의 간장' },
+  ]);
+  const r = resolveRecipe(draft({ ingredients: [ing('간장', '2스푼', ['S02'])] }), segs);
+  assert.equal(r.ingredients[0].amount_status, 'confirmed');
+});
+
 test('an ingredient named in the previous caption keeps its amount', () => {
   const segs = normalizeSegments([
     { startMs: 0, durMs: 1000, text: '다진 마늘은' },

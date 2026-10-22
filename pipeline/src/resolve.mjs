@@ -85,40 +85,59 @@ function amountMatches(hay, amt, from = 0) {
 }
 
 // Spellings an ingredient may appear under: the full name, each alternative and the head word ("다진 마늘" → "마늘").
+// The value says whether the spelling is only a head word.
 function nameForms(name) {
-  const forms = new Set();
+  const forms = new Map();
   for (const part of (name || '').split(/\s+또는\s+/)) {
     const words = part.trim().split(/\s+/).filter(Boolean);
     if (!words.length) continue;
-    forms.add(fold(part));
-    if (words.length > 1 && words[words.length - 1].length > 1) forms.add(fold(words[words.length - 1]));
+    forms.set(fold(part), false);
+    const last = fold(words[words.length - 1]);
+    if (words.length > 1 && last.length > 1 && !forms.has(last)) forms.set(last, true);
   }
-  return [...forms].filter(Boolean);
+  forms.delete('');
+  return forms;
 }
 
-// Ingredient mentions in the text; a shorter name inside a longer one ("참치" in "참치액") is not a mention.
+// Ingredient mentions in the text; a shorter name inside a longer one ("참치" in "참치액") is not a mention,
+// and neither is a head word where another ingredient has that full name ("마늘" of "다진 마늘" when "마늘" is listed).
 function mentions(hay, names) {
   const all = [];
   names.forEach((forms, owner) => {
-    for (const f of forms) for (let p = hay.indexOf(f); p !== -1; p = hay.indexOf(f, p + 1)) all.push({ start: p, end: p + f.length, owner });
+    for (const [f, headWord] of forms) {
+      for (let p = hay.indexOf(f); p !== -1; p = hay.indexOf(f, p + 1)) all.push({ start: p, end: p + f.length, owner, headWord });
+    }
   });
-  return all.filter((m) => !all.some((o) => o.owner !== m.owner && o.end - o.start > m.end - m.start && o.start <= m.start && m.end <= o.end));
+  const other = (m, o) => o.owner !== m.owner;
+  const inside = (m, o) => o.end - o.start > m.end - m.start && o.start <= m.start && m.end <= o.end;
+  const sameSpan = (m, o) => o.start === m.start && o.end === m.end;
+  return all.filter((m) => !all.some((o) => other(m, o) && (inside(m, o) || (m.headWord && !o.headWord && sameSpan(m, o)))));
+}
+
+// The first candidate; its owner is null when another ingredient is named at exactly the same place.
+function closest(cands) {
+  const best = cands[0];
+  if (!best) return null;
+  const owners = new Set(cands.filter((n) => n.start === best.start && n.end === best.end).map((n) => n.owner));
+  return { ...best, owner: owners.size === 1 ? best.owner : null };
 }
 
 const LINK_GAP_BEFORE = 6; // "계란 프라이를 딱 하나만": name, a few words, then the amount
 const LINK_GAP_AFTER = 1; // "2스푼의 간장"
+const CAPTION_BREAK = '\n'; // keeps "…1" + "2스푼" from reading as "12스푼"; not counted in gaps
 
 // The amount belongs to this ingredient when the closest ingredient named before it (or right after it) is this one.
 // Speech often names the ingredient at the end of the previous caption, so that caption is read along with it.
 function linkedTo(seg, prev, amt, owner, names) {
-  const head = prev ? fold(prev.text) : '';
+  const head = prev ? fold(prev.text) + CAPTION_BREAK : '';
   const hay = head + fold(seg.text);
   const found = mentions(hay, names);
+  const gap = (from, to) => hay.slice(from, to).replace(CAPTION_BREAK, '');
   return amountMatches(hay, amt, head.length).some((m) => {
-    const before = found.filter((n) => n.end <= m.start).sort((a, b) => b.end - a.end || a.start - b.start)[0];
-    if (before && m.start - before.end <= LINK_GAP_BEFORE && !/\d/.test(hay.slice(before.end, m.start))) return before.owner === owner;
-    const after = found.filter((n) => n.start >= m.end).sort((a, b) => a.start - b.start)[0];
-    return !!after && after.start - m.end <= LINK_GAP_AFTER && after.owner === owner;
+    const before = closest(found.filter((n) => n.end <= m.start).sort((a, b) => b.end - a.end || a.start - b.start));
+    if (before && gap(before.end, m.start).length <= LINK_GAP_BEFORE && !/\d/.test(gap(before.end, m.start))) return before.owner === owner;
+    const after = closest(found.filter((n) => n.start >= m.end).sort((a, b) => a.start - b.start));
+    return !!after && gap(m.end, after.start).length <= LINK_GAP_AFTER && after.owner === owner;
   });
 }
 
@@ -241,7 +260,7 @@ export function resolveRecipe(llm, segments) {
   const speech = segments.filter((s) => s.kind === 'speech');
   const prevSpeech = new Map(speech.map((s, i) => [s.id, speech[i - 1]]));
   const merged = mergeAlternatives(dropEquipment(llm.ingredients || [], warnings), byId, warnings);
-  const names = new Map(merged.map((ing, i) => [i, ing.is_group_header ? [] : nameForms(ing.name)]));
+  const names = new Map(merged.map((ing, i) => [i, ing.is_group_header ? new Map() : nameForms(ing.name)]));
 
   const ingredients = merged.map((ing, i) => {
     const label = `ingredient ${i + 1} (${ing.name})`;
