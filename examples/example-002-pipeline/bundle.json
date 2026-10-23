@@ -1,0 +1,189 @@
+{
+  "schema_version": "0.1",
+  "video_id": "Smpl0Gochu1",
+  "source": {
+    "kind": "youtube_shorts",
+    "url": "https://www.youtube.com/shorts/Smpl0Gochu1",
+    "title": "자취생 고추장 목살덮밥 (테스트용 가짜 영상)",
+    "channel": "테스트 채널",
+    "duration_ms": 39000
+  },
+  "run": {
+    "run_id": "example-run-002",
+    "created_at": "2026-10-22T00:00:00Z",
+    "stages": {
+      "captions": {
+        "tool": "youtube-timedtext",
+        "version": "ANDROID"
+      },
+      "structure": {
+        "tool": "saved-llm-output",
+        "version": "recipe-extract-v6"
+      }
+    }
+  },
+  "segments": [
+    {
+      "id": "title-0",
+      "type": "title",
+      "text": "자취생 고추장 목살덮밥 (테스트용 가짜 영상)"
+    },
+    {
+      "id": "asr-0",
+      "type": "asr",
+      "start_ms": 199,
+      "end_ms": 4440,
+      "text": "안녕하세요, 오늘은 자취생도 쉽게"
+    },
+    {
+      "id": "asr-1",
+      "type": "asr",
+      "start_ms": 2120,
+      "end_ms": 6839,
+      "text": "따라 하는 고추장 목살덮밥이에요. 자"
+    },
+    {
+      "id": "asr-2",
+      "type": "asr",
+      "start_ms": 4440,
+      "end_ms": 9080,
+      "text": "달군 팬에 기름 살짝만 붓고 마늘은"
+    },
+    {
+      "id": "asr-3",
+      "type": "asr",
+      "start_ms": 6839,
+      "end_ms": 10920,
+      "text": "얇게 썰어서 약한 불로 천천히"
+    },
+    {
+      "id": "asr-4",
+      "type": "asr",
+      "start_ms": 9080,
+      "end_ms": 12759,
+      "text": "노릇해질 때까지. 다 되면 따로 덜어 둬요"
+    },
+    {
+      "id": "asr-5",
+      "type": "asr",
+      "start_ms": 10920,
+      "end_ms": 13599,
+      "text": "같은 팬 그대로 계란 프라이를"
+    },
+    {
+      "id": "asr-6",
+      "type": "asr",
+      "start_ms": 12759,
+      "end_ms": 15599,
+      "text": "딱 하나만 부칠게요."
+    },
+    {
+      "id": "asr-7",
+      "type": "asr",
+      "start_ms": 13599,
+      "end_ms": 16240,
+      "text": "노른자는 살짝 덜 익혀야"
+    },
+    {
+      "id": "asr-8",
+      "type": "asr",
+      "start_ms": 15599,
+      "end_ms": 18359,
+      "text": "훨씬 고소해요."
+    },
+    {
+      "id": "asr-9",
+      "type": "asr",
+      "start_ms": 16240,
+      "end_ms": 20160,
+      "text": "이제 목살 차례예요. 팬에 올리고"
+    },
+    {
+      "id": "asr-10",
+      "type": "asr",
+      "start_ms": 18359,
+      "end_ms": 21840,
+      "text": "앞뒤로 익혀 주세요. 다 익으면"
+    },
+    {
+      "id": "asr-11",
+      "type": "asr",
+      "start_ms": 20160,
+      "end_ms": 24480,
+      "text": "가위로 한입에 쏙 들어가게 잘라요"
+    },
+    {
+      "id": "asr-12",
+      "type": "asr",
+      "start_ms": 21840,
+      "end_ms": 26480,
+      "text": "양념은 진간장이랑 케첩, 고춧가루, 고추장"
+    },
+    {
+      "id": "asr-13",
+      "type": "asr",
+      "start_ms": 24480,
+      "end_ms": 28240,
+      "text": "다진마늘에 설탕까지 넣고 골고루 볶아요"
+    },
+    {
+      "id": "asr-14",
+      "type": "asr",
+      "start_ms": 26480,
+      "end_ms": 30039,
+      "text": "넓은 데에 밥 먼저 담고 볶은 고기를"
+    },
+    {
+      "id": "asr-15",
+      "type": "asr",
+      "start_ms": 28240,
+      "end_ms": 31920,
+      "text": "올려요. 팬에 남은 양념은요?"
+    },
+    {
+      "id": "asr-16",
+      "type": "asr",
+      "start_ms": 30039,
+      "end_ms": 34000,
+      "text": "그것도 싹 긁어서 부어 주세요."
+    },
+    {
+      "id": "asr-17",
+      "type": "asr",
+      "start_ms": 31920,
+      "end_ms": 35960,
+      "text": "덜어 둔 마늘이랑 계란 프라이도"
+    },
+    {
+      "id": "asr-18",
+      "type": "asr",
+      "start_ms": 34000,
+      "end_ms": 37960,
+      "text": "얹고 쪽파나 대파 다진 걸"
+    },
+    {
+      "id": "asr-19",
+      "type": "asr",
+      "start_ms": 35960,
+      "end_ms": 41360,
+      "text": "솔솔 뿌린 뒤 참깨까지 뿌리면"
+    },
+    {
+      "id": "asr-20",
+      "type": "asr",
+      "start_ms": 37960,
+      "end_ms": 41360,
+      "text": "완성! 따뜻할 때 먹어요."
+    },
+    {
+      "id": "desc-0",
+      "type": "description",
+      "text": "테스트용으로 직접 쓴 가짜 설명입니다."
+    },
+    {
+      "id": "desc-1",
+      "type": "description",
+      "text": "재료는 영상에서 확인하세요."
+    }
+  ]
+}
