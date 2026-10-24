@@ -64,8 +64,97 @@ const UNIT_FAMILY = {
 const unitFamily = (u) => (u ? UNIT_FAMILY[u.toLowerCase()] ?? u.toLowerCase() : null);
 const NUMBER_ONLY = /^[\d.,/\s~\-–½⅓⅔¼¾]+$/;
 
-// One stated amount. It needs review when its text is not in the cited evidence or it is a bare number.
-function amountEntry(a, byId, label, warnings) {
+const fold = (s) => squash(s).toLowerCase();
+const DIGIT_BEFORE = /(?:\d|\d[.,/~\-–])$/;
+const KOREAN_NUMBER_BEFORE = /(?:한|두|세|네|다섯|여섯|일곱|여덟|아홉|열|스물|서른|마흔|쉰|예순|일흔|여든|아흔|백|천)[~\-–]?$/;
+const DIGIT_AFTER = /^(?:\d|[.,/]\d)/;
+
+// Where the amount occurs as a whole number: "2스푼" is not in "12스푼", "1.2스푼" or "1~2스푼".
+function amountMatches(hay, amt, from = 0) {
+  const found = [];
+  for (let p = hay.indexOf(amt, from); p !== -1; p = hay.indexOf(amt, p + 1)) {
+    const before = hay.slice(0, p);
+    const after = hay.slice(p + amt.length);
+    if (/^\d/.test(amt) && DIGIT_BEFORE.test(before)) continue;
+    if (/^[가-힣]/.test(amt) && KOREAN_NUMBER_BEFORE.test(before)) continue;
+    if (/\d$/.test(amt) && DIGIT_AFTER.test(after)) continue;
+    if (/[a-z]$/.test(amt) && /^[a-z]/.test(after)) continue;
+    found.push({ start: p, end: p + amt.length });
+  }
+  return found;
+}
+
+// Spellings an ingredient may appear under: the full name, each alternative and the head word ("다진 마늘" → "마늘").
+// The value says whether the spelling is only a head word.
+function nameForms(name) {
+  const forms = new Map();
+  for (const part of (name || '').split(/\s+또는\s+/)) {
+    const words = part.trim().split(/\s+/).filter(Boolean);
+    if (!words.length) continue;
+    forms.set(fold(part), false);
+    const last = fold(words[words.length - 1]);
+    if (words.length > 1 && last.length > 1 && !forms.has(last)) forms.set(last, true);
+  }
+  forms.delete('');
+  return forms;
+}
+
+// Ingredient mentions in the text; a shorter name inside a longer one ("참치" in "참치액") is not a mention,
+// and neither is a head word where another ingredient has that full name ("마늘" of "다진 마늘" when "마늘" is listed).
+function mentions(hay, names) {
+  const all = [];
+  names.forEach((forms, owner) => {
+    for (const [f, headWord] of forms) {
+      for (let p = hay.indexOf(f); p !== -1; p = hay.indexOf(f, p + 1)) all.push({ start: p, end: p + f.length, owner, headWord });
+    }
+  });
+  const other = (m, o) => o.owner !== m.owner;
+  const inside = (m, o) => o.end - o.start > m.end - m.start && o.start <= m.start && m.end <= o.end;
+  const sameSpan = (m, o) => o.start === m.start && o.end === m.end;
+  return all.filter((m) => !all.some((o) => other(m, o) && (inside(m, o) || (m.headWord && !o.headWord && sameSpan(m, o)))));
+}
+
+// The first candidate; its owner is null when another ingredient is named at exactly the same place.
+function closest(cands) {
+  const best = cands[0];
+  if (!best) return null;
+  const owners = new Set(cands.filter((n) => n.start === best.start && n.end === best.end).map((n) => n.owner));
+  return { ...best, owner: owners.size === 1 ? best.owner : null };
+}
+
+const LINK_GAP_BEFORE = 6; // "계란 프라이를 딱 하나만": name, a few words, then the amount
+const LINK_GAP_AFTER = 1; // "2스푼의 간장"
+const CAPTION_BREAK = '\n'; // keeps "…1" + "2스푼" from reading as "12스푼"; not counted in gaps
+
+// Mentions found across the break as if it were not there ("다진" + "마늘" is still "다진 마늘"),
+// with positions moved to the text that has the break.
+function mentionsAcross(prevText, segText, names) {
+  const cut = prevText.length;
+  const moveStart = (p) => (p >= cut ? p + CAPTION_BREAK.length : p);
+  const moveEnd = (p) => (p > cut ? p + CAPTION_BREAK.length : p);
+  return mentions(prevText + segText, names).map((n) => ({ ...n, start: moveStart(n.start), end: moveEnd(n.end) }));
+}
+
+// The amount belongs to this ingredient when the closest ingredient named before it (or right after it) is this one.
+// Speech often names the ingredient at the end of the previous caption, so that caption is read along with it.
+function linkedTo(seg, prev, amt, owner, names) {
+  const prevText = prev ? fold(prev.text) : '';
+  const head = prev ? prevText + CAPTION_BREAK : '';
+  const hay = head + fold(seg.text);
+  const found = prev ? mentionsAcross(prevText, fold(seg.text), names) : mentions(hay, names);
+  const gap = (from, to) => hay.slice(from, to).replace(CAPTION_BREAK, '');
+  return amountMatches(hay, amt, head.length).some((m) => {
+    const before = closest(found.filter((n) => n.end <= m.start).sort((a, b) => b.end - a.end || a.start - b.start));
+    if (before && gap(before.end, m.start).length <= LINK_GAP_BEFORE && !/\d/.test(gap(before.end, m.start))) return before.owner === owner;
+    const after = closest(found.filter((n) => n.start >= m.end).sort((a, b) => a.start - b.start));
+    return !!after && gap(m.end, after.start).length <= LINK_GAP_AFTER && after.owner === owner;
+  });
+}
+
+// One stated amount. It needs review when its text is not in the cited evidence as a whole number,
+// it is not tied to this ingredient there, or it is a bare number.
+function amountEntry(a, ctx, label, warnings) {
+  const { byId, prevSpeech, owner, names } = ctx;
   const text = optional(a?.text);
   if (!text) return null;
   const ids = citations(a.evidence, byId, `${label} amount "${text}"`, warnings);
@@ -73,15 +162,19 @@ function amountEntry(a, byId, label, warnings) {
     warnings.push(`${label}: amount "${text}" has no valid evidence, dropped`);
     return null;
   }
-  const verbatim = ids.some((id) => squash(byId.get(id).text).includes(squash(text)));
+  const amt = fold(text);
+  const verbatim = ids.some((id) => amountMatches(fold(byId.get(id).text), amt).length > 0);
   if (!verbatim) warnings.push(`${label}: amount "${text}" does not appear verbatim in ${ids.join(',')}`);
+  const linked = verbatim && ids.some((id) => linkedTo(byId.get(id), prevSpeech.get(id), amt, owner, names));
+  if (verbatim && !linked) warnings.push(`${label}: amount "${text}" is not tied to this ingredient in ${ids.join(',')}`);
   const unitless = NUMBER_ONLY.test(text);
   return {
     text,
     sources: [...new Set(ids.map((id) => byId.get(id).kind))],
     verbatim,
+    linked,
     unitless,
-    needs_review: !verbatim || unitless,
+    needs_review: !linked || unitless,
     parsed: parseAmount(text),
     evidence: evidenceRefs(ids, byId),
   };
@@ -174,12 +267,18 @@ export function resolveRecipe(llm, segments) {
   const byId = new Map(segments.map((s) => [s.id, s]));
   const warnings = [];
 
-  const ingredients = mergeAlternatives(dropEquipment(llm.ingredients || [], warnings), byId, warnings).map((ing, i) => {
+  const speech = segments.filter((s) => s.kind === 'speech');
+  const prevSpeech = new Map(speech.map((s, i) => [s.id, speech[i - 1]]));
+  const merged = mergeAlternatives(dropEquipment(llm.ingredients || [], warnings), byId, warnings);
+  const names = new Map(merged.map((ing, i) => [i, ing.is_group_header ? new Map() : nameForms(ing.name)]));
+
+  const ingredients = merged.map((ing, i) => {
     const label = `ingredient ${i + 1} (${ing.name})`;
     const ids = citations(ing.evidence, byId, label, warnings);
+    const ctx = { byId, prevSpeech, owner: i, names };
     const amounts = ing.is_group_header
       ? []
-      : (ing.amounts || []).map((a) => amountEntry(a, byId, label, warnings)).filter(Boolean);
+      : (ing.amounts || []).map((a) => amountEntry(a, ctx, label, warnings)).filter(Boolean);
     const status = ing.is_group_header ? null : amountStatus(amounts);
     if (status === 'conflict') warnings.push(`${label}: sources state different amounts (${amounts.map((a) => a.text).join(' / ')})`);
     return {
