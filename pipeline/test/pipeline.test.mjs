@@ -229,6 +229,15 @@ test('a number ending the previous caption does not join the next amount', () =>
   assert.equal(r.ingredients[0].amount_status, 'confirmed');
 });
 
+test('an ingredient name split across two captions is still the full name', () => {
+  const segs = normalizeSegments([
+    { startMs: 0, durMs: 1000, text: '이제 다진' },
+    { startMs: 2000, durMs: 1000, text: '마늘 한 스푼' },
+  ]);
+  const r = resolveRecipe(draft({ ingredients: [ing('다진 마늘', '한 스푼', ['S02']), ing('마늘', '한 스푼', ['S02'])] }), segs);
+  assert.deepEqual(r.ingredients.map((i) => i.amount_status), ['confirmed', 'needs_review']);
+});
+
 test('an ingredient named in the previous caption keeps its amount', () => {
   const segs = normalizeSegments([
     { startMs: 0, durMs: 1000, text: '다진 마늘은' },

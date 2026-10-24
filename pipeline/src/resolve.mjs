@@ -126,12 +126,22 @@ const LINK_GAP_BEFORE = 6; // "계란 프라이를 딱 하나만": name, a few w
 const LINK_GAP_AFTER = 1; // "2스푼의 간장"
 const CAPTION_BREAK = '\n'; // keeps "…1" + "2스푼" from reading as "12스푼"; not counted in gaps
 
+// Mentions found across the break as if it were not there ("다진" + "마늘" is still "다진 마늘"),
+// with positions moved to the text that has the break.
+function mentionsAcross(prevText, segText, names) {
+  const cut = prevText.length;
+  const moveStart = (p) => (p >= cut ? p + CAPTION_BREAK.length : p);
+  const moveEnd = (p) => (p > cut ? p + CAPTION_BREAK.length : p);
+  return mentions(prevText + segText, names).map((n) => ({ ...n, start: moveStart(n.start), end: moveEnd(n.end) }));
+}
+
 // The amount belongs to this ingredient when the closest ingredient named before it (or right after it) is this one.
 // Speech often names the ingredient at the end of the previous caption, so that caption is read along with it.
 function linkedTo(seg, prev, amt, owner, names) {
-  const head = prev ? fold(prev.text) + CAPTION_BREAK : '';
+  const prevText = prev ? fold(prev.text) : '';
+  const head = prev ? prevText + CAPTION_BREAK : '';
   const hay = head + fold(seg.text);
-  const found = mentions(hay, names);
+  const found = prev ? mentionsAcross(prevText, fold(seg.text), names) : mentions(hay, names);
   const gap = (from, to) => hay.slice(from, to).replace(CAPTION_BREAK, '');
   return amountMatches(hay, amt, head.length).some((m) => {
     const before = closest(found.filter((n) => n.end <= m.start).sort((a, b) => b.end - a.end || a.start - b.start));
