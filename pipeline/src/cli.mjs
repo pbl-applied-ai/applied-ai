@@ -64,7 +64,9 @@ try {
     await mkdir(teamOut, { recursive: true });
     await writeFile(join(teamOut, 'bundle.json'), `${JSON.stringify(toEvidenceBundle(result), null, 2)}
 `);
-    const recipe = toTeamRecipe(result);
+    const teamWarnings = [];
+    const recipe = toTeamRecipe(result, teamWarnings);
+    for (const w of teamWarnings) console.error(`warning: ${w}`);
     if (recipe) await writeFile(join(teamOut, 'recipe.json'), `${JSON.stringify(recipe, null, 2)}
 `);
   }

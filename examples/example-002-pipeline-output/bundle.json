@@ -14,11 +14,11 @@
     "stages": {
       "captions": {
         "tool": "youtube-timedtext",
-        "version": "ANDROID"
-      },
-      "structure": {
-        "tool": "saved-llm-output",
-        "version": "recipe-extract-v6"
+        "version": "ANDROID",
+        "config": {
+          "language": "ko",
+          "auto_generated": true
+        }
       }
     }
   },

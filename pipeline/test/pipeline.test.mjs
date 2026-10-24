@@ -462,9 +462,9 @@ const sampleRun = () =>
     llmOutput: structuredClone(llmFixture),
   });
 
-test('team schema export matches the committed example (examples/example-002-pipeline)', async () => {
+test('team schema export matches the committed example (examples/example-002-pipeline-output)', async () => {
   const result = await sampleRun();
-  const example = (name) => JSON.parse(readFileSync(new URL(`../../examples/example-002-pipeline/${name}`, import.meta.url), 'utf8'));
+  const example = (name) => JSON.parse(readFileSync(new URL(`../../examples/example-002-pipeline-output/${name}`, import.meta.url), 'utf8'));
   assert.deepEqual(toEvidenceBundle(result, { runId: 'example-run-002', createdAt: '2026-10-22T00:00:00Z' }), example('bundle.json'));
   assert.deepEqual(toTeamRecipe(result), example('recipe.json'));
 });
@@ -487,6 +487,22 @@ test('team recipe keeps only confirmed amounts and is null without a recipe', as
   assert.equal(ing.amount_raw, null);
   assert.equal(ing.amount_status, 'unconfirmed');
 
+  const warnings = [];
   result.recipe.status = 'not_a_recipe';
-  assert.equal(toTeamRecipe(result), null);
+  assert.equal(toTeamRecipe(result, warnings), null);
+  assert.match(warnings[0], /status is not_a_recipe, recipe\.json skipped/);
+});
+
+test('team recipe is skipped with a warning when ingredients exist but steps do not', async () => {
+  const result = await sampleRun();
+  result.recipe.steps = [];
+  const warnings = [];
+  assert.equal(toTeamRecipe(result, warnings), null);
+  assert.match(warnings[0], /\d+ ingredients and 0 steps/);
+});
+
+test('team bundle keeps caption settings and leaves the model out', async () => {
+  const bundle = toEvidenceBundle(await sampleRun());
+  assert.deepEqual(Object.keys(bundle.run.stages), ['captions']);
+  assert.deepEqual(Object.keys(bundle.run.stages.captions.config), ['language', 'auto_generated']);
 });

@@ -135,7 +135,9 @@ LLM 출력을 그대로 믿지 않고, 코드가 아래 순서로 검증한다.
 
 ## 팀 스키마로 내보내기 (`src/team-schema.mjs`)
 
-레시피북 저장·평가는 `schemas/`의 evidence bundle·recipe 형식(v0.1)을 쓴다. `--team-out <폴더>`로 `bundle.json`과 `recipe.json`을 만든다. 가짜 fixture로 만든 샘플은 [`examples/example-002-pipeline/`](../examples/example-002-pipeline/)에 있고, 테스트가 코드와 샘플이 같은지 확인한다.
+레시피북 저장·평가는 `schemas/`의 evidence bundle·recipe 형식(v0.1)을 쓴다. `--team-out <폴더>`로 `bundle.json`과 `recipe.json`을 만든다. 가짜 fixture로 만든 샘플은 [`examples/example-002-pipeline-output/`](../examples/example-002-pipeline-output/)에 있고, 테스트가 코드와 샘플이 같은지 확인한다. 이 샘플은 파이프라인 출력이고 라벨링 정답 예시가 아니다.
+
+bundle은 1~4단계 결과만 담는다. `run.stages`에는 자막 수집(`captions`: 클라이언트, `config.language`·`config.auto_generated`)만 넣고, 모델·프롬프트 버전(5단계)은 넣지 않는다. 같은 영상이면 모델이 달라도 bundle이 같아야 학습 데이터(bundle → 정답) 쌍이 흔들리지 않는다.
 
 | 파이프라인 | 팀 스키마 | 비고 |
 |---|---|---|
@@ -144,7 +146,7 @@ LLM 출력을 그대로 믿지 않고, 코드가 아래 순서로 검증한다.
 | 영상 제목 | `title-0` | |
 | `amount_status: confirmed` | `confirmed` + `amount_raw` | 재료 근거에 분량 근거를 합친다 |
 | `needs_review`·`conflict`·`not_in_video` | `unconfirmed` + `amount_raw: null` | 화면에서 빈칸. 내부 상태 구분은 사라진다 |
-| `status: not_a_recipe`·`insufficient` | `recipe.json` 없음 | 팀 스키마는 재료·단계가 1개 이상이어야 한다 |
+| `status: not_a_recipe`·`insufficient`, 재료나 단계가 0개 | `recipe.json` 없음 + 경고 | 팀 스키마는 재료·단계가 1개 이상이어야 한다 |
 
 팀 스키마에 아직 없어 내보내지 않는 것: `preparation`("얇게 썬"), `tips`, 그룹 머리말, 항목 ID(`ing_01`), 출처별 분량·충돌 내역, 근거 시각. 스키마 v0.2에서 넣을지 정한다.
 
