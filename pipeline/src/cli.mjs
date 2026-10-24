@@ -1,9 +1,11 @@
 #!/usr/bin/env node
-import { readFile, writeFile } from 'node:fs/promises';
+import { mkdir, readFile, writeFile } from 'node:fs/promises';
+import { join } from 'node:path';
 import { parseArgs } from 'node:util';
 import { runPipeline } from './pipeline.mjs';
 import { fetchTranscript, parseVideoId } from './youtube.mjs';
 import { printRecipe } from './print.mjs';
+import { toEvidenceBundle, toTeamRecipe } from './team-schema.mjs';
 
 const HELP = `Usage:
   node src/cli.mjs <youtube-url>                 captions -> LLM -> timed recipe
@@ -11,6 +13,7 @@ const HELP = `Usage:
 
 Options:
   --out <file>          write the full JSON result (default: print table only)
+  --team-out <dir>      write bundle.json and recipe.json in the team schema (schemas/)
   --transcript <file>   use a saved transcript JSON instead of fetching captions
   --llm-output <file>   use a saved model output instead of calling the LLM
   --lang <codes>        caption language preference, comma separated (default: ko,en)
@@ -25,6 +28,7 @@ const { values, positionals } = parseArgs({
   allowPositionals: true,
   options: {
     out: { type: 'string' },
+    'team-out': { type: 'string' },
     transcript: { type: 'string' },
     'llm-output': { type: 'string' },
     lang: { type: 'string', default: 'ko,en' },
@@ -55,12 +59,24 @@ try {
   const llmOutput = values['llm-output'] ? JSON.parse(await readFile(values['llm-output'], 'utf8')) : undefined;
   const result = await runPipeline({ url, transcriptFile: values.transcript, languages, llmOutput });
   if (values.out) await writeFile(values.out, JSON.stringify(result, null, 2));
+  const teamOut = values['team-out'];
+  if (teamOut) {
+    await mkdir(teamOut, { recursive: true });
+    await writeFile(join(teamOut, 'bundle.json'), `${JSON.stringify(toEvidenceBundle(result), null, 2)}
+`);
+    const teamWarnings = [];
+    const recipe = toTeamRecipe(result, teamWarnings);
+    for (const w of teamWarnings) console.error(`warning: ${w}`);
+    if (recipe) await writeFile(join(teamOut, 'recipe.json'), `${JSON.stringify(recipe, null, 2)}
+`);
+  }
 
   if (values.json) {
     console.log(JSON.stringify(result, null, 2));
   } else {
     printRecipe(result);
     if (values.out) console.log(`saved: ${values.out}`);
+    if (teamOut) console.log(`saved team schema: ${teamOut}`);
   }
 } catch (err) {
   console.error(`error: ${err.message}`);

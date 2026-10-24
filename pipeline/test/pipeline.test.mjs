@@ -8,6 +8,7 @@ import { resolveRecipe } from '../src/resolve.mjs';
 import { extractRecipe, resolveProvider } from '../src/llm.mjs';
 import { runPipeline } from '../src/pipeline.mjs';
 import { PROMPT_VERSION, RECIPE_SCHEMA } from '../src/schema.mjs';
+import { teamIdMap, toEvidenceBundle, toTeamRecipe } from '../src/team-schema.mjs';
 
 const fixture = (name) => new URL(`./fixtures/${name}`, import.meta.url);
 const llmFixture = JSON.parse(readFileSync(fixture('sample-gochujang-bowl.llm.json'), 'utf8'));
@@ -452,4 +453,56 @@ test('caption HTTP errors are reported when every client fails', async () => {
     fetchTranscript('Smpl0Gochu1', { fetchImpl: youtubeFetch([403, 429]) }),
     /ANDROID: track ko caption HTTP 403; IOS: track ko caption HTTP 429/,
   );
+});
+
+const sampleRun = () =>
+  runPipeline({
+    url: 'https://www.youtube.com/shorts/Smpl0Gochu1',
+    transcriptFile: fixture('sample-gochujang-bowl.transcript.json'),
+    llmOutput: structuredClone(llmFixture),
+  });
+
+test('team schema export matches the committed example (examples/example-002-pipeline-output)', async () => {
+  const result = await sampleRun();
+  const example = (name) => JSON.parse(readFileSync(new URL(`../../examples/example-002-pipeline-output/${name}`, import.meta.url), 'utf8'));
+  assert.deepEqual(toEvidenceBundle(result, { runId: 'example-run-002', createdAt: '2026-10-22T00:00:00Z' }), example('bundle.json'));
+  assert.deepEqual(toTeamRecipe(result), example('recipe.json'));
+});
+
+test('team IDs number speech and description segments separately', () => {
+  const map = teamIdMap([
+    { id: 'S01', kind: 'speech' },
+    { id: 'S02', kind: 'speech' },
+    { id: 'D01', kind: 'description' },
+  ]);
+  assert.deepEqual([...map.values()], ['asr-0', 'asr-1', 'desc-0']);
+});
+
+test('team recipe keeps only confirmed amounts and is null without a recipe', async () => {
+  const result = await sampleRun();
+  const garlic = result.recipe.ingredients.find((i) => i.name === '마늘');
+  garlic.amount_status = 'needs_review';
+  garlic.amount_text = '두 쪽';
+  const ing = toTeamRecipe(result).ingredients.find((i) => i.name === '마늘');
+  assert.equal(ing.amount_raw, null);
+  assert.equal(ing.amount_status, 'unconfirmed');
+
+  const warnings = [];
+  result.recipe.status = 'not_a_recipe';
+  assert.equal(toTeamRecipe(result, warnings), null);
+  assert.match(warnings[0], /status is not_a_recipe, recipe\.json skipped/);
+});
+
+test('team recipe is skipped with a warning when ingredients exist but steps do not', async () => {
+  const result = await sampleRun();
+  result.recipe.steps = [];
+  const warnings = [];
+  assert.equal(toTeamRecipe(result, warnings), null);
+  assert.match(warnings[0], /\d+ ingredients and 0 steps/);
+});
+
+test('team bundle keeps caption settings and leaves the model out', async () => {
+  const bundle = toEvidenceBundle(await sampleRun());
+  assert.deepEqual(Object.keys(bundle.run.stages), ['captions']);
+  assert.deepEqual(Object.keys(bundle.run.stages.captions.config), ['language', 'auto_generated']);
 });
