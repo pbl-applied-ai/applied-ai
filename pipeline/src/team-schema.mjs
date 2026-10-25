@@ -55,14 +55,19 @@ export function toEvidenceBundle(result, { runId, createdAt } = {}) {
 }
 
 // Pipeline result -> schemas/recipe.schema.json, or null when there is no recipe to save
-// (not_a_recipe, insufficient, or no ingredients or no steps), since the team schema needs at least
-// one ingredient and step. The reason for null is pushed to warnings.
+// (not_a_recipe, insufficient, no ingredients or no steps, or an empty title), since the team schema needs
+// a title and at least one ingredient and step. The reason for null is pushed to warnings.
 // Only amounts the pipeline confirmed keep their text; needs_review, conflict and not_in_video
 // all become unconfirmed with an empty amount.
 export function toTeamRecipe(result, warnings = []) {
   const { recipe } = result;
   if (recipe.status !== 'ok') {
     warnings.push(`team recipe: recipe status is ${recipe.status}, recipe.json skipped`);
+    return null;
+  }
+  const title = typeof recipe.title === 'string' ? recipe.title.trim() : '';
+  if (!title) {
+    warnings.push('team recipe: the recipe has no title, recipe.json skipped');
     return null;
   }
   const map = teamIdMap(result.evidence);
@@ -87,7 +92,7 @@ export function toTeamRecipe(result, warnings = []) {
   return {
     schema_version: TEAM_SCHEMA_VERSION,
     video_id: result.source.videoId,
-    title: recipe.title,
+    title,
     servings_raw: recipe.servings_text,
     ingredients,
     steps,

@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-import { mkdir, readFile, writeFile } from 'node:fs/promises';
+import { mkdir, readFile, rm, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { parseArgs } from 'node:util';
 import { runPipeline } from './pipeline.mjs';
@@ -62,13 +62,13 @@ try {
   const teamOut = values['team-out'];
   if (teamOut) {
     await mkdir(teamOut, { recursive: true });
-    await writeFile(join(teamOut, 'bundle.json'), `${JSON.stringify(toEvidenceBundle(result), null, 2)}
-`);
+    await writeFile(join(teamOut, 'bundle.json'), `${JSON.stringify(toEvidenceBundle(result), null, 2)}\n`);
     const teamWarnings = [];
     const recipe = toTeamRecipe(result, teamWarnings);
     for (const w of teamWarnings) console.error(`warning: ${w}`);
-    if (recipe) await writeFile(join(teamOut, 'recipe.json'), `${JSON.stringify(recipe, null, 2)}
-`);
+    // An older recipe.json left next to the new bundle would pair a recipe with evidence it did not come from.
+    if (recipe) await writeFile(join(teamOut, 'recipe.json'), `${JSON.stringify(recipe, null, 2)}\n`);
+    else await rm(join(teamOut, 'recipe.json'), { force: true });
   }
 
   if (values.json) {

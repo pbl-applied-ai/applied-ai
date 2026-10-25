@@ -1,6 +1,10 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { readFileSync } from 'node:fs';
+import { execFileSync } from 'node:child_process';
+import { existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { decodeCaptionText, fetchTranscript, parseCaptionXml, parseVideoId, watchUrl } from '../src/youtube.mjs';
 import { descriptionSegments, normalizeSegments, renderForPrompt } from '../src/segments.mjs';
 import { parseAmount } from '../src/ingredients.mjs';
@@ -499,6 +503,36 @@ test('team recipe is skipped with a warning when ingredients exist but steps do 
   const warnings = [];
   assert.equal(toTeamRecipe(result, warnings), null);
   assert.match(warnings[0], /\d+ ingredients and 0 steps/);
+});
+
+test('team recipe is skipped with a warning when the title is empty', async () => {
+  const result = await sampleRun();
+  result.recipe.title = '  ';
+  const warnings = [];
+  assert.equal(toTeamRecipe(result, warnings), null);
+  assert.match(warnings[0], /no title, recipe\.json skipped/);
+});
+
+test('re-exporting to the same folder removes a recipe.json the new run cannot make', () => {
+  const dir = mkdtempSync(join(tmpdir(), 'team-out-'));
+  const cli = (llm) =>
+    execFileSync(process.execPath, [
+      fileURLToPath(new URL('../src/cli.mjs', import.meta.url)),
+      '--transcript', fileURLToPath(fixture('sample-gochujang-bowl.transcript.json')),
+      '--llm-output', llm,
+      '--team-out', dir,
+    ], { stdio: 'pipe' });
+  try {
+    cli(fileURLToPath(fixture('sample-gochujang-bowl.llm.json')));
+    assert.ok(existsSync(join(dir, 'recipe.json')));
+    const noSteps = join(dir, 'no-steps.llm.json');
+    writeFileSync(noSteps, JSON.stringify({ ...llmFixture, steps: [] }));
+    cli(noSteps);
+    assert.ok(existsSync(join(dir, 'bundle.json')));
+    assert.equal(existsSync(join(dir, 'recipe.json')), false);
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
 });
 
 test('team bundle keeps caption settings and leaves the model out', async () => {

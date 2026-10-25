@@ -137,7 +137,9 @@ LLM 출력을 그대로 믿지 않고, 코드가 아래 순서로 검증한다.
 
 레시피북 저장·평가는 `schemas/`의 evidence bundle·recipe 형식(v0.1)을 쓴다. `--team-out <폴더>`로 `bundle.json`과 `recipe.json`을 만든다. 가짜 fixture로 만든 샘플은 [`examples/example-002-pipeline-output/`](../examples/example-002-pipeline-output/)에 있고, 테스트가 코드와 샘플이 같은지 확인한다. 이 샘플은 파이프라인 출력이고 라벨링 정답 예시가 아니다.
 
-bundle은 1~4단계 결과만 담는다. `run.stages`에는 자막 수집(`captions`: 클라이언트, `config.language`·`config.auto_generated`)만 넣고, 모델·프롬프트 버전(5단계)은 넣지 않는다. 같은 영상이면 모델이 달라도 bundle이 같아야 학습 데이터(bundle → 정답) 쌍이 흔들리지 않는다.
+bundle은 1~4단계 결과만 담는다. `run.stages`에는 자막 수집(`captions`: 클라이언트, `config.language`·`config.auto_generated`)만 넣고, 모델·프롬프트 버전(5단계)은 넣지 않는다. 같은 영상이면 모델이 달라도 근거 구간(`segments`)과 `stages`가 같아야 학습 데이터(bundle → 정답) 쌍이 흔들리지 않는다. `run_id`·`created_at`은 실행마다 달라서 bundle 파일 전체가 같지는 않다.
+
+같은 폴더에 다시 내보낼 때 `recipe.json`을 만들 수 없으면(레시피 아님, 재료나 단계 0개, 제목 없음) 예전 `recipe.json`을 지운다. 새 bundle과 예전 recipe가 짝으로 남지 않게 하기 위해서다.
 
 | 파이프라인 | 팀 스키마 | 비고 |
 |---|---|---|
