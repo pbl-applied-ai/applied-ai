@@ -83,14 +83,17 @@ function wordStarts(text, offset = 0) {
 }
 
 // Whether a Korean amount continues a number word just before it: "두 스푼" inside "열두 스푼", "한두 스푼" or "한~두 스푼".
-// The number word before must start a word in the original text, so a name ending in the same syllable
-// ("만두 두 개", "녹두 세 컵") or a word like "적당한 두 스푼" does not count. Without word starts every position counts.
+// When the amount starts its own word, the number word before must also start a word in the original text, so a name
+// ending in the same syllable ("만두 두 개") or a word like "적당한 두 스푼" does not count. When the amount is glued to
+// the word before ("간장두세스푼", "녹두세 컵") the two cannot be told apart and it counts, so the amount is not confirmed.
+// Without word starts every position counts.
 function continuesKoreanNumber(before, amt, starts) {
   const first = amt.match(KOREAN_LEADING)?.[1];
   if (!first) return false;
   const dash = /[~\-–]$/.test(before);
   const prev = before.replace(/[~\-–]$/, '');
-  const wordBefore = (words) => words.some((w) => prev.endsWith(w) && (!starts || starts.has(prev.length - w.length)));
+  const glued = !starts || !starts.has(before.length);
+  const wordBefore = (words) => words.some((w) => prev.endsWith(w) && (glued || starts.has(prev.length - w.length)));
   if (dash) return wordBefore([...KOREAN_UNITS, ...KOREAN_TENS]);
   if (prev.endsWith('백') || prev.endsWith('천')) return true;
   const i = KOREAN_UNITS.indexOf(first);

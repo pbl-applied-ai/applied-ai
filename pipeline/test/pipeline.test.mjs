@@ -203,16 +203,26 @@ test('Korean number words are read per word, so ranges and tens still block a pa
     { startMs: 5000, durMs: 1000, text: '설탕 한 두 스푼' },
     { startMs: 9000, durMs: 1000, text: '식초 스물세 방울' },
     { startMs: 13000, durMs: 1000, text: '고추장 적당한 두 스푼' },
+    { startMs: 17000, durMs: 1000, text: '물엿두세스푼' },
+    { startMs: 21000, durMs: 1000, text: '녹두세 컵' },
   ]);
   const r = resolveRecipe(
     draft({
-      ingredients: [ing('간장', '세 스푼', ['S01']), ing('설탕', '두 스푼', ['S02']), ing('식초', '세 방울', ['S03']), ing('고추장', '두 스푼', ['S04'])],
+      ingredients: [
+        ing('간장', '세 스푼', ['S01']),
+        ing('설탕', '두 스푼', ['S02']),
+        ing('식초', '세 방울', ['S03']),
+        ing('고추장', '두 스푼', ['S04']),
+        ing('물엿', '세 스푼', ['S05']),
+        ing('녹두', '세 컵', ['S06']),
+      ],
     }),
     segs,
   );
+  // Glued text cannot tell "물엿두 + 세" from "두세", so the amount is left unconfirmed rather than guessed.
   assert.deepEqual(
     r.ingredients.map((i) => [i.name, i.amounts[0].verbatim]),
-    [['간장', false], ['설탕', false], ['식초', false], ['고추장', true]],
+    [['간장', false], ['설탕', false], ['식초', false], ['고추장', true], ['물엿', false], ['녹두', false]],
   );
 });
 
