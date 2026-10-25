@@ -235,6 +235,59 @@ test('a whole amount next to its ingredient is still confirmed', () => {
   assert.deepEqual(r.ingredients.map((i) => i.amount_status), ['confirmed', 'confirmed', 'confirmed']);
 });
 
+test('"amount의 name" ties the amount to the name after it, not the one before', () => {
+  const segs = normalizeSegments([
+    { startMs: 0, durMs: 1000, text: '간장 넣고 2스푼의 설탕' },
+    { startMs: 5000, durMs: 1000, text: '식초는 1스푼의 물엿이랑' },
+  ]);
+  const r = resolveRecipe(
+    draft({
+      ingredients: [ing('간장', '2스푼', ['S01']), ing('설탕', '2스푼', ['S01']), ing('식초', '1스푼', ['S02']), ing('물엿', '1스푼', ['S02'])],
+    }),
+    segs,
+  );
+  assert.deepEqual(r.ingredients.map((i) => [i.name, i.amount_status]), [
+    ['간장', 'needs_review'],
+    ['설탕', 'confirmed'],
+    ['식초', 'needs_review'],
+    ['물엿', 'confirmed'],
+  ]);
+});
+
+test('an amount that names the ingredient itself is tied to it', () => {
+  const segs = descriptionSegments('샬롯 한개 혹은 양파 반개');
+  const r = resolveRecipe(draft({ ingredients: [ing('샬롯 또는 양파', '샬롯 한개 혹은 양파 반개', ['D01'])] }), segs);
+  assert.equal(r.ingredients[0].amount_status, 'confirmed');
+});
+
+test('"amount의" at the end of a caption is tied to the name that starts the next caption', () => {
+  const segs = normalizeSegments([
+    { startMs: 0, durMs: 1000, text: '간장 넣고 2스푼의' },
+    { startMs: 5000, durMs: 1000, text: '설탕 넣어 주세요' },
+  ]);
+  const r = resolveRecipe(draft({ ingredients: [ing('간장', '2스푼', ['S01']), ing('설탕', '2스푼', ['S01', 'S02'])] }), segs);
+  assert.deepEqual(r.ingredients.map((i) => [i.name, i.amount_status]), [
+    ['간장', 'needs_review'],
+    ['설탕', 'confirmed'],
+  ]);
+});
+
+test('an amount followed by 반 is not confirmed as the shorter amount', () => {
+  const segs = normalizeSegments([{ startMs: 0, durMs: 1000, text: '간장 2스푼 반, 양파 한 개 반, 설탕 1스푼 반, 식초 3스푼의 반만' }]);
+  const r = resolveRecipe(
+    draft({
+      ingredients: [ing('간장', '2스푼', ['S01']), ing('양파', '한 개', ['S01']), ing('설탕', '1스푼 반', ['S01']), ing('식초', '3스푼', ['S01'])],
+    }),
+    segs,
+  );
+  assert.deepEqual(r.ingredients.map((i) => [i.amounts[0].verbatim, i.amount_status]), [
+    [false, 'needs_review'],
+    [false, 'needs_review'],
+    [true, 'confirmed'],
+    [false, 'needs_review'],
+  ]);
+});
+
 test("another ingredient's amount in the same evidence needs review", () => {
   const segs = normalizeSegments([{ startMs: 0, durMs: 1000, text: '간장 2스푼 설탕 1스푼 넣어요' }]);
   const r = resolveRecipe(draft({ ingredients: [ing('간장', '1스푼', ['S01']), ing('설탕', '2스푼', ['S01'])] }), segs);

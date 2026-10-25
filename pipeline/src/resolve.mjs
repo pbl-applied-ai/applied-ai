@@ -100,7 +100,7 @@ function continuesKoreanNumber(before, amt, starts) {
   return i !== -1 && (wordBefore(KOREAN_TENS) || (i > 0 && wordBefore([KOREAN_UNITS[i - 1]])));
 }
 
-// Where the amount occurs as a whole number: "2스푼" is not in "12스푼", "1.2스푼" or "1~2스푼".
+// Where the amount occurs as a whole number: "2스푼" is not in "12스푼", "1.2스푼", "1~2스푼" or "2스푼 반".
 // starts holds the word starts of hay (see wordStarts) so Korean number words are read per word.
 function amountMatches(hay, amt, from = 0, starts) {
   const found = [];
@@ -111,6 +111,7 @@ function amountMatches(hay, amt, from = 0, starts) {
     if (/^[가-힣]/.test(amt) && continuesKoreanNumber(before, amt, starts)) continue;
     if (/\d$/.test(amt) && DIGIT_AFTER.test(after)) continue;
     if (/[a-z]$/.test(amt) && /^[a-z]/.test(after)) continue;
+    if (!/반$/.test(amt) && /^의?반/.test(after)) continue; // "2스푼 반", "2스푼의 반"
     found.push({ start: p, end: p + amt.length });
   }
   return found;
@@ -168,18 +169,27 @@ function mentionsAcross(prevText, segText, names) {
 }
 
 // The amount belongs to this ingredient when the closest ingredient named before it (or right after it) is this one.
-// Speech often names the ingredient at the end of the previous caption, so that caption is read along with it.
-function linkedTo(seg, prev, amt, owner, names) {
+// "2스푼의 설탕" ties the amount to the name after it even when another ingredient was named just before
+// ("간장 넣고 2스푼의 설탕"); without "의" ("간장 2스푼 설탕 1스푼") the name before wins.
+// Speech often names the ingredient at the end of the previous caption, so that caption is read along with it,
+// and a caption ending in "2스푼의" is read with the name that starts the next one.
+function linkedTo(seg, prev, next, amt, owner, names) {
   const prevText = prev ? fold(prev.text) : '';
   const head = prev ? prevText + CAPTION_BREAK : '';
   const hay = head + fold(seg.text);
   const found = prev ? mentionsAcross(prevText, fold(seg.text), names) : mentions(hay, names);
   const gap = (from, to) => hay.slice(from, to).replace(CAPTION_BREAK, '');
   const starts = new Set([...(prev ? wordStarts(prev.text) : []), ...wordStarts(seg.text, head.length)]);
+  const nextHead = next ? closest(mentions(fold(next.text), names).filter((n) => n.start === 0)) : null;
+  // An amount that names the ingredient itself ("샬롯 한개 혹은 양파 반개") belongs to it.
+  const namesItself = [...(names.get(owner)?.keys() ?? [])].some((f) => amt.includes(f));
   return amountMatches(hay, amt, head.length, starts).some((m) => {
+    if (namesItself) return true;
+    if (nextHead && hay.slice(m.end) === '의') return nextHead.owner === owner;
+    const after = closest(found.filter((n) => n.start >= m.end).sort((a, b) => a.start - b.start));
+    if (after && gap(m.end, after.start) === '의') return after.owner === owner;
     const before = closest(found.filter((n) => n.end <= m.start).sort((a, b) => b.end - a.end || a.start - b.start));
     if (before && gap(before.end, m.start).length <= LINK_GAP_BEFORE && !/\d/.test(gap(before.end, m.start))) return before.owner === owner;
-    const after = closest(found.filter((n) => n.start >= m.end).sort((a, b) => a.start - b.start));
     return !!after && gap(m.end, after.start).length <= LINK_GAP_AFTER && after.owner === owner;
   });
 }
@@ -187,7 +197,7 @@ function linkedTo(seg, prev, amt, owner, names) {
 // One stated amount. It needs review when its text is not in the cited evidence as a whole number,
 // it is not tied to this ingredient there, or it is a bare number.
 function amountEntry(a, ctx, label, warnings) {
-  const { byId, prevSpeech, owner, names } = ctx;
+  const { byId, prevSpeech, nextSpeech, owner, names } = ctx;
   const text = optional(a?.text);
   if (!text) return null;
   const ids = citations(a.evidence, byId, `${label} amount "${text}"`, warnings);
@@ -201,7 +211,7 @@ function amountEntry(a, ctx, label, warnings) {
     return amountMatches(fold(t), amt, 0, wordStarts(t)).length > 0;
   });
   if (!verbatim) warnings.push(`${label}: amount "${text}" does not appear verbatim in ${ids.join(',')}`);
-  const linked = verbatim && ids.some((id) => linkedTo(byId.get(id), prevSpeech.get(id), amt, owner, names));
+  const linked = verbatim && ids.some((id) => linkedTo(byId.get(id), prevSpeech.get(id), nextSpeech.get(id), amt, owner, names));
   if (verbatim && !linked) warnings.push(`${label}: amount "${text}" is not tied to this ingredient in ${ids.join(',')}`);
   const unitless = NUMBER_ONLY.test(text);
   return {
@@ -305,13 +315,14 @@ export function resolveRecipe(llm, segments) {
 
   const speech = segments.filter((s) => s.kind === 'speech');
   const prevSpeech = new Map(speech.map((s, i) => [s.id, speech[i - 1]]));
+  const nextSpeech = new Map(speech.map((s, i) => [s.id, speech[i + 1]]));
   const merged = mergeAlternatives(dropEquipment(llm.ingredients || [], warnings), byId, warnings);
   const names = new Map(merged.map((ing, i) => [i, ing.is_group_header ? new Map() : nameForms(ing.name)]));
 
   const ingredients = merged.map((ing, i) => {
     const label = `ingredient ${i + 1} (${ing.name})`;
     const ids = citations(ing.evidence, byId, label, warnings);
-    const ctx = { byId, prevSpeech, owner: i, names };
+    const ctx = { byId, prevSpeech, nextSpeech, owner: i, names };
     const amounts = ing.is_group_header
       ? []
       : (ing.amounts || []).map((a) => amountEntry(a, ctx, label, warnings)).filter(Boolean);
