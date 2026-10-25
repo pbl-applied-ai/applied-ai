@@ -52,7 +52,7 @@ create table public.jobs (
   status public.job_status not null default 'queued',
   stage public.job_stage,
   error_code public.job_error_code,
-  reason text,                            -- 내부 원인(집계·디버깅용)
+  reason text,                            -- 세부 원인(예: partial_recipe). 실패 안내 문구를 고를 때도 쓴다
   retry boolean,                          -- 워커 자동 재시도 대상 여부
   attempts integer not null default 0,
   next_run_at timestamptz not null default now(),
@@ -112,8 +112,8 @@ alter table public.user_recipes enable row level security;
 
 revoke all on public.runs, public.run_internals, public.jobs, public.user_recipes from anon, authenticated;
 
--- 로그인 사용자: 내가 넣은 작업 목록(레시피북의 "만드는 중" 카드). message·reason은 볼 수 없다.
-grant select (id, source_url, status, stage, error_code, run_id, created_at, updated_at)
+-- 로그인 사용자: 내가 넣은 작업 목록(레시피북의 "만드는 중" 카드). message는 볼 수 없다.
+grant select (id, source_url, status, stage, error_code, reason, run_id, created_at, updated_at)
   on public.jobs to authenticated;
 create policy jobs_select_own on public.jobs
   for select to authenticated using (requested_by = (select auth.uid()));
@@ -150,13 +150,14 @@ end;
 $$;
 
 -- 진행 확인(처리 중 화면이 폴링). id를 아는 사람만 볼 수 있다.
+-- reason은 실패 안내 7종(Figma 문구표)을 고르는 데 쓴다. partial_recipe 실패면 run_id로 찾은 만큼 보기.
 create function public.get_job(p_job_id uuid)
 returns table (
   id uuid, status public.job_status, stage public.job_stage,
-  error_code public.job_error_code, run_id uuid, created_at timestamptz, updated_at timestamptz
+  error_code public.job_error_code, reason text, run_id uuid, created_at timestamptz, updated_at timestamptz
 )
 language sql stable security definer set search_path = '' as $$
-  select j.id, j.status, j.stage, j.error_code, j.run_id, j.created_at, j.updated_at
+  select j.id, j.status, j.stage, j.error_code, j.reason, j.run_id, j.created_at, j.updated_at
   from public.jobs j
   where j.id = p_job_id;
 $$;
