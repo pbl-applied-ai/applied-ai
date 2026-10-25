@@ -19,6 +19,7 @@ python scripts/validate.py               # 스키마·예시 검사 (CI의 check
 | `docs/labeling-guide.md` | 정답 레시피 만드는 규칙 |
 | `examples/` | 폴더마다 `bundle.json` + `recipe.json` 한 쌍 |
 | `scripts/validate.py` | 스키마 + 교차 규칙(근거 id 존재 등) 검사 |
+| `web/` | 웹 화면(Next.js). 실행 방법은 `web/README.md` |
 
 ## 협업 규칙
 
