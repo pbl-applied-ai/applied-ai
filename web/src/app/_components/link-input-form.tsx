@@ -3,6 +3,7 @@
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { api } from "@/lib/api";
+import { rememberJobSource } from "@/lib/job-source";
 import { SHORTS_ERROR_TEXT, checkShortsUrl } from "@/lib/shorts";
 
 export function LinkInputForm() {
@@ -31,6 +32,7 @@ export function LinkInputForm() {
     setSubmitError(null);
     try {
       const { id } = await api.createJob(check.url);
+      rememberJobSource(id, check.url);
       router.push(`/jobs/${encodeURIComponent(id)}`);
     } catch {
       setSubmitError("잠시 문제가 생겼어요. 다시 시도해 주세요.");
