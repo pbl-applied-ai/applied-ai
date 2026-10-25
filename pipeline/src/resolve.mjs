@@ -66,17 +66,46 @@ const NUMBER_ONLY = /^[\d.,/\s~\-–½⅓⅔¼¾]+$/;
 
 const fold = (s) => squash(s).toLowerCase();
 const DIGIT_BEFORE = /(?:\d|\d[.,/~\-–])$/;
-const KOREAN_NUMBER_BEFORE = /(?:한|두|세|네|다섯|여섯|일곱|여덟|아홉|열|스물|서른|마흔|쉰|예순|일흔|여든|아흔|백|천)[~\-–]?$/;
 const DIGIT_AFTER = /^(?:\d|[.,/]\d)/;
 
+const KOREAN_UNITS = ['한', '두', '세', '네', '다섯', '여섯', '일곱', '여덟', '아홉'];
+const KOREAN_TENS = ['열', '스물', '서른', '마흔', '쉰', '예순', '일흔', '여든', '아흔'];
+const KOREAN_LEADING = new RegExp(`^(${[...KOREAN_UNITS, ...KOREAN_TENS].join('|')})`);
+// Positions in the space-free text where a word of the original text begins.
+function wordStarts(text, offset = 0) {
+  const starts = new Set();
+  let at = offset;
+  for (const word of text.split(/\s+/).filter(Boolean)) {
+    starts.add(at);
+    at += word.length;
+  }
+  return starts;
+}
+
+// Whether a Korean amount continues a number word just before it: "두 스푼" inside "열두 스푼", "한두 스푼" or "한~두 스푼".
+// The number word before must start a word in the original text, so a name ending in the same syllable
+// ("만두 두 개", "녹두 세 컵") or a word like "적당한 두 스푼" does not count. Without word starts every position counts.
+function continuesKoreanNumber(before, amt, starts) {
+  const first = amt.match(KOREAN_LEADING)?.[1];
+  if (!first) return false;
+  const dash = /[~\-–]$/.test(before);
+  const prev = before.replace(/[~\-–]$/, '');
+  const wordBefore = (words) => words.some((w) => prev.endsWith(w) && (!starts || starts.has(prev.length - w.length)));
+  if (dash) return wordBefore([...KOREAN_UNITS, ...KOREAN_TENS]);
+  if (prev.endsWith('백') || prev.endsWith('천')) return true;
+  const i = KOREAN_UNITS.indexOf(first);
+  return i !== -1 && (wordBefore(KOREAN_TENS) || (i > 0 && wordBefore([KOREAN_UNITS[i - 1]])));
+}
+
 // Where the amount occurs as a whole number: "2스푼" is not in "12스푼", "1.2스푼" or "1~2스푼".
-function amountMatches(hay, amt, from = 0) {
+// starts holds the word starts of hay (see wordStarts) so Korean number words are read per word.
+function amountMatches(hay, amt, from = 0, starts) {
   const found = [];
   for (let p = hay.indexOf(amt, from); p !== -1; p = hay.indexOf(amt, p + 1)) {
     const before = hay.slice(0, p);
     const after = hay.slice(p + amt.length);
     if (/^\d/.test(amt) && DIGIT_BEFORE.test(before)) continue;
-    if (/^[가-힣]/.test(amt) && KOREAN_NUMBER_BEFORE.test(before)) continue;
+    if (/^[가-힣]/.test(amt) && continuesKoreanNumber(before, amt, starts)) continue;
     if (/\d$/.test(amt) && DIGIT_AFTER.test(after)) continue;
     if (/[a-z]$/.test(amt) && /^[a-z]/.test(after)) continue;
     found.push({ start: p, end: p + amt.length });
@@ -143,7 +172,8 @@ function linkedTo(seg, prev, amt, owner, names) {
   const hay = head + fold(seg.text);
   const found = prev ? mentionsAcross(prevText, fold(seg.text), names) : mentions(hay, names);
   const gap = (from, to) => hay.slice(from, to).replace(CAPTION_BREAK, '');
-  return amountMatches(hay, amt, head.length).some((m) => {
+  const starts = new Set([...(prev ? wordStarts(prev.text) : []), ...wordStarts(seg.text, head.length)]);
+  return amountMatches(hay, amt, head.length, starts).some((m) => {
     const before = closest(found.filter((n) => n.end <= m.start).sort((a, b) => b.end - a.end || a.start - b.start));
     if (before && gap(before.end, m.start).length <= LINK_GAP_BEFORE && !/\d/.test(gap(before.end, m.start))) return before.owner === owner;
     const after = closest(found.filter((n) => n.start >= m.end).sort((a, b) => a.start - b.start));
@@ -163,7 +193,10 @@ function amountEntry(a, ctx, label, warnings) {
     return null;
   }
   const amt = fold(text);
-  const verbatim = ids.some((id) => amountMatches(fold(byId.get(id).text), amt).length > 0);
+  const verbatim = ids.some((id) => {
+    const t = byId.get(id).text;
+    return amountMatches(fold(t), amt, 0, wordStarts(t)).length > 0;
+  });
   if (!verbatim) warnings.push(`${label}: amount "${text}" does not appear verbatim in ${ids.join(',')}`);
   const linked = verbatim && ids.some((id) => linkedTo(byId.get(id), prevSpeech.get(id), amt, owner, names));
   if (verbatim && !linked) warnings.push(`${label}: amount "${text}" is not tied to this ingredient in ${ids.join(',')}`);

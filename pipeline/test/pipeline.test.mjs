@@ -183,6 +183,39 @@ test('an amount found only inside a larger number needs review', () => {
   assert.equal(r.summary.amounts_confirmed, 0);
 });
 
+test('a name ending in a number syllable does not hide the amount after it', () => {
+  const segs = normalizeSegments([
+    { startMs: 0, durMs: 1000, text: '만두 두 개 넣고' },
+    { startMs: 5000, durMs: 1000, text: '호두 한 줌' },
+    { startMs: 9000, durMs: 1000, text: '녹두 세 컵' },
+  ]);
+  const r = resolveRecipe(
+    draft({ ingredients: [ing('만두', '두 개', ['S01']), ing('호두', '한 줌', ['S02']), ing('녹두', '세 컵', ['S03'])] }),
+    segs,
+  );
+  assert.deepEqual(r.ingredients.map((i) => [i.amounts[0].verbatim, i.amount_status]), Array(3).fill([true, 'confirmed']));
+  assert.ok(!r.warnings.some((w) => /does not appear verbatim/.test(w)));
+});
+
+test('Korean number words are read per word, so ranges and tens still block a partial amount', () => {
+  const segs = normalizeSegments([
+    { startMs: 0, durMs: 1000, text: '간장 두세 스푼' },
+    { startMs: 5000, durMs: 1000, text: '설탕 한 두 스푼' },
+    { startMs: 9000, durMs: 1000, text: '식초 스물세 방울' },
+    { startMs: 13000, durMs: 1000, text: '고추장 적당한 두 스푼' },
+  ]);
+  const r = resolveRecipe(
+    draft({
+      ingredients: [ing('간장', '세 스푼', ['S01']), ing('설탕', '두 스푼', ['S02']), ing('식초', '세 방울', ['S03']), ing('고추장', '두 스푼', ['S04'])],
+    }),
+    segs,
+  );
+  assert.deepEqual(
+    r.ingredients.map((i) => [i.name, i.amounts[0].verbatim]),
+    [['간장', false], ['설탕', false], ['식초', false], ['고추장', true]],
+  );
+});
+
 test('a whole amount next to its ingredient is still confirmed', () => {
   const segs = normalizeSegments([{ startMs: 0, durMs: 1000, text: '간장 12스푼, 설탕 2스푼, 2스푼의 식초' }]);
   const r = resolveRecipe(
