@@ -22,6 +22,9 @@ node src/cli.mjs <youtube-url> --transcript x.transcript.json --out result.json
 node src/cli.mjs --transcript test/fixtures/sample-gochujang-bowl.transcript.json \
   --llm-output test/fixtures/sample-gochujang-bowl.llm.json
 
+# 팀 스키마(schemas/)의 bundle.json·recipe.json으로 내보내기
+node src/cli.mjs <youtube-url> --team-out out/<영상 ID>
+
 # 모델 비교·반복 실행 (결과는 compare/<프롬프트 버전>/<영상 ID>/에 저장, 커밋하지 않음)
 node scripts/compare-models.mjs <transcript.json> gpt-4.1 gpt-5.5
 node scripts/repeat-model.mjs <transcript.json> gpt-4.1 3
@@ -64,8 +67,9 @@ YouTube URL
 | `src/ingredients.mjs` | `parseAmount`: "2스푼", "1~2큰술", "한 개 반", "½ tsp", "약간"을 `{quantity, quantity2, unit, qualitative}`로 파싱. 검증·비교용이고 화면에는 항상 원문을 보여 준다 |
 | `src/resolve.mjs` | 결정론 후처리 전부 (아래 참고) |
 | `src/pipeline.mjs` | `loadSource`, `runPipeline` |
+| `src/team-schema.mjs` | `toEvidenceBundle`, `toTeamRecipe`, `teamIdMap`: 파이프라인 결과 → 팀 스키마 v0.1 (아래 참고) |
 | `src/print.mjs` | 출력 포맷: 요약 줄, 출처별 분량, 상태 표시 |
-| `src/cli.mjs` | CLI 옵션: `--out`, `--transcript`, `--llm-output`, `--lang`(기본 `ko,en`), `--captions-only`, `--json` |
+| `src/cli.mjs` | CLI 옵션: `--out`, `--transcript`, `--llm-output`, `--lang`(기본 `ko,en`), `--captions-only`, `--json`, `--team-out` |
 | `scripts/compare-models.mjs` | 같은 자막으로 여러 모델 실행. 결과는 `compare/<버전>/<영상ID>/<모델>.json` |
 | `scripts/repeat-model.mjs` | 같은 모델을 N번 실행해 실행 간 편차 확인. 결과는 `.../repeat/` |
 | `test/pipeline.test.mjs` | 단위 테스트 (`node --test`). LLM 호출은 `fetch`를 모킹한다 |
@@ -128,6 +132,25 @@ LLM 출력을 그대로 믿지 않고, 코드가 아래 순서로 검증한다.
 
 - `id`(`ing_01`, `step_01`, `tip_01`)는 사용자 레시피로 복사할 때 유지할 안정 ID 용도다.
 - 화면 요약 문구 예: "재료 12개 중 7개 분량을 영상에서 확인 (확인 필요 3개, 불일치 2개) · 단계 9개 중 9개 시각 연결"
+
+## 팀 스키마로 내보내기 (`src/team-schema.mjs`)
+
+레시피북 저장·평가는 `schemas/`의 evidence bundle·recipe 형식(v0.1)을 쓴다. `--team-out <폴더>`로 `bundle.json`과 `recipe.json`을 만든다. 가짜 fixture로 만든 샘플은 [`examples/example-002-pipeline-output/`](../examples/example-002-pipeline-output/)에 있고, 테스트가 코드와 샘플이 같은지 확인한다. 이 샘플은 파이프라인 출력이고 라벨링 정답 예시가 아니다.
+
+bundle은 1~4단계 결과만 담는다. `run.stages`에는 자막 수집(`captions`: 클라이언트, `config.language`·`config.auto_generated`)만 넣고, 모델·프롬프트 버전(5단계)은 넣지 않는다. 같은 영상이면 모델이 달라도 근거 구간(`segments`)과 `stages`가 같아야 학습 데이터(bundle → 정답) 쌍이 흔들리지 않는다. `run_id`·`created_at`은 실행마다 달라서 bundle 파일 전체가 같지는 않다.
+
+같은 폴더에 다시 내보낼 때 `recipe.json`을 만들 수 없으면(레시피 아님, 재료나 단계 0개, 제목 없음) 예전 `recipe.json`을 지운다. 새 bundle과 예전 recipe가 짝으로 남지 않게 하기 위해서다.
+
+| 파이프라인 | 팀 스키마 | 비고 |
+|---|---|---|
+| 자막 `S01`, `S02`… | `asr-0`, `asr-1`… | 플랫폼 자막도 `asr`로 둔다. 자막/직접 전사 구분은 #3에서 정한다 |
+| 설명 `D01`… | `desc-0`… | 시각 없음 |
+| 영상 제목 | `title-0` | |
+| `amount_status: confirmed` | `confirmed` + `amount_raw` | 재료 근거에 분량 근거를 합친다 |
+| `needs_review`·`conflict`·`not_in_video` | `unconfirmed` + `amount_raw: null` | 화면에서 빈칸. 내부 상태 구분은 사라진다 |
+| `status: not_a_recipe`·`insufficient`, 재료나 단계가 0개 | `recipe.json` 없음 + 경고 | 팀 스키마는 재료·단계가 1개 이상이어야 한다 |
+
+팀 스키마에 아직 없어 내보내지 않는 것: `preparation`("얇게 썬"), `tips`, 그룹 머리말, 항목 ID(`ing_01`), 출처별 분량·충돌 내역, 근거 시각. 스키마 v0.2에서 넣을지 정한다.
 
 ## 프롬프트 버전 이력
 
