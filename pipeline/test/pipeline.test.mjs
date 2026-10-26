@@ -535,6 +535,26 @@ test('re-exporting to the same folder removes a recipe.json the new run cannot m
   }
 });
 
+test('team bundle builds the Shorts URL from the video ID, whatever the CLI was given', async () => {
+  const result = await sampleRun();
+  const { videoId } = result.source;
+  for (const input of [videoId, `https://www.youtube.com/watch?v=${videoId}`, `https://youtu.be/${videoId}?si=x`]) {
+    result.source.source_url = input;
+    assert.equal(toEvidenceBundle(result).source.url, `https://www.youtube.com/shorts/${videoId}`);
+  }
+});
+
+test('a confirmed team ingredient leaves out the evidence of amounts still needing review', async () => {
+  const result = await sampleRun();
+  const ing = result.recipe.ingredients.find((i) => i.amount_status === 'confirmed');
+  const cited = new Set([...ing.evidence, ...ing.amounts.flatMap((a) => a.evidence)].map((r) => r.segment_id));
+  const other = result.evidence.find((s) => !cited.has(s.id));
+  ing.amounts.push({ ...ing.amounts[0], text: '1', needs_review: true, evidence: [{ segment_id: other.id }] });
+  const team = toTeamRecipe(result).ingredients.find((i) => i.name === ing.name);
+  assert.equal(team.amount_status, 'confirmed');
+  assert.equal(team.evidence.includes(teamIdMap(result.evidence).get(other.id)), false);
+});
+
 test('team bundle keeps caption settings and leaves the model out', async () => {
   const bundle = toEvidenceBundle(await sampleRun());
   assert.deepEqual(Object.keys(bundle.run.stages), ['captions']);

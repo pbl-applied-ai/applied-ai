@@ -34,7 +34,8 @@ export function toEvidenceBundle(result, { runId, createdAt } = {}) {
     video_id: source.videoId,
     source: {
       kind: 'youtube_shorts',
-      url: source.source_url ?? `https://www.youtube.com/shorts/${source.videoId}`,
+      // Built from the video ID, not the CLI input, which may be a bare ID or a watch link.
+      url: `https://www.youtube.com/shorts/${source.videoId}`,
       ...(source.title && { title: source.title }),
       ...(source.author && { channel: source.author }),
       ...(source.durationMs != null && { duration_ms: source.durationMs }),
@@ -58,7 +59,8 @@ export function toEvidenceBundle(result, { runId, createdAt } = {}) {
 // (not_a_recipe, insufficient, no ingredients or no steps, or an empty title), since the team schema needs
 // a title and at least one ingredient and step. The reason for null is pushed to warnings.
 // Only amounts the pipeline confirmed keep their text; needs_review, conflict and not_in_video
-// all become unconfirmed with an empty amount.
+// all become unconfirmed with an empty amount. A confirmed ingredient adds only the evidence of its
+// confirmed amounts, not of amounts left needing review.
 export function toTeamRecipe(result, warnings = []) {
   const { recipe } = result;
   if (recipe.status !== 'ok') {
@@ -75,11 +77,12 @@ export function toTeamRecipe(result, warnings = []) {
     .filter((ing) => !ing.is_group_header)
     .map((ing) => {
       const confirmed = ing.amount_status === 'confirmed';
+      const amountEvidence = confirmed ? ing.amounts.filter((a) => !a.needs_review).flatMap((a) => a.evidence) : [];
       return {
         name: ing.name,
         amount_raw: confirmed ? ing.amount_text : null,
         amount_status: confirmed ? 'confirmed' : 'unconfirmed',
-        evidence: toTeamIds([...ing.evidence, ...(confirmed ? ing.amounts.flatMap((a) => a.evidence) : [])], map),
+        evidence: toTeamIds([...ing.evidence, ...amountEvidence], map),
       };
     });
   const steps = recipe.steps
