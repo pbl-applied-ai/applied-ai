@@ -73,7 +73,8 @@ export function removeIngredient(draft: EditableRecipe, id: string): EditableRec
 export function editStep(draft: EditableRecipe, id: string, text: string): EditableRecipe {
   return {
     ...draft,
-    steps: draft.steps.map((step) => (step.id === id ? { ...step, text, edited: true } : step)),
+    // 그대로 저장하면(문장이 같으면) 수정 표시를 붙이지 않는다
+    steps: draft.steps.map((step) => (step.id === id && step.text !== text ? { ...step, text, edited: true } : step)),
   };
 }
 
