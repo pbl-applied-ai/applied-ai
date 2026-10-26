@@ -11,15 +11,19 @@ export function LinkInputForm() {
   const [url, setUrl] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState<string | null>(null);
+  // 직접 칠 때는 다 치기 전까지 오류를 숨긴다. 입력칸을 벗어나거나 붙여 넣은 뒤부터 보여 준다(버튼은 바로 꺼짐).
+  const [showFieldError, setShowFieldError] = useState(false);
 
   const check = checkShortsUrl(url);
-  const fieldError = !check.ok && check.reason !== "empty" ? SHORTS_ERROR_TEXT[check.reason] : null;
+  const fieldError =
+    showFieldError && !check.ok && check.reason !== "empty" ? SHORTS_ERROR_TEXT[check.reason] : null;
   const canSubmit = check.ok && !submitting;
 
   async function paste() {
     try {
       const text = await navigator.clipboard.readText();
       setUrl(text.trim());
+      setShowFieldError(true);
     } catch {
       // 클립보드 권한이 없으면 사용자가 직접 붙여 넣는다.
     }
@@ -53,7 +57,12 @@ export function LinkInputForm() {
           autoComplete="off"
           placeholder="youtube.com/shorts/..."
           value={url}
-          onChange={(e) => setUrl(e.target.value)}
+          onChange={(e) => {
+            setUrl(e.target.value);
+            if (e.target.value.trim() === "") setShowFieldError(false);
+          }}
+          onBlur={() => setShowFieldError(true)}
+          onPaste={() => setShowFieldError(true)}
           aria-invalid={fieldError ? true : undefined}
           aria-describedby={fieldError ? "link-error" : undefined}
           className={`h-13 min-w-0 flex-1 rounded-[10px] border-[1.5px] px-3.5 text-base outline-link ${

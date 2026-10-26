@@ -12,14 +12,16 @@ export function checkShortsUrl(input: string): ShortsCheck {
   const raw = input.trim();
   if (raw === "") return { ok: false, reason: "empty" };
 
+  // 주소로 읽을 수 없는 글(형식 오류)은 not_shorts, 다른 서비스 주소는 unsupported (docs/ux-flow.md S2)
   let parsed: URL;
   try {
     parsed = new URL(/^https?:\/\//i.test(raw) ? raw : `https://${raw}`);
   } catch {
-    return { ok: false, reason: "unsupported" };
+    return { ok: false, reason: "not_shorts" };
   }
 
   const host = parsed.hostname.toLowerCase();
+  if (!host.includes(".")) return { ok: false, reason: "not_shorts" };
   if (!YOUTUBE_HOSTS.has(host)) return { ok: false, reason: "unsupported" };
 
   const [first, id] = parsed.pathname.split("/").filter(Boolean);

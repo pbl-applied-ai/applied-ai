@@ -10,7 +10,8 @@ const STAGE_TEXT: Record<JobStage, string> = {
 
 export function stageText(job: Pick<Job, "status" | "stage">): string {
   if (job.status === "queued" || job.stage === null) return "곧 시작해요…";
-  return STAGE_TEXT[job.stage];
+  // 응답은 런타임 값이라 타입에 없는 단계가 올 수 있다.
+  return STAGE_TEXT[job.stage] ?? "곧 시작해요…";
 }
 
 export type FailureAction = "retry" | "other_link" | "partial";
@@ -58,7 +59,8 @@ const UNKNOWN: FailureCopy = FAILURE.retryable;
 
 /** 실패한 job의 안내. insufficient인데 결과(run_id)가 없으면 '찾은 만큼 보기'를 뺀다. */
 export function failureCopy(job: Pick<Job, "error_code" | "run_id">): FailureCopy {
-  const copy = job.error_code ? FAILURE[job.error_code] : UNKNOWN;
+  // 워커가 새 error_code를 보내도 화면이 깨지지 않게 모르는 코드는 일시 오류로 안내한다.
+  const copy = (job.error_code && FAILURE[job.error_code]) || UNKNOWN;
   if (job.error_code === "insufficient" && !job.run_id) {
     return {
       title: "영상에서 레시피를 찾지 못했어요",

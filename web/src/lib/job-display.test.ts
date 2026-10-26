@@ -13,6 +13,10 @@ describe("stageText", () => {
     expect(stageText({ status: "queued", stage: null })).toBe("곧 시작해요…");
     expect(stageText({ status: "processing", stage: null })).toBe("곧 시작해요…");
   });
+
+  it("모르는 단계가 와도 빈 문구가 되지 않는다", () => {
+    expect(stageText({ status: "processing", stage: "finalize" as never })).toBe("곧 시작해요…");
+  });
 });
 
 describe("failureCopy", () => {
@@ -31,7 +35,10 @@ describe("failureCopy", () => {
     expect(empty.title).toBe("영상에서 레시피를 찾지 못했어요");
   });
 
-  it("error_code가 없으면 일시 오류로 안내", () => {
+  it("error_code가 없거나 모르는 코드면 일시 오류로 안내", () => {
     expect(failureCopy({ error_code: null, run_id: null }).title).toBe("잠시 문제가 생겼어요");
+    const unknown = failureCopy({ error_code: "internal" as never, run_id: null });
+    expect(unknown.title).toBe("잠시 문제가 생겼어요");
+    expect(unknown.actions).toEqual(["retry", "other_link"]);
   });
 });

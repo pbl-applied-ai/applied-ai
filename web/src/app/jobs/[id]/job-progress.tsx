@@ -34,11 +34,17 @@ export function JobProgress() {
         const next = await api.getJob(id);
         if (cancelled) return;
         errors = 0;
-        setJob(next);
-        if (next.status === "succeeded" && next.run_id) {
-          router.replace(`/runs/${encodeURIComponent(next.run_id)}`);
+        if (next.status === "succeeded") {
+          if (next.run_id) {
+            setJob(next);
+            router.replace(`/runs/${encodeURIComponent(next.run_id)}`);
+          } else {
+            // 성공인데 결과가 없으면 서버 쪽 문제다. 계속 조회하지 않고 일시 오류로 안내한다.
+            setJob({ ...next, status: "failed", error_code: null });
+          }
           return;
         }
+        setJob(next);
         if (next.status === "failed") return;
       } catch {
         if (cancelled) return;
