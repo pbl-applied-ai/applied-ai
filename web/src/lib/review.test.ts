@@ -18,6 +18,12 @@ describe("분량 표시 3가지", () => {
 
     const changed = editIngredient(draft, oil.id, { amount_raw: "1큰술" });
     expect(amountView(changed.ingredients[0])).toEqual({ kind: "user", text: "1큰술" });
+
+    // 이름만 고치거나 그대로 저장하면 영상에서 확인한 분량 그대로다
+    const renamed = editIngredient(draft, oil.id, { name: "식용유", amount_raw: "살짝만" });
+    expect(amountView(renamed.ingredients[0])).toEqual({ kind: "confirmed", text: "살짝만" });
+    const same = editIngredient(draft, oil.id, { name: oil.name, amount_raw: oil.amount_raw });
+    expect(same.ingredients[0].edited).toBe(false);
   });
 
   it("되돌리기는 추출 결과로 복원한다", () => {

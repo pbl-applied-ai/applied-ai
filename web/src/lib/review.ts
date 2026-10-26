@@ -20,8 +20,9 @@ export type AmountView =
 /** 분량 표시 3가지(UX v0.4): 영상에서 확인한 원문 / 영상에서 확인 안 됨 / 직접 입력 */
 export function amountView(ing: EditableIngredient): AmountView {
   if (!ing.amount_raw) return { kind: "missing" };
-  // 사용자가 채웠거나 고친 분량은 영상에서 확인한 값이 아니다
-  if (ing.user_entered || ing.edited) return { kind: "user", text: ing.amount_raw };
+  // 사용자가 채웠거나 고친 분량은 영상에서 확인한 값이 아니다(editIngredient가 user_entered를 붙인다).
+  // 이름만 고친 재료의 분량은 그대로 영상에서 확인한 값이다.
+  if (ing.user_entered) return { kind: "user", text: ing.amount_raw };
   return { kind: "confirmed", text: ing.amount_raw };
 }
 

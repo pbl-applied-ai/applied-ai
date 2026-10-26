@@ -184,7 +184,7 @@ export function ReviewScreen() {
             onStartEdit={() => setEditing(step.id)}
             onCancel={() => setEditing(null)}
             onSave={(text) => {
-              update(editStep(draft, step.id, text));
+              if (text !== step.text) update(editStep(draft, step.id, text));
               setEditing(null);
             }}
             onRevert={() => update(revertItem(draft, run, step.id))}

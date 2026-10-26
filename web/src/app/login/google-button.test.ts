@@ -7,5 +7,8 @@ describe("safeNext", () => {
     expect(safeNext(null)).toBe("/book");
     expect(safeNext("https://evil.example")).toBe("/book");
     expect(safeNext("//evil.example")).toBe("/book");
+    expect(safeNext("/\\evil.example")).toBe("/book");
+    expect(safeNext("/\t/evil.example")).toBe("/book");
+    expect(safeNext("/r/run-1?x=1#a")).toBe("/r/run-1?x=1#a");
   });
 });
