@@ -272,6 +272,18 @@ test('"amount의" at the end of a caption is tied to the name that starts the ne
   ]);
 });
 
+test('"amount의" ending a caption is tied to nothing when the next caption does not start with a name', () => {
+  const segs = normalizeSegments([
+    { startMs: 0, durMs: 1000, text: '간장 넣고 2스푼의' },
+    { startMs: 5000, durMs: 1000, text: '그 설탕 넣어 주세요' },
+  ]);
+  const r = resolveRecipe(draft({ ingredients: [ing('간장', '2스푼', ['S01']), ing('설탕', '2스푼', ['S01', 'S02'])] }), segs);
+  assert.deepEqual(r.ingredients.map((i) => [i.name, i.amount_status]), [
+    ['간장', 'needs_review'],
+    ['설탕', 'needs_review'],
+  ]);
+});
+
 test('an amount followed by 반 is not confirmed as the shorter amount', () => {
   const segs = normalizeSegments([{ startMs: 0, durMs: 1000, text: '간장 2스푼 반, 양파 한 개 반, 설탕 1스푼 반, 식초 3스푼의 반만' }]);
   const r = resolveRecipe(
@@ -323,6 +335,15 @@ test('a number ending the previous caption does not join the next amount', () =>
   ]);
   const r = resolveRecipe(draft({ ingredients: [ing('간장', '2스푼', ['S02'])] }), segs);
   assert.equal(r.ingredients[0].amount_status, 'confirmed');
+});
+
+test('a Korean tens word ending the previous caption still blocks the partial amount after it', () => {
+  const segs = normalizeSegments([
+    { startMs: 0, durMs: 1000, text: '간장 열' },
+    { startMs: 2000, durMs: 1000, text: '두 스푼 넣어요' },
+  ]);
+  const r = resolveRecipe(draft({ ingredients: [ing('간장', '두 스푼', ['S02'])] }), segs);
+  assert.equal(r.ingredients[0].amount_status, 'needs_review');
 });
 
 test('an ingredient name split across two captions is still the full name', () => {

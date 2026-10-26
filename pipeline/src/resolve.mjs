@@ -86,13 +86,15 @@ function wordStarts(text, offset = 0) {
 // When the amount starts its own word, the number word before must also start a word in the original text, so a name
 // ending in the same syllable ("만두 두 개") or a word like "적당한 두 스푼" does not count. When the amount is glued to
 // the word before ("간장두세스푼", "녹두세 컵") the two cannot be told apart and it counts, so the amount is not confirmed.
+// A caption break does not separate them: speech cut as "간장 열" + "두 스푼" is still "열두 스푼".
 // Without word starts every position counts.
 function continuesKoreanNumber(before, amt, starts) {
   const first = amt.match(KOREAN_LEADING)?.[1];
   if (!first) return false;
-  const dash = /[~\-–]$/.test(before);
-  const prev = before.replace(/[~\-–]$/, '');
   const glued = !starts || !starts.has(before.length);
+  const text = before.endsWith(CAPTION_BREAK) ? before.slice(0, -CAPTION_BREAK.length) : before;
+  const dash = /[~\-–]$/.test(text);
+  const prev = text.replace(/[~\-–]$/, '');
   const wordBefore = (words) => words.some((w) => prev.endsWith(w) && (glued || starts.has(prev.length - w.length)));
   if (dash) return wordBefore([...KOREAN_UNITS, ...KOREAN_TENS]);
   if (prev.endsWith('백') || prev.endsWith('천')) return true;
@@ -172,7 +174,8 @@ function mentionsAcross(prevText, segText, names) {
 // "2스푼의 설탕" ties the amount to the name after it even when another ingredient was named just before
 // ("간장 넣고 2스푼의 설탕"); without "의" ("간장 2스푼 설탕 1스푼") the name before wins.
 // Speech often names the ingredient at the end of the previous caption, so that caption is read along with it,
-// and a caption ending in "2스푼의" is read with the name that starts the next one.
+// and a caption ending in "2스푼의" is read with the name that starts the next one; when no name starts it
+// ("2스푼의" + "그 설탕"), the amount is tied to nothing.
 function linkedTo(seg, prev, next, amt, owner, names) {
   const prevText = prev ? fold(prev.text) : '';
   const head = prev ? prevText + CAPTION_BREAK : '';
@@ -185,7 +188,7 @@ function linkedTo(seg, prev, next, amt, owner, names) {
   const namesItself = [...(names.get(owner)?.keys() ?? [])].some((f) => amt.includes(f));
   return amountMatches(hay, amt, head.length, starts).some((m) => {
     if (namesItself) return true;
-    if (nextHead && hay.slice(m.end) === '의') return nextHead.owner === owner;
+    if (hay.slice(m.end) === '의') return !!nextHead && nextHead.owner === owner;
     const after = closest(found.filter((n) => n.start >= m.end).sort((a, b) => a.start - b.start));
     if (after && gap(m.end, after.start) === '의') return after.owner === owner;
     const before = closest(found.filter((n) => n.end <= m.start).sort((a, b) => b.end - a.end || a.start - b.start));
