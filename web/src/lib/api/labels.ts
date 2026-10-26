@@ -1,4 +1,5 @@
-// 처리 단계·실패 안내 문구. Figma "S3 실패 안내 문구표 · 수정안"(7종, #14 기준) 그대로.
+// 처리 단계·실패 안내 문구. 제목·버튼은 Figma "S3 실패 안내 문구표 · 수정안"(7종, #14 기준) 그대로.
+// 설명(body)은 문구표에 칸이 없어 #15 처리 중 화면 문구를 쓴다.
 // https://www.figma.com/design/6MU7IzjIHSHV6eMlJHcKnZ/Applied-AI?node-id=13-111
 import type { Job, JobErrorCode, JobStage } from './types';
 
@@ -21,24 +22,48 @@ export interface ErrorGuide {
 export const ACTION_LABEL: Record<FailAction, string> = {
   retry: '다시 시도',
   upload: '영상 파일로 넣기',
-  other_link: '다른 링크',
+  other_link: '다른 링크 넣기',
   show_partial: '찾은 만큼 보기',
   go_book: '레시피북으로',
 };
 
 // 문구표 7종. 키는 error_code·reason 조합이다
 export const FAIL_GUIDE = {
-  retryable: { title: '잠시 문제가 생겼어요', actions: ['retry', 'other_link'] },
-  not_playable: { title: '이 영상은 열 수 없어요', actions: ['upload', 'other_link'] },
+  retryable: {
+    title: '잠시 문제가 생겼어요',
+    body: '몇 번 다시 시도했지만 실패했어요.\n조금 뒤에 다시 시도해 주세요.',
+    actions: ['retry', 'other_link'],
+  },
+  not_playable: {
+    title: '이 영상은 열 수 없어요',
+    body: '비공개이거나 삭제된 영상일 수 있어요.\n다른 영상 링크를 넣어 주세요.',
+    actions: ['upload', 'other_link'],
+  },
   no_captions: {
     title: '이 영상은 자막이 없어서 읽을 수 없어요',
-    body: '지금은 자막이 있는 영상만 레시피로 만들 수 있어요. 다른 영상을 넣어 주세요.',
+    body: '지금은 자막이 있는 영상만 레시피로 만들 수 있어요.\n다른 영상을 넣어 주세요.',
     actions: ['other_link', 'upload'],
   },
-  not_a_recipe: { title: '요리 영상이 아닌 것 같아요', actions: ['other_link'] },
-  partial_recipe: { title: '영상에서 찾은 정보가 적어요', actions: ['show_partial', 'other_link'] },
-  empty_recipe: { title: '영상에서 레시피를 찾지 못했어요', actions: ['other_link', 'upload'] },
-  internal: { title: '서비스에 문제가 생겼어요', actions: ['retry', 'go_book'] },
+  not_a_recipe: {
+    title: '요리 영상이 아닌 것 같아요',
+    body: '레시피가 담긴 요리 Shorts 링크를\n넣어 주세요.',
+    actions: ['other_link'],
+  },
+  partial_recipe: {
+    title: '영상에서 찾은 정보가 적어요',
+    body: '찾은 내용만 보여 드릴게요.\n빠진 부분은 직접 채울 수 있어요.',
+    actions: ['show_partial', 'other_link'],
+  },
+  empty_recipe: {
+    title: '영상에서 레시피를 찾지 못했어요',
+    body: '재료와 조리 순서를 찾지 못했어요.\n다른 영상으로 다시 해 보세요.',
+    actions: ['other_link', 'upload'],
+  },
+  internal: {
+    title: '서비스에 문제가 생겼어요',
+    body: '저희 쪽 문제예요.\n잠시 뒤에 다시 시도해 주세요.',
+    actions: ['retry', 'go_book'],
+  },
   // 문구표에 없음. 화면 원본(4-132)의 unsupported_source 문구를 쓴다
   unsupported_source: {
     title: '이 영상은 링크로 가져올 수 없어요',
@@ -69,8 +94,8 @@ const BY_CODE: Record<JobErrorCode, FailGuideKey> = {
   internal: 'internal',
 };
 
-export function failGuide(job: Pick<Job, 'errorCode' | 'reason'>): ErrorGuide | null {
-  if (!job.errorCode) return null;
-  const key = (job.reason && BY_REASON[job.reason]) || BY_CODE[job.errorCode];
-  return FAIL_GUIDE[key];
+// 응답은 런타임 값이라 모르는 error_code·reason이 올 수 있다. 그때는 일시 오류 안내로 보낸다.
+export function failGuide(job: Pick<Job, 'errorCode' | 'reason'>): ErrorGuide {
+  const key = (job.reason && BY_REASON[job.reason]) || (job.errorCode && BY_CODE[job.errorCode]) || 'retryable';
+  return FAIL_GUIDE[key] ?? FAIL_GUIDE.retryable;
 }

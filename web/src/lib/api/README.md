@@ -4,11 +4,12 @@
 
 ## 위치
 
-`web/src/lib/api`(`@/lib/api`). #15의 최소 jobs 클라이언트(`types`·`mock`·`real`)를 이 모듈로 바꿨다.
+`web/src/lib/api` (PR #17의 `shared/api`를 옮김). 링크 형식 검사는 이 모듈의 `url.ts` 대신 `@/lib/shorts`(`checkShortsUrl`)를 쓴다. MVP는 Shorts 링크만 받는다(docs/ux-flow.md S2).
 
 ```ts
 'use client';
-import { api, STAGE_LABEL, ERROR_GUIDE, checkSourceUrl, toEditable } from '@/lib/api';
+import { api, STAGE_LABEL, failGuide, toEditable } from '@/lib/api';
+import { checkShortsUrl } from '@/lib/shorts';
 ```
 
 목은 브라우저 `localStorage`를 쓰므로 클라이언트 컴포넌트에서만 부른다.
@@ -20,7 +21,6 @@ import { api, STAGE_LABEL, ERROR_GUIDE, checkSourceUrl, toEditable } from '@/lib
 | `types.ts` | `RecipeApi`(함수 목록), Job·Run·UserRecipe 등 타입 |
 | `mock.ts` | 목 구현. 링크별 시나리오(`MOCK_LINKS`) |
 | `labels.ts` | 처리 단계 문구, 실패 안내 7종(Figma 문구표 수정안 13-111), `failGuide(job)` |
-| `url.ts` | 링크 입력 형식 검사 |
 | `editable.ts` | 확인·수정 화면 편집 함수(수정·추가·삭제·되돌리기·저장 가능 여부) |
 | `pending-save.ts` | 저장 → 구글 로그인 → 돌아와서 자동 저장 |
 | `fixtures.ts` | 목 레시피(직접 만든 가짜 fixture의 출력) |
@@ -29,7 +29,7 @@ import { api, STAGE_LABEL, ERROR_GUIDE, checkSourceUrl, toEditable } from '@/lib
 
 | 화면 | 함수 |
 |---|---|
-| S2 링크 입력 | `checkSourceUrl` → `api.createJob` |
+| S2 링크 입력 | `checkShortsUrl`(`@/lib/shorts`) → `api.createJob` |
 | S3 처리 중·실패 안내 | `api.getJob` 1~2초마다, `STAGE_LABEL`, 실패면 `failGuide(job)` + `ACTION_LABEL`. `partial_recipe`면 `job.runId`로 "찾은 만큼 보기" |
 | S4 확인·수정 | `api.getRun` → `toEditable` → `editIngredient`·`addStep`·`revertItem` 등, `canSave` |
 | S4 저장 | `api.getUser` → 없으면 `stashPendingSave` + `api.signInWithGoogle`, 있으면 `api.saveRecipe` |
