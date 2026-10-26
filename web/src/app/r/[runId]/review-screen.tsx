@@ -21,6 +21,7 @@ import {
   toEditable,
 } from "@/lib/api";
 import { isDescriptionOnly, missingParts, saveBlocker } from "@/lib/review";
+import { useUnsavedWarning } from "@/lib/use-unsaved-warning";
 import { AddIngredientForm, AddStepForm, IngredientRow, StepRow } from "./rows";
 
 type Load = { kind: "loading" } | { kind: "missing" } | { kind: "ready"; run: Run };
@@ -33,6 +34,8 @@ export function ReviewScreen() {
   const [editing, setEditing] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
   const [saveError, setSaveError] = useState<string | null>(null);
+  const [dirty, setDirty] = useState(false);
+  useUnsavedWarning(dirty && !saving);
 
   useEffect(() => {
     let cancelled = false;
@@ -88,6 +91,7 @@ export function ReviewScreen() {
   const blocker = saveBlocker(draft);
   const update = (next: EditableRecipe) => {
     setDraft(next);
+    setDirty(true);
     setSaveError(null);
   };
 
@@ -104,6 +108,7 @@ export function ReviewScreen() {
         return;
       }
       const { id } = await api.saveRecipe(draft);
+      setDirty(false);
       router.push(`/recipes/${encodeURIComponent(id)}`);
     } catch {
       setSaving(false);
