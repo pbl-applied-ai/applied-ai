@@ -1,6 +1,10 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { readFileSync } from 'node:fs';
+import { execFileSync } from 'node:child_process';
+import { existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { decodeCaptionText, fetchTranscript, parseCaptionXml, parseVideoId, watchUrl } from '../src/youtube.mjs';
 import { descriptionSegments, normalizeSegments, renderForPrompt } from '../src/segments.mjs';
 import { parseAmount } from '../src/ingredients.mjs';
@@ -8,6 +12,7 @@ import { resolveRecipe } from '../src/resolve.mjs';
 import { extractRecipe, resolveProvider } from '../src/llm.mjs';
 import { runPipeline } from '../src/pipeline.mjs';
 import { PROMPT_VERSION, RECIPE_SCHEMA } from '../src/schema.mjs';
+import { teamIdMap, toEvidenceBundle, toTeamRecipe } from '../src/team-schema.mjs';
 
 const fixture = (name) => new URL(`./fixtures/${name}`, import.meta.url);
 const llmFixture = JSON.parse(readFileSync(fixture('sample-gochujang-bowl.llm.json'), 'utf8'));
@@ -452,4 +457,106 @@ test('caption HTTP errors are reported when every client fails', async () => {
     fetchTranscript('Smpl0Gochu1', { fetchImpl: youtubeFetch([403, 429]) }),
     /ANDROID: track ko caption HTTP 403; IOS: track ko caption HTTP 429/,
   );
+});
+
+const sampleRun = () =>
+  runPipeline({
+    url: 'https://www.youtube.com/shorts/Smpl0Gochu1',
+    transcriptFile: fixture('sample-gochujang-bowl.transcript.json'),
+    llmOutput: structuredClone(llmFixture),
+  });
+
+test('team schema export matches the committed example (examples/example-002-pipeline-output)', async () => {
+  const result = await sampleRun();
+  const example = (name) => JSON.parse(readFileSync(new URL(`../../examples/example-002-pipeline-output/${name}`, import.meta.url), 'utf8'));
+  assert.deepEqual(toEvidenceBundle(result, { runId: 'example-run-002', createdAt: '2026-10-22T00:00:00Z' }), example('bundle.json'));
+  assert.deepEqual(toTeamRecipe(result), example('recipe.json'));
+});
+
+test('team IDs number speech and description segments separately', () => {
+  const map = teamIdMap([
+    { id: 'S01', kind: 'speech' },
+    { id: 'S02', kind: 'speech' },
+    { id: 'D01', kind: 'description' },
+  ]);
+  assert.deepEqual([...map.values()], ['asr-0', 'asr-1', 'desc-0']);
+});
+
+test('team recipe keeps only confirmed amounts and is null without a recipe', async () => {
+  const result = await sampleRun();
+  const garlic = result.recipe.ingredients.find((i) => i.name === '마늘');
+  garlic.amount_status = 'needs_review';
+  garlic.amount_text = '두 쪽';
+  const ing = toTeamRecipe(result).ingredients.find((i) => i.name === '마늘');
+  assert.equal(ing.amount_raw, null);
+  assert.equal(ing.amount_status, 'unconfirmed');
+
+  const warnings = [];
+  result.recipe.status = 'not_a_recipe';
+  assert.equal(toTeamRecipe(result, warnings), null);
+  assert.match(warnings[0], /status is not_a_recipe, recipe\.json skipped/);
+});
+
+test('team recipe is skipped with a warning when ingredients exist but steps do not', async () => {
+  const result = await sampleRun();
+  result.recipe.steps = [];
+  const warnings = [];
+  assert.equal(toTeamRecipe(result, warnings), null);
+  assert.match(warnings[0], /\d+ ingredients and 0 steps/);
+});
+
+test('team recipe is skipped with a warning when the title is empty', async () => {
+  const result = await sampleRun();
+  result.recipe.title = '  ';
+  const warnings = [];
+  assert.equal(toTeamRecipe(result, warnings), null);
+  assert.match(warnings[0], /no title, recipe\.json skipped/);
+});
+
+test('re-exporting to the same folder removes a recipe.json the new run cannot make', () => {
+  const dir = mkdtempSync(join(tmpdir(), 'team-out-'));
+  const cli = (llm) =>
+    execFileSync(process.execPath, [
+      fileURLToPath(new URL('../src/cli.mjs', import.meta.url)),
+      '--transcript', fileURLToPath(fixture('sample-gochujang-bowl.transcript.json')),
+      '--llm-output', llm,
+      '--team-out', dir,
+    ], { stdio: 'pipe' });
+  try {
+    cli(fileURLToPath(fixture('sample-gochujang-bowl.llm.json')));
+    assert.ok(existsSync(join(dir, 'recipe.json')));
+    const noSteps = join(dir, 'no-steps.llm.json');
+    writeFileSync(noSteps, JSON.stringify({ ...llmFixture, steps: [] }));
+    cli(noSteps);
+    assert.ok(existsSync(join(dir, 'bundle.json')));
+    assert.equal(existsSync(join(dir, 'recipe.json')), false);
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test('team bundle builds the Shorts URL from the video ID, whatever the CLI was given', async () => {
+  const result = await sampleRun();
+  const { videoId } = result.source;
+  for (const input of [videoId, `https://www.youtube.com/watch?v=${videoId}`, `https://youtu.be/${videoId}?si=x`]) {
+    result.source.source_url = input;
+    assert.equal(toEvidenceBundle(result).source.url, `https://www.youtube.com/shorts/${videoId}`);
+  }
+});
+
+test('a confirmed team ingredient leaves out the evidence of amounts still needing review', async () => {
+  const result = await sampleRun();
+  const ing = result.recipe.ingredients.find((i) => i.amount_status === 'confirmed');
+  const cited = new Set([...ing.evidence, ...ing.amounts.flatMap((a) => a.evidence)].map((r) => r.segment_id));
+  const other = result.evidence.find((s) => !cited.has(s.id));
+  ing.amounts.push({ ...ing.amounts[0], text: '1', needs_review: true, evidence: [{ segment_id: other.id }] });
+  const team = toTeamRecipe(result).ingredients.find((i) => i.name === ing.name);
+  assert.equal(team.amount_status, 'confirmed');
+  assert.equal(team.evidence.includes(teamIdMap(result.evidence).get(other.id)), false);
+});
+
+test('team bundle keeps caption settings and leaves the model out', async () => {
+  const bundle = toEvidenceBundle(await sampleRun());
+  assert.deepEqual(Object.keys(bundle.run.stages), ['captions']);
+  assert.deepEqual(Object.keys(bundle.run.stages.captions.config), ['language', 'auto_generated']);
 });
