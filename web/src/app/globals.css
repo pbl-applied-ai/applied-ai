@@ -1,0 +1,31 @@
+@import "tailwindcss";
+
+/* 와이어프레임 색(Figma "Wireframe colors" 변수와 같은 값). 색·폰트 다듬기는 데모 후. */
+:root {
+  --background: #ffffff;
+  --foreground: #1a1a1a;
+  --muted: #5c5c5c;
+  --subtle: #f4f4f2;
+  --line: #e2e2de;
+  --line-strong: #b5b5b0;
+  --disabled: #d6d6d2;
+  --link: #1f5fbf;
+  --danger: #a3290a;
+}
+
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-muted: var(--muted);
+  --color-subtle: var(--subtle);
+  --color-line: var(--line);
+  --color-line-strong: var(--line-strong);
+  --color-disabled: var(--disabled);
+  --color-link: var(--link);
+  --color-danger: var(--danger);
+  --font-sans: var(--font-noto-sans-kr), system-ui, sans-serif;
+}
+
+body {
+  font-family: var(--font-sans);
+}
