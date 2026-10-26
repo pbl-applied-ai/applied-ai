@@ -28,5 +28,8 @@ export function failureView(job: Pick<Job, "errorCode" | "reason" | "runId">, ct
     if (a === "show_partial") return Boolean(job.runId);
     return true;
   });
-  return { title: guide.title, body: guide.body ?? "", actions: actions.length ? actions : (["other_link"] as FailAction[]) };
+  // 다른 출구(레시피북·업로드)를 뺐으면 막다른 화면이 되지 않게 [다른 링크 넣기]를 붙인다
+  const exitRemoved = guide.actions.some((a) => (a === "go_book" || a === "upload") && !actions.includes(a));
+  if ((exitRemoved || actions.length === 0) && !actions.includes("other_link")) actions.push("other_link");
+  return { title: guide.title, body: guide.body ?? "", actions };
 }

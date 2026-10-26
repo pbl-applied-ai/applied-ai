@@ -235,8 +235,9 @@ export function createMockApi(options: MockOptions = {}): RecipeApi {
       await wait();
       const state = load();
       requireUser(state);
-      const { [id]: _removed, ...rest } = state.recipes;
-      save({ ...state, recipes: rest });
+      const recipes = { ...state.recipes };
+      delete recipes[id];
+      save({ ...state, recipes });
     },
   };
 }

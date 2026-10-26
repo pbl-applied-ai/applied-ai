@@ -1,4 +1,5 @@
-// 처리 단계·실패 안내 문구. 제목·버튼은 Figma "S3 실패 안내 문구표 · 수정안"(7종, #14 기준) 그대로.
+// 처리 단계·실패 안내 문구. 제목·버튼 구성은 Figma "S3 실패 안내 문구표 · 수정안"(7종, #14 기준)을 따른다.
+// 단, other_link 버튼 이름은 S2 링크 입력으로 돌아간다는 뜻이 드러나게 "다른 링크 넣기"로 바꿨다.
 // 설명(body)은 문구표에 칸이 없어 #15 처리 중 화면 문구를 쓴다.
 // https://www.figma.com/design/6MU7IzjIHSHV6eMlJHcKnZ/Applied-AI?node-id=13-111
 import type { Job, JobErrorCode, JobStage } from './types';

@@ -38,7 +38,7 @@ describe("failureView", () => {
 
   it("데모(비로그인·업로드 없음)에서는 쓸 수 없는 버튼을 뺀다", () => {
     expect(failureView({ errorCode: "unavailable", reason: "not_playable", runId: null }, demo).actions).toEqual(["other_link"]);
-    expect(failureView({ errorCode: "internal", reason: "unexpected", runId: null }, demo).actions).toEqual(["retry"]);
+    expect(failureView({ errorCode: "internal", reason: "unexpected", runId: null }, demo).actions).toEqual(["retry", "other_link"]);
     expect(failureView({ errorCode: "internal", reason: "unexpected", runId: null }, { ...demo, loggedIn: true }).actions).toEqual(["retry", "go_book"]);
   });
 

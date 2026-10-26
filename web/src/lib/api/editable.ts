@@ -34,11 +34,18 @@ export function editIngredient(
     ...draft,
     ingredients: draft.ingredients.map((ing) => {
       if (ing.id !== id) return ing;
-      const next = { ...ing, ...patch, edited: true };
-      // 빈칸이던 분량을 사용자가 채우면 근거 없는 값이다
-      if ('amount_raw' in patch) {
-        next.amount_raw = patch.amount_raw?.trim() ? patch.amount_raw.trim() : null;
-        if (ing.amount_status === 'unconfirmed' && next.amount_raw) next.user_entered = true;
+      const next = { ...ing, ...patch };
+      if ('name' in patch) next.name = (patch.name ?? '').trim();
+      if ('amount_raw' in patch) next.amount_raw = patch.amount_raw?.trim() ? patch.amount_raw.trim() : null;
+      // 아무것도 안 바뀌었으면(그대로 저장) 수정 표시를 붙이지 않는다
+      const changed = next.name !== ing.name || next.amount_raw !== ing.amount_raw || next.optional !== ing.optional;
+      if (!changed) return ing;
+      next.edited = true;
+      // 분량을 바꾸거나 지우면 더 이상 영상 근거로 확인된 값이 아니다.
+      // 새 값을 적었으면 근거 없이 사용자가 채운 분량이다.
+      if (next.amount_raw !== ing.amount_raw) {
+        next.amount_status = 'unconfirmed';
+        next.user_entered = Boolean(next.amount_raw);
       }
       return next;
     }),
