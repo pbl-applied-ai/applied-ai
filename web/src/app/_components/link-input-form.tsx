@@ -35,9 +35,9 @@ export function LinkInputForm() {
     setSubmitting(true);
     setSubmitError(null);
     try {
-      const { id } = await api.createJob(check.url);
-      rememberJobSource(id, check.url);
-      router.push(`/jobs/${encodeURIComponent(id)}`);
+      const { jobId } = await api.createJob(check.url);
+      rememberJobSource(jobId, check.url);
+      router.push(`/jobs/${encodeURIComponent(jobId)}`);
     } catch {
       setSubmitError("잠시 문제가 생겼어요. 다시 시도해 주세요.");
       setSubmitting(false);

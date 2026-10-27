@@ -6,6 +6,7 @@ const STAGE_TEXT: Record<JobStage, string> = {
   asr: "음성 듣는 중…",
   ocr: "화면 글자 읽는 중…",
   structure: "레시피 정리 중…",
+  finalize: "레시피 정리 중…",
 };
 
 export function stageText(job: Pick<Job, "status" | "stage">): string {
@@ -48,7 +49,7 @@ const FAILURE: Record<JobErrorCode, FailureCopy> = {
     body: "찾은 내용만 보여 드릴게요.\n빠진 부분은 직접 채울 수 있어요.",
     actions: ["partial", "other_link"],
   },
-  schema_error: {
+  internal: {
     title: "잠시 문제가 생겼어요",
     body: "레시피를 정리하다가 문제가 생겼어요.\n다시 시도해 주세요.",
     actions: ["retry", "other_link"],
@@ -57,11 +58,11 @@ const FAILURE: Record<JobErrorCode, FailureCopy> = {
 
 const UNKNOWN: FailureCopy = FAILURE.retryable;
 
-/** 실패한 job의 안내. insufficient인데 결과(run_id)가 없으면 '찾은 만큼 보기'를 뺀다. */
-export function failureCopy(job: Pick<Job, "error_code" | "run_id">): FailureCopy {
+/** 실패한 job의 안내. insufficient인데 결과(runId)가 없으면 '찾은 만큼 보기'를 뺀다. */
+export function failureCopy(job: Pick<Job, "errorCode" | "runId">): FailureCopy {
   // 워커가 새 error_code를 보내도 화면이 깨지지 않게 모르는 코드는 일시 오류로 안내한다.
-  const copy = (job.error_code && FAILURE[job.error_code]) || UNKNOWN;
-  if (job.error_code === "insufficient" && !job.run_id) {
+  const copy = (job.errorCode && FAILURE[job.errorCode]) || UNKNOWN;
+  if (job.errorCode === "insufficient" && !job.runId) {
     return {
       title: "영상에서 레시피를 찾지 못했어요",
       body: "재료와 조리 순서를 찾지 못했어요.\n다른 영상으로 다시 해 보세요.",
