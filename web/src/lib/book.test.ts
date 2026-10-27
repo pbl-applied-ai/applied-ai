@@ -34,6 +34,27 @@ describe("jobCards", () => {
     expect(cards[0].detail).toBe("레시피 정리 중…");
   });
 
+  it("저장했다가 지운 레시피는 준비됐어요 카드로 되살아나지 않는다", () => {
+    const done = job({ id: "c", status: "succeeded", stage: "finalize", runId: "run-c" });
+    expect(jobCards([done], [], { runs: new Set(["run-c"]), jobs: new Set() })).toEqual([]);
+  });
+
+  it("찾은 만큼 보기로 저장한 실패 작업은 실패 카드를 빼고, 저장 전이면 남긴다", () => {
+    const partial = job({ id: "p", status: "failed", errorCode: "insufficient", reason: "partial_recipe", runId: "run-p" });
+    expect(jobCards([partial], [recipe("run-p")])).toEqual([]);
+    expect(jobCards([partial], [], { runs: new Set(["run-p"]), jobs: new Set() })).toEqual([]);
+    expect(jobCards([partial], []).map((c) => c.kind)).toEqual(["failed"]);
+  });
+
+  it("닫은 실패 카드는 다시 보이지 않는다", () => {
+    const cards = jobCards(
+      [job({ id: "x", status: "failed", errorCode: "not_a_recipe" }), job({ id: "y", status: "failed", errorCode: "retryable" })],
+      [],
+      { runs: new Set(), jobs: new Set(["x"]) },
+    );
+    expect(cards.map((c) => c.jobId)).toEqual(["y"]);
+  });
+
   it("작업이 없으면 빈 목록", () => {
     expect(jobCards([], [])).toEqual([]);
   });

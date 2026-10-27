@@ -5,6 +5,7 @@ import { useParams, useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import { RecipeEditor } from "@/components/recipe-editor";
 import { type EditableRecipe, type Run, api, canSave, stashPendingSave, takePendingSave, toEditable } from "@/lib/api";
+import { rememberSavedRun } from "@/lib/book-hidden";
 import { useUnsavedWarning } from "@/lib/use-unsaved-warning";
 
 type Load = { kind: "loading" } | { kind: "missing" } | { kind: "ready"; run: Run };
@@ -38,6 +39,7 @@ export function ReviewScreen() {
         setSaving(true);
         try {
           const { id } = await api.saveRecipe(pending);
+          rememberSavedRun(pending.runId);
           if (!cancelled) router.replace(`/recipes/${encodeURIComponent(id)}`);
         } catch {
           if (!cancelled) {
@@ -83,6 +85,7 @@ export function ReviewScreen() {
         return;
       }
       const { id } = await api.saveRecipe(draft);
+      rememberSavedRun(draft.runId);
       setDirty(false);
       router.push(`/recipes/${encodeURIComponent(id)}`);
     } catch {

@@ -5,6 +5,7 @@ import { useParams, useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import { type UserRecipe, api } from "@/lib/api";
 import { shortDate } from "@/lib/book";
+import { rememberSavedRun } from "@/lib/book-hidden";
 import { amountView } from "@/lib/review";
 import { useRequireUser } from "@/lib/use-require-user";
 
@@ -140,6 +141,8 @@ export function DetailScreen() {
                   setDeleting(true);
                   try {
                     await api.deleteRecipe(recipe.id);
+                    // 지운 레시피의 작업이 레시피북에 "준비됐어요" 카드로 되살아나지 않게
+                    rememberSavedRun(recipe.runId);
                     router.replace("/book");
                   } catch {
                     setDeleting(false);

@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import { type Job, type RecipeSummary, api } from "@/lib/api";
 import { type JobCard, jobCards, shortDate } from "@/lib/book";
+import { type BookHidden, hideJob, readBookHidden } from "@/lib/book-hidden";
 import { useRequireUser } from "@/lib/use-require-user";
 
 const POLL_MS = 3000;
@@ -15,6 +16,7 @@ export function BookScreen() {
   const [jobs, setJobs] = useState<Job[] | null>(null);
   const [recipes, setRecipes] = useState<RecipeSummary[] | null>(null);
   const [failed, setFailed] = useState(false);
+  const [hidden, setHidden] = useState<BookHidden | null>(null);
 
   useEffect(() => {
     if (!user) return;
@@ -26,6 +28,7 @@ export function BookScreen() {
         if (cancelled) return;
         setJobs(nextJobs);
         setRecipes(nextRecipes);
+        setHidden(readBookHidden());
         setFailed(false);
         // 만드는 중인 작업이 있으면 카드 문구가 바뀌도록 가끔 다시 읽는다
         if (nextJobs.some((j) => j.status === "queued" || j.status === "running")) timer = setTimeout(refresh, POLL_MS);
@@ -40,7 +43,7 @@ export function BookScreen() {
     };
   }, [user]);
 
-  const cards: JobCard[] = jobs && recipes ? jobCards(jobs, recipes) : [];
+  const cards: JobCard[] = jobs && recipes && hidden ? jobCards(jobs, recipes, hidden) : [];
   const loading = !user || ((jobs === null || recipes === null) && !failed);
 
   return (
@@ -81,33 +84,52 @@ export function BookScreen() {
       {!loading && !failed && (
         <div className="flex flex-col gap-3 px-5 pb-8">
           {cards.map((card) => (
-            <Link
+            <div
               key={card.jobId}
-              href={card.href}
-              className={`flex items-center gap-3 rounded-xl border px-4 py-3.5 ${
+              className={`flex items-center rounded-xl border ${
                 card.kind === "failed" ? "border-line-strong bg-background" : "border-dashed border-[#8a8a85] bg-[#fafaf8]"
               }`}
             >
-              {card.kind === "working" ? (
-                <span className="size-10 shrink-0 animate-spin rounded-full border-[3px] border-disabled border-t-link" aria-hidden="true" />
-              ) : (
-                <span
-                  className={`flex size-10 shrink-0 items-center justify-center rounded-full text-sm font-bold ${
-                    card.kind === "failed" ? "bg-subtle text-muted" : "bg-foreground text-background"
-                  }`}
-                  aria-hidden="true"
-                >
-                  {card.kind === "failed" ? "!" : "✓"}
+              <Link href={card.href} className={`flex min-w-0 flex-1 items-center gap-3 py-3.5 pl-4 ${card.kind === "failed" ? "pr-1" : "pr-4"}`}>
+                {card.kind === "working" ? (
+                  <span className="size-10 shrink-0 animate-spin rounded-full border-[3px] border-disabled border-t-link" aria-hidden="true" />
+                ) : (
+                  <span
+                    className={`flex size-10 shrink-0 items-center justify-center rounded-full text-sm font-bold ${
+                      card.kind === "failed" ? "bg-subtle text-muted" : "bg-foreground text-background"
+                    }`}
+                    aria-hidden="true"
+                  >
+                    {card.kind === "failed" ? "!" : "✓"}
+                  </span>
+                )}
+                <span className="flex min-w-0 flex-1 flex-col gap-0.5">
+                  <span className="text-[15px] font-bold">{card.title}</span>
+                  <span className="text-[13px] text-muted">{card.detail}</span>
                 </span>
+                {card.kind !== "failed" && (
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#5c5c5c" strokeWidth="2" aria-hidden="true">
+                    <path d="M9 6l6 6-6 6" />
+                  </svg>
+                )}
+              </Link>
+              {/* 실패 카드는 지울 방법이 없으면 계속 쌓이므로 [닫기]를 둔다 */}
+              {card.kind === "failed" && (
+                <button
+                  type="button"
+                  aria-label="실패 카드 닫기"
+                  onClick={() => {
+                    hideJob(card.jobId);
+                    setHidden(readBookHidden());
+                  }}
+                  className="mr-1 flex size-11 shrink-0 items-center justify-center rounded-full"
+                >
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#5c5c5c" strokeWidth="2" aria-hidden="true">
+                    <path d="M6 6l12 12M18 6L6 18" />
+                  </svg>
+                </button>
               )}
-              <span className="flex min-w-0 flex-1 flex-col gap-0.5">
-                <span className="text-[15px] font-bold">{card.title}</span>
-                <span className="text-[13px] text-muted">{card.detail}</span>
-              </span>
-              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#5c5c5c" strokeWidth="2" aria-hidden="true">
-                <path d="M9 6l6 6-6 6" />
-              </svg>
-            </Link>
+            </div>
           ))}
 
           {recipes && recipes.length > 0 && (
