@@ -172,6 +172,203 @@ test('an amount missing from its cited text needs review', () => {
   assert.ok(r.warnings.some((w) => /does not appear verbatim/.test(w)));
 });
 
+test('an amount found only inside a larger number needs review', () => {
+  const segs = normalizeSegments([
+    { startMs: 0, durMs: 1000, text: '간장 12스푼 넣고' },
+    { startMs: 5000, durMs: 1000, text: '설탕 1.2스푼, 식초 1~2스푼' },
+    { startMs: 9000, durMs: 1000, text: '물엿 열두 스푼' },
+  ]);
+  const r = resolveRecipe(
+    draft({
+      ingredients: [ing('간장', '2스푼', ['S01']), ing('설탕', '2스푼', ['S02']), ing('식초', '2스푼', ['S02']), ing('물엿', '두 스푼', ['S03'])],
+    }),
+    segs,
+  );
+  assert.deepEqual(r.ingredients.map((i) => [i.amounts[0].verbatim, i.amount_status]), Array(4).fill([false, 'needs_review']));
+  assert.equal(r.summary.amounts_confirmed, 0);
+});
+
+test('a name ending in a number syllable does not hide the amount after it', () => {
+  const segs = normalizeSegments([
+    { startMs: 0, durMs: 1000, text: '만두 두 개 넣고' },
+    { startMs: 5000, durMs: 1000, text: '호두 한 줌' },
+    { startMs: 9000, durMs: 1000, text: '녹두 세 컵' },
+  ]);
+  const r = resolveRecipe(
+    draft({ ingredients: [ing('만두', '두 개', ['S01']), ing('호두', '한 줌', ['S02']), ing('녹두', '세 컵', ['S03'])] }),
+    segs,
+  );
+  assert.deepEqual(r.ingredients.map((i) => [i.amounts[0].verbatim, i.amount_status]), Array(3).fill([true, 'confirmed']));
+  assert.ok(!r.warnings.some((w) => /does not appear verbatim/.test(w)));
+});
+
+test('Korean number words are read per word, so ranges and tens still block a partial amount', () => {
+  const segs = normalizeSegments([
+    { startMs: 0, durMs: 1000, text: '간장 두세 스푼' },
+    { startMs: 5000, durMs: 1000, text: '설탕 한 두 스푼' },
+    { startMs: 9000, durMs: 1000, text: '식초 스물세 방울' },
+    { startMs: 13000, durMs: 1000, text: '고추장 적당한 두 스푼' },
+    { startMs: 17000, durMs: 1000, text: '물엿두세스푼' },
+    { startMs: 21000, durMs: 1000, text: '녹두세 컵' },
+  ]);
+  const r = resolveRecipe(
+    draft({
+      ingredients: [
+        ing('간장', '세 스푼', ['S01']),
+        ing('설탕', '두 스푼', ['S02']),
+        ing('식초', '세 방울', ['S03']),
+        ing('고추장', '두 스푼', ['S04']),
+        ing('물엿', '세 스푼', ['S05']),
+        ing('녹두', '세 컵', ['S06']),
+      ],
+    }),
+    segs,
+  );
+  // Glued text cannot tell "물엿두 + 세" from "두세", so the amount is left unconfirmed rather than guessed.
+  assert.deepEqual(
+    r.ingredients.map((i) => [i.name, i.amounts[0].verbatim]),
+    [['간장', false], ['설탕', false], ['식초', false], ['고추장', true], ['물엿', false], ['녹두', false]],
+  );
+});
+
+test('a whole amount next to its ingredient is still confirmed', () => {
+  const segs = normalizeSegments([{ startMs: 0, durMs: 1000, text: '간장 12스푼, 설탕 2스푼, 2스푼의 식초' }]);
+  const r = resolveRecipe(
+    draft({ ingredients: [ing('간장', '12스푼', ['S01']), ing('설탕', '2스푼', ['S01']), ing('식초', '2스푼', ['S01'])] }),
+    segs,
+  );
+  assert.deepEqual(r.ingredients.map((i) => i.amount_status), ['confirmed', 'confirmed', 'confirmed']);
+});
+
+test('"amount의 name" ties the amount to the name after it, not the one before', () => {
+  const segs = normalizeSegments([
+    { startMs: 0, durMs: 1000, text: '간장 넣고 2스푼의 설탕' },
+    { startMs: 5000, durMs: 1000, text: '식초는 1스푼의 물엿이랑' },
+  ]);
+  const r = resolveRecipe(
+    draft({
+      ingredients: [ing('간장', '2스푼', ['S01']), ing('설탕', '2스푼', ['S01']), ing('식초', '1스푼', ['S02']), ing('물엿', '1스푼', ['S02'])],
+    }),
+    segs,
+  );
+  assert.deepEqual(r.ingredients.map((i) => [i.name, i.amount_status]), [
+    ['간장', 'needs_review'],
+    ['설탕', 'confirmed'],
+    ['식초', 'needs_review'],
+    ['물엿', 'confirmed'],
+  ]);
+});
+
+test('an amount that names the ingredient itself is tied to it', () => {
+  const segs = descriptionSegments('샬롯 한개 혹은 양파 반개');
+  const r = resolveRecipe(draft({ ingredients: [ing('샬롯 또는 양파', '샬롯 한개 혹은 양파 반개', ['D01'])] }), segs);
+  assert.equal(r.ingredients[0].amount_status, 'confirmed');
+});
+
+test('"amount의" at the end of a caption is tied to the name that starts the next caption', () => {
+  const segs = normalizeSegments([
+    { startMs: 0, durMs: 1000, text: '간장 넣고 2스푼의' },
+    { startMs: 5000, durMs: 1000, text: '설탕 넣어 주세요' },
+  ]);
+  const r = resolveRecipe(draft({ ingredients: [ing('간장', '2스푼', ['S01']), ing('설탕', '2스푼', ['S01', 'S02'])] }), segs);
+  assert.deepEqual(r.ingredients.map((i) => [i.name, i.amount_status]), [
+    ['간장', 'needs_review'],
+    ['설탕', 'confirmed'],
+  ]);
+});
+
+test('"amount의" ending a caption is tied to nothing when the next caption does not start with a name', () => {
+  const segs = normalizeSegments([
+    { startMs: 0, durMs: 1000, text: '간장 넣고 2스푼의' },
+    { startMs: 5000, durMs: 1000, text: '그 설탕 넣어 주세요' },
+  ]);
+  const r = resolveRecipe(draft({ ingredients: [ing('간장', '2스푼', ['S01']), ing('설탕', '2스푼', ['S01', 'S02'])] }), segs);
+  assert.deepEqual(r.ingredients.map((i) => [i.name, i.amount_status]), [
+    ['간장', 'needs_review'],
+    ['설탕', 'needs_review'],
+  ]);
+});
+
+test('an amount followed by 반 is not confirmed as the shorter amount', () => {
+  const segs = normalizeSegments([{ startMs: 0, durMs: 1000, text: '간장 2스푼 반, 양파 한 개 반, 설탕 1스푼 반, 식초 3스푼의 반만' }]);
+  const r = resolveRecipe(
+    draft({
+      ingredients: [ing('간장', '2스푼', ['S01']), ing('양파', '한 개', ['S01']), ing('설탕', '1스푼 반', ['S01']), ing('식초', '3스푼', ['S01'])],
+    }),
+    segs,
+  );
+  assert.deepEqual(r.ingredients.map((i) => [i.amounts[0].verbatim, i.amount_status]), [
+    [false, 'needs_review'],
+    [false, 'needs_review'],
+    [true, 'confirmed'],
+    [false, 'needs_review'],
+  ]);
+});
+
+test("another ingredient's amount in the same evidence needs review", () => {
+  const segs = normalizeSegments([{ startMs: 0, durMs: 1000, text: '간장 2스푼 설탕 1스푼 넣어요' }]);
+  const r = resolveRecipe(draft({ ingredients: [ing('간장', '1스푼', ['S01']), ing('설탕', '2스푼', ['S01'])] }), segs);
+  assert.deepEqual(r.ingredients.map((i) => [i.amounts[0].verbatim, i.amounts[0].linked, i.amount_status]), [
+    [true, false, 'needs_review'],
+    [true, false, 'needs_review'],
+  ]);
+  assert.ok(r.warnings.some((w) => /"1스푼" is not tied to this ingredient/.test(w)));
+});
+
+test('an amount is tied to the longer ingredient name it follows', () => {
+  const segs = normalizeSegments([{ startMs: 0, durMs: 1000, text: '참치 한 캔이랑 참치액 1스푼' }]);
+  const r = resolveRecipe(draft({ ingredients: [ing('참치', '1스푼', ['S01']), ing('참치액', '한 캔', ['S01'])] }), segs);
+  assert.deepEqual(r.ingredients.map((i) => i.amount_status), ['needs_review', 'needs_review']);
+});
+
+test("a full ingredient name wins over another ingredient's head word", () => {
+  const segs = normalizeSegments([{ startMs: 0, durMs: 1000, text: '마늘 두 쪽 넣고' }]);
+  const r = resolveRecipe(draft({ ingredients: [ing('다진 마늘', '두 쪽', ['S01']), ing('마늘', '두 쪽', ['S01'])] }), segs);
+  assert.deepEqual(r.ingredients.map((i) => i.amount_status), ['needs_review', 'confirmed']);
+});
+
+test('an amount after a head word shared by two ingredients needs review', () => {
+  const segs = normalizeSegments([{ startMs: 0, durMs: 1000, text: '마늘 두 쪽 넣고' }]);
+  const r = resolveRecipe(draft({ ingredients: [ing('다진 마늘', '두 쪽', ['S01']), ing('통 마늘', '두 쪽', ['S01'])] }), segs);
+  assert.deepEqual(r.ingredients.map((i) => i.amount_status), ['needs_review', 'needs_review']);
+});
+
+test('a number ending the previous caption does not join the next amount', () => {
+  const segs = normalizeSegments([
+    { startMs: 0, durMs: 1000, text: '물은 1' },
+    { startMs: 2000, durMs: 1000, text: '2스푼의 간장' },
+  ]);
+  const r = resolveRecipe(draft({ ingredients: [ing('간장', '2스푼', ['S02'])] }), segs);
+  assert.equal(r.ingredients[0].amount_status, 'confirmed');
+});
+
+test('a Korean tens word ending the previous caption still blocks the partial amount after it', () => {
+  const segs = normalizeSegments([
+    { startMs: 0, durMs: 1000, text: '간장 열' },
+    { startMs: 2000, durMs: 1000, text: '두 스푼 넣어요' },
+  ]);
+  const r = resolveRecipe(draft({ ingredients: [ing('간장', '두 스푼', ['S02'])] }), segs);
+  assert.equal(r.ingredients[0].amount_status, 'needs_review');
+});
+
+test('an ingredient name split across two captions is still the full name', () => {
+  const segs = normalizeSegments([
+    { startMs: 0, durMs: 1000, text: '이제 다진' },
+    { startMs: 2000, durMs: 1000, text: '마늘 한 스푼' },
+  ]);
+  const r = resolveRecipe(draft({ ingredients: [ing('다진 마늘', '한 스푼', ['S02']), ing('마늘', '한 스푼', ['S02'])] }), segs);
+  assert.deepEqual(r.ingredients.map((i) => i.amount_status), ['confirmed', 'needs_review']);
+});
+
+test('an ingredient named in the previous caption keeps its amount', () => {
+  const segs = normalizeSegments([
+    { startMs: 0, durMs: 1000, text: '다진 마늘은' },
+    { startMs: 2000, durMs: 1000, text: '한 스푼 넣어요' },
+  ]);
+  const r = resolveRecipe(draft({ ingredients: [ing('다진 마늘', '한 스푼', ['S02'], ['S01', 'S02'])] }), segs);
+  assert.equal(r.ingredients[0].amount_status, 'confirmed');
+});
+
 test('speech and description amounts are both kept and compared', () => {
   const r = resolveRecipe(
     draft({
