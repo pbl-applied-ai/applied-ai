@@ -1,7 +1,7 @@
-# 숏폼 레시피 서비스 개발 계획 v0.8
+# 숏폼 레시피 서비스 개발 계획 v0.9
 
-수정일: 2026-10-22 · 팀 리뷰용
-변경: MVP 화면을 링크 입력 → 레시피 확인·수정 → 저장 → 내 레시피북으로 단순화. 항목별 근거·출처·시각 이동 UI와 신뢰도 요약을 제외하고, 내부 근거 데이터·분량 검증·평가는 유지. 분량 검증 버그는 수빈이 담당.
+수정일: 2026-10-26 · 팀 리뷰용
+변경: jobs 표를 [워커 호출 방식](worker-interface.md) v0.3에 맞춤(`schema_error` → `internal`, `reason` 추가, 실패한 `partial_recipe`의 `run_id`).
 관련 문서: [기획안](<plan.md>) · [UX 플로우](ux-flow.md) · [경쟁 서비스 비교](<competitors.md>)
 
 ## 목표와 일정
@@ -115,10 +115,11 @@
 | `canonical_key` | 플랫폼 + 영상 ID (예: `youtube:<id>`). 같은 키와 같은 추출기 버전의 성공 결과가 있으면 다시 처리하지 않고 재사용 |
 | `stage` | 수집 → 필요 시 음성 → 필요 시 화면 글자 → 정리. 실제 실행 단계만 표시하고 미실행 단계와 이유를 기록 |
 | `status` | 대기 · 처리 중 · 성공 · 실패 |
-| `error_code` | `retryable`(시간 초과·일시 오류) / `unavailable`(열 수 없음·비공개·삭제) / `unsupported_source` / `not_a_recipe` / `insufficient`(정보 부족) / `schema_error` |
-| `run_id` | 성공 시 추출 결과 연결 |
+| `error_code` | `retryable`(시간 초과·일시 오류) / `unavailable`(열 수 없음·비공개·삭제) / `unsupported_source` / `not_a_recipe` / `insufficient`(정보 부족) / `internal`(우리 쪽 문제) |
+| `reason` | 세부 원인(예: `no_captions_no_description`, `partial_recipe`). 화면이 실패 안내를 고를 때 먼저 본다 |
+| `run_id` | 성공 시 추출 결과 연결. 한쪽만 찾은 실패(`partial_recipe`)는 찾은 만큼의 결과(partial run) 연결 |
 
-`error_code`는 UX 플로우의 실패 안내와 1:1로 맞춘다. `retryable`은 다시 시도, `unavailable`·`unsupported_source`는 파일 업로드 안내, `not_a_recipe`는 다른 영상 안내, `insufficient`는 찾은 만큼 보기. 동시에 진행 가능한 작업 수(여러 개 허용 여부)는 #3에서 정한다. [#3 대기]
+실패 안내는 `reason`을 먼저 보고, 없으면 `error_code`로 고른다. `retryable`·`internal`은 다시 시도, `unavailable`·`unsupported_source`는 파일 업로드 안내, `not_a_recipe`는 다른 영상 안내, `insufficient`는 `partial_recipe`면 찾은 만큼 보기·`empty_recipe`면 다른 영상 안내. 값별 기준은 [워커 호출 방식](worker-interface.md) 6번 표. 동시에 진행 가능한 작업 수(여러 개 허용 여부)는 #3에서 정한다. [#3 대기]
 
 항목별 수집 상태는 전체 job 실패와 구분한다. 영상 접근에 실패해도 유효한 캡션 근거가 남으면 제한된 결과를 반환할 수 있다. 재시도 횟수는 제한하고 미디어 참조가 만료됐으면 수집 단계부터 갱신한다. 캐시 재사용 시 확보한 출처·수집 버전·내용 변경/만료 여부를 확인하고, 나중에 더 완전한 출처를 확보할 기회를 막지 않는다.
 
