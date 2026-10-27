@@ -2,7 +2,7 @@
 -- 기한이 지난 running은 다시 잡고, 3번을 넘으면 worker_lost로 끝낸다.
 begin;
 create extension if not exists pgtap with schema extensions;
-select plan(13);
+select plan(16);
 
 -- j1·j2는 지금 잡을 수 있고(j2가 더 이르다), j3는 아직 때가 아니다.
 insert into public.jobs (id, source_url, next_run_at, created_at) values
@@ -24,12 +24,19 @@ select is_empty($$ select * from public.claim_next_job() $$, '잡을 job이 없�
 
 -- 워커가 죽어 lease가 지난 job은 다시 잡는다
 reset role;
-update public.jobs set locked_until = now() - interval '1 second' where id = 'dddddddd-0000-0000-0000-000000000002';
+update public.jobs set locked_until = now() - interval '1 second', stage = 'structure'
+ where id = 'dddddddd-0000-0000-0000-000000000002';
 set local role service_role;
 select is((select id from public.claim_next_job()), 'dddddddd-0000-0000-0000-000000000002'::uuid,
           'lease가 지난 running job을 다시 잡는다');
 select is((select attempts from public.jobs where id = 'dddddddd-0000-0000-0000-000000000002'), 2,
           '다시 잡으면 attempts가 오른다');
+select is((select stage from public.jobs where id = 'dddddddd-0000-0000-0000-000000000002'), null,
+          '다시 잡으면 지난 attempt의 stage를 지운다');
+select throws_ok($$ select * from public.claim_next_job(null) $$, '22023', 'lease must be positive',
+                 'lease가 없으면 거부(영원히 running 방지)');
+select throws_ok($$ select * from public.claim_next_job(interval '-1 minute') $$, '22023', 'lease must be positive',
+                 '음수 lease는 거부(같은 job 이중 claim 방지)');
 
 -- 3번 다 쓴 job은 다시 잡지 않고 worker_lost로 끝낸다
 reset role;

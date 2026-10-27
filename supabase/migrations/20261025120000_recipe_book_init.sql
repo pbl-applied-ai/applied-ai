@@ -65,7 +65,9 @@ create table public.jobs (
   constraint jobs_succeeded_has_run check (status <> 'succeeded' or run_id is not null),
   constraint jobs_failed_has_error check (status <> 'failed' or error_code is not null),
   -- 실패 job이 run을 가리키는 건 찾은 만큼 보기(partial run)뿐이다
-  constraint jobs_failed_run_only_partial check (status <> 'failed' or run_id is null or reason = 'partial_recipe')
+  constraint jobs_failed_run_only_partial check (status <> 'failed' or run_id is null or reason = 'partial_recipe'),
+  -- running은 항상 lease가 있다. 없으면 다시 잡히지도 worker_lost로 끝나지도 않는다
+  constraint jobs_running_has_lease check (status <> 'running' or locked_until is not null)
 );
 
 create index jobs_queue_idx on public.jobs (next_run_at) where status = 'queued';
@@ -106,6 +108,22 @@ $$;
 
 create trigger jobs_touch before update on public.jobs
   for each row execute function public.touch_updated_at();
+
+-- 성공 job은 성공 run만, 실패 job은 partial run만 가리킨다(캐시·화면이 이를 전제로 한다).
+create function public.check_job_run() returns trigger
+language plpgsql set search_path = '' as $$
+begin
+  if new.run_id is not null and exists (
+    select 1 from public.runs r where r.id = new.run_id and r.partial is distinct from (new.status = 'failed')
+  ) then
+    raise exception 'job % cannot point to run % (partial mismatch)', new.id, new.run_id using errcode = '23514';
+  end if;
+  return new;
+end;
+$$;
+
+create trigger jobs_check_run before insert or update of run_id, status on public.jobs
+  for each row execute function public.check_job_run();
 create trigger user_recipes_touch before update on public.user_recipes
   for each row execute function public.touch_updated_at();
 
@@ -181,13 +199,23 @@ create function public.claim_next_job(p_lease interval default interval '10 minu
 returns setof public.jobs
 language plpgsql security definer set search_path = '' as $$
 begin
+  if p_lease is null or p_lease <= interval '0' then
+    raise exception 'lease must be positive' using errcode = '22023';
+  end if;
+
+  -- skip locked: 다른 claim·complete가 잡고 있는 행은 기다리지 않는다(교착 방지)
   update public.jobs
   set status = 'failed', error_code = 'internal', reason = 'worker_lost', retry = false, locked_until = null
-  where status = 'running' and locked_until < now() and attempts >= 3;
+  where id in (
+    select j.id from public.jobs j
+    where j.status = 'running' and j.locked_until < now() and j.attempts >= 3
+    for update skip locked
+  );
 
+  -- stage는 이번 attempt에서 다시 기록한다(지난 attempt 단계가 화면에 남지 않게)
   return query
   update public.jobs
-  set status = 'running', attempts = attempts + 1, locked_until = now() + p_lease
+  set status = 'running', attempts = attempts + 1, locked_until = now() + p_lease, stage = null
   where id = (
     select j.id from public.jobs j
     where (j.status = 'queued' and j.next_run_at <= now())
@@ -254,14 +282,15 @@ begin
 end;
 $$;
 
--- 성공(캐시): 이미 있는 성공 run으로 job을 끝낸다. 내 attempt가 아니면 false.
+-- 성공(캐시): 이미 있는 성공 run으로 job을 끝낸다(find_cached_run과 같은 조건). 내 attempt가 아니면 false.
 create function public.complete_job_from_cache(p_job_id uuid, p_attempt integer, p_run_id uuid)
 returns boolean
 language plpgsql security definer set search_path = '' as $$
 declare
   v_canonical_key text;
 begin
-  select r.canonical_key into v_canonical_key from public.runs r where r.id = p_run_id and not r.partial;
+  select r.canonical_key into v_canonical_key from public.runs r
+  where r.id = p_run_id and not r.partial and coalesce(r.extractor_version ->> 'pipeline', '') not like '%+dev';
   if not found then
     raise exception 'not a reusable run' using errcode = '22023';
   end if;
@@ -303,7 +332,7 @@ begin
   if p_retry and v_job.attempts < 3 then
     update public.jobs
     set status = 'queued', stage = p_stage, canonical_key = coalesce(p_canonical_key, canonical_key),
-        retry = true, message = p_message, locked_until = null,
+        error_code = null, reason = null, retry = true, message = p_message, locked_until = null,
         next_run_at = now() + case when v_job.attempts = 1 then interval '30 seconds' else interval '2 minutes' end
     where id = p_job_id;
     return 'queued';
@@ -329,7 +358,7 @@ $$;
 -- Postgres는 함수 실행 권한을 기본으로 PUBLIC에 주고, Supabase는 public 스키마 함수에 anon·authenticated
 -- 실행 권한을 기본으로 준다. 모두 거두고 필요한 것만 연다(supabase/tests/001에서 목록을 고정).
 revoke execute on function
-  public.touch_updated_at(),
+  public.touch_updated_at(), public.check_job_run(),
   public.create_job(text), public.get_job(uuid), public.get_run(uuid),
   public.claim_next_job(interval), public.set_job_stage(uuid, integer, public.job_stage),
   public.find_cached_run(text, jsonb),

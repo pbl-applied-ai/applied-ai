@@ -2,7 +2,7 @@
 -- 자기가 잡은 attempt일 때만 갱신, 자동 재시도는 30초·2분 뒤 최대 3번, partial run 저장.
 begin;
 create extension if not exists pgtap with schema extensions;
-select plan(25);
+select plan(31);
 
 create function pg_temp.running_job(id uuid, attempts int) returns void language sql as $$
   insert into public.jobs (id, source_url, status, attempts, locked_until)
@@ -53,7 +53,10 @@ select is(public.complete_job('eeeeeeee-0000-0000-0000-000000000001', 1, 'youtub
                               '{"pipeline": "0.1.0+abc1234"}', '{}', '{}', '{}', '{}'),
           null, '이미 끝난 job은 다시 complete하지 않는다');
 
--- 자동 재시도
+-- 자동 재시도: 지난 attempt의 화면용 오류가 남아 있어도 queued로 돌아갈 때 비운다
+reset role;
+update public.jobs set error_code = 'internal', reason = 'unexpected' where id = 'eeeeeeee-0000-0000-0000-000000000002';
+set local role service_role;
 select is(public.fail_job('eeeeeeee-0000-0000-0000-000000000002', 1, 'collect', 'retryable', 'collect_network',
                           true, '원문 오류'),
           'queued'::public.job_status, '1번째 재시도 대상은 queued로 돌아간다');
@@ -62,6 +65,9 @@ select results_eq(
        from public.jobs where id = 'eeeeeeee-0000-0000-0000-000000000002' $$,
   $$ values (now() + interval '30 seconds', null::timestamptz, null::public.job_error_code, '원문 오류') $$,
   '30초 뒤 다시, lease 해제, 화면용 오류는 비움');
+select is((select reason from public.jobs where id = 'eeeeeeee-0000-0000-0000-000000000002'), null, 'reason도 비움');
+select is(public.set_job_stage('eeeeeeee-0000-0000-0000-000000000002', 1, 'structure'), false,
+          'queued로 돌아간 뒤 늦게 온 워커는 stage를 못 쓴다');
 select is(public.fail_job('eeeeeeee-0000-0000-0000-000000000003', 2, 'structure', 'retryable', 'llm_transient',
                           true, null),
           'queued'::public.job_status, '2번째도 queued');
@@ -115,6 +121,15 @@ select throws_ok(
   format('select public.complete_job_from_cache(%L, 1, %L)', 'eeeeeeee-0000-0000-0000-000000000008',
          (select run_id from public.jobs where id = 'eeeeeeee-0000-0000-0000-000000000006')),
   '22023', 'not a reusable run', 'partial run은 캐시로 쓰지 않는다');
+reset role;
+insert into public.runs (id, canonical_key, source_url, extractor_version, bundle, recipe)
+values ('aaaaaaaa-0000-0000-0000-0000000000de', 'youtube:Smpl0Gochu1', 'https://www.youtube.com/shorts/Smpl0Gochu1',
+        '{"pipeline": "0.1.0+dev"}', '{}', '{}');
+set local role service_role;
+select throws_ok(
+  $$ select public.complete_job_from_cache('eeeeeeee-0000-0000-0000-000000000008', 1,
+                                           'aaaaaaaa-0000-0000-0000-0000000000de') $$,
+  '22023', 'not a reusable run', '로컬 실행(+dev) run은 캐시로 쓰지 않는다');
 select is(public.complete_job_from_cache('eeeeeeee-0000-0000-0000-000000000008', 1, current_setting('test.run1')::uuid),
           true, '성공 run으로 바로 complete');
 select is(public.complete_job_from_cache('eeeeeeee-0000-0000-0000-000000000009', 2, current_setting('test.run1')::uuid),
@@ -127,6 +142,19 @@ select throws_ok(
             run_id = current_setting('test.run1')::uuid
       where id = 'eeeeeeee-0000-0000-0000-000000000009' $$,
   '23514', null, 'partial_recipe가 아닌 실패 job은 run_id를 가질 수 없다');
+select throws_ok(
+  $$ update public.jobs set status = 'succeeded', run_id = (select run_id from public.jobs
+                                                           where id = 'eeeeeeee-0000-0000-0000-000000000006')
+      where id = 'eeeeeeee-0000-0000-0000-000000000009' $$,
+  '23514', null, '성공 job은 partial run을 가리킬 수 없다');
+select throws_ok(
+  $$ update public.jobs set status = 'failed', error_code = 'insufficient', reason = 'partial_recipe',
+            run_id = current_setting('test.run1')::uuid
+      where id = 'eeeeeeee-0000-0000-0000-000000000009' $$,
+  '23514', null, '실패 job은 partial run만 가리킨다');
+select throws_ok(
+  $$ update public.jobs set locked_until = null where id = 'eeeeeeee-0000-0000-0000-000000000009' $$,
+  '23514', null, 'running job은 lease 없이 둘 수 없다');
 
 select * from finish();
 rollback;
