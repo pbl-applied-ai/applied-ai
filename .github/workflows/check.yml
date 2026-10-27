@@ -22,3 +22,16 @@ jobs:
       - name: Pipeline tests
         working-directory: pipeline
         run: npm test
+
+  pgtap:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: supabase/setup-cli@v1
+        with:
+          version: 2.118.0
+      - name: Start local database (migrations applied)
+        run: supabase db start
+      - name: pgTAP tests (supabase/tests)
+        run: supabase test db
