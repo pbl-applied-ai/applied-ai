@@ -1,0 +1,43 @@
+// 목 데이터. 직접 만든 가짜 fixture(pipeline/test/fixtures/sample-gochujang-bowl)의 파이프라인 출력이다.
+// 실제 영상이 아니다. #13의 examples/example-002-pipeline-output/recipe.json과 같은 내용.
+import type { TeamRecipe } from './types';
+
+export const SAMPLE_RECIPE: TeamRecipe = {
+  schema_version: '0.1',
+  video_id: 'Smpl0Gochu1',
+  title: '고추장 목살덮밥',
+  servings_raw: null,
+  ingredients: [
+    { name: '기름', amount_raw: '살짝만', amount_status: 'confirmed', evidence: ['asr-2'] },
+    { name: '마늘', amount_raw: null, amount_status: 'unconfirmed', evidence: ['asr-2', 'asr-3'] },
+    { name: '계란', amount_raw: '하나', amount_status: 'confirmed', evidence: ['asr-5', 'asr-6'] },
+    { name: '목살', amount_raw: null, amount_status: 'unconfirmed', evidence: ['asr-9'] },
+    { name: '고추장', amount_raw: null, amount_status: 'unconfirmed', evidence: ['asr-12'] },
+    { name: '케첩', amount_raw: null, amount_status: 'unconfirmed', evidence: ['asr-12'] },
+    { name: '진간장', amount_raw: null, amount_status: 'unconfirmed', evidence: ['asr-12'] },
+    { name: '고춧가루', amount_raw: null, amount_status: 'unconfirmed', evidence: ['asr-12'] },
+    { name: '설탕', amount_raw: null, amount_status: 'unconfirmed', evidence: ['asr-13'] },
+    { name: '다진마늘', amount_raw: null, amount_status: 'unconfirmed', evidence: ['asr-13'] },
+    { name: '밥', amount_raw: null, amount_status: 'unconfirmed', evidence: ['asr-14'] },
+    { name: '쪽파 또는 대파', amount_raw: null, amount_status: 'unconfirmed', evidence: ['asr-18'] },
+    { name: '참깨', amount_raw: null, amount_status: 'unconfirmed', evidence: ['asr-19'] },
+  ],
+  steps: [
+    { order: 1, text: '달군 팬에 살짝만 기름을 붓고 얇게 썬 마늘을 약한 불에 노릇하게 굽는다.', evidence: ['asr-2', 'asr-3'] },
+    { order: 2, text: '익은 마늘은 따로 덜어 둔다.', evidence: ['asr-4'] },
+    { order: 3, text: '같은 팬에 계란 프라이를 하나 부친다.', evidence: ['asr-5', 'asr-6'] },
+    { order: 4, text: '같은 팬에 목살을 올려 앞뒤로 익힌다.', evidence: ['asr-9', 'asr-10'] },
+    { order: 5, text: '익은 목살을 가위로 한입 크기로 자른다.', evidence: ['asr-10', 'asr-11'] },
+    { order: 6, text: '진간장, 케첩, 고춧가루, 고추장, 다진마늘, 설탕을 넣고 골고루 볶는다.', evidence: ['asr-12', 'asr-13'] },
+    { order: 7, text: '밥을 먼저 담고 볶은 목살과 팬에 남은 양념을 모두 올린다.', evidence: ['asr-14', 'asr-15', 'asr-16'] },
+    { order: 8, text: '덜어 둔 마늘과 계란 프라이를 얹는다.', evidence: ['asr-17', 'asr-18'] },
+    { order: 9, text: '다진 쪽파나 대파와 참깨를 뿌려 마무리한다.', evidence: ['asr-18', 'asr-19'] },
+  ],
+};
+
+// 부분 결과(partial_recipe): 재료만 찾고 조리 순서는 못 찾은 경우. S4 부분 결과 화면용
+export const PARTIAL_RECIPE: TeamRecipe = {
+  ...SAMPLE_RECIPE,
+  ingredients: SAMPLE_RECIPE.ingredients.slice(0, 4),
+  steps: [],
+};

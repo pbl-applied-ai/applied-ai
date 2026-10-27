@@ -1,41 +1,53 @@
-import { afterEach, describe, expect, it, vi } from "vitest";
-import { mockApi } from "./mock";
+import { describe, expect, it } from "vitest";
+import { MOCK_LINKS, createMockApi } from "./mock";
 
-afterEach(() => vi.useRealTimers());
-
-async function jobAfter(url: string, ms: number) {
-  vi.useFakeTimers();
-  vi.setSystemTime(new Date("2026-10-26T00:00:00Z"));
-  const { id } = await mockApi.createJob(url);
-  vi.setSystemTime(Date.now() + ms);
-  return mockApi.getJob(id);
+// 시간과 저장소를 바깥에서 넣어서 진행 단계와 새로고침을 확인한다.
+function setup() {
+  let now = Date.parse("2026-10-26T00:00:00Z");
+  const data = new Map<string, string>();
+  const storage = { getItem: (k: string) => data.get(k) ?? null, setItem: (k: string, v: string) => void data.set(k, v) };
+  const make = () => createMockApi({ now: () => now, latencyMs: 0, storage });
+  return { api: make(), make, later: (ms: number) => (now += ms) };
 }
 
-describe("mockApi", () => {
+describe("createMockApi", () => {
   it("시간에 따라 queued → collect → structure → succeeded", async () => {
-    const url = "https://www.youtube.com/shorts/AbCdEfGhIj0";
-    expect((await jobAfter(url, 100)).status).toBe("queued");
-    expect((await jobAfter(url, 1000)).stage).toBe("collect");
-    expect((await jobAfter(url, 4000)).stage).toBe("structure");
-    const done = await jobAfter(url, 7000);
-    expect(done.status).toBe("succeeded");
-    expect(done.run_id).toBe("example-002-pipeline-output");
+    const { api, later } = setup();
+    const { jobId } = await api.createJob(MOCK_LINKS.success);
+    expect((await api.getJob(jobId))?.status).toBe("queued");
+    later(1000);
+    expect((await api.getJob(jobId))?.stage).toBe("collect");
+    later(2000);
+    expect((await api.getJob(jobId))?.stage).toBe("structure");
+    later(3000);
+    const done = await api.getJob(jobId);
+    expect(done?.status).toBe("succeeded");
+    expect(done?.runId).toBe("run-Smpl0Gochu1");
   });
 
-  it("실패용 영상 ID는 error_code로 끝난다", async () => {
-    const job = await jobAfter("https://www.youtube.com/shorts/NOTARECIPE0", 3000);
-    expect(job.status).toBe("failed");
-    expect(job.error_code).toBe("not_a_recipe");
+  it("실패 링크는 errorCode·reason으로 끝나고, partial_recipe만 runId가 있다", async () => {
+    const { api, later } = setup();
+    const notRecipe = await api.createJob(MOCK_LINKS.notARecipe);
+    const partial = await api.createJob(MOCK_LINKS.partialRecipe);
+    later(6000);
+    expect(await api.getJob(notRecipe.jobId)).toMatchObject({ status: "failed", errorCode: "not_a_recipe", runId: null });
+    expect(await api.getJob(partial.jobId)).toMatchObject({
+      status: "failed",
+      errorCode: "insufficient",
+      reason: "partial_recipe",
+      runId: "run-MockPartl01",
+    });
   });
 
-  it("id만으로 상태를 다시 계산해서 새로고침해도 결과가 같다", async () => {
-    vi.useFakeTimers();
-    vi.setSystemTime(new Date("2026-10-26T00:00:00Z"));
-    const { id } = await mockApi.createJob("https://www.youtube.com/shorts/RETRYABLE00");
-    vi.setSystemTime(Date.now() + 9000);
-    // 새 모듈 상태 없이 id만으로 조회
-    const job = await mockApi.getJob(id);
-    expect(job.status).toBe("failed");
-    expect(job.error_code).toBe("retryable");
+  it("저장소에 남아 있어서 새로고침(새 인스턴스)해도 같은 결과", async () => {
+    const { api, make, later } = setup();
+    const { jobId } = await api.createJob(MOCK_LINKS.retryable);
+    later(6000);
+    expect(await make().getJob(jobId)).toMatchObject({ status: "failed", errorCode: "retryable" });
+  });
+
+  it("없는 job은 null", async () => {
+    const { api } = setup();
+    expect(await api.getJob("missing")).toBeNull();
   });
 });

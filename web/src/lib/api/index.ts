@@ -1,9 +1,13 @@
-// 화면은 여기서만 API를 가져다 쓴다: import { api } from "@/lib/api"
-// NEXT_PUBLIC_API_MODE=real 이면 실제 API, 그 외(기본)는 가짜 데이터(mock).
-import { mockApi } from "./mock";
-import { realApi } from "./real";
-import type { ApiClient } from "./types";
+// 화면은 여기서만 import한다: import { api, STAGE_LABEL, toEditable } from '@/lib/api';
+// 통합(KAN-22) 때 아래 한 줄을 Supabase 구현으로 바꾼다. 화면 코드는 그대로 둔다.
+import { createMockApi } from './mock';
+import type { RecipeApi } from './types';
 
-export const api: ApiClient = process.env.NEXT_PUBLIC_API_MODE === "real" ? realApi : mockApi;
+export const api: RecipeApi = createMockApi();
 
-export type * from "./types";
+export * from './types';
+export * from './labels';
+export * from './url';
+export * from './editable';
+export * from './pending-save';
+export { MOCK_LINKS } from './mock';

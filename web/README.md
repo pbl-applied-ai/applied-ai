@@ -10,8 +10,7 @@
 ```bash
 cd web
 npm install
-cp .env.example .env.local   # 기본은 mock 모드
-npm run dev                  # http://localhost:3000
+npm run dev   # http://localhost:3000
 ```
 
 검사:
@@ -23,26 +22,20 @@ npm test
 npm run build
 ```
 
-## API 모드
+## API
 
-화면은 `@/lib/api`만 쓴다. `NEXT_PUBLIC_API_MODE`로 바꾼다.
+화면은 `@/lib/api`만 쓴다. 지금은 목(`src/lib/api/mock.ts`)이고, KAN-22 통합 때 `src/lib/api/index.ts`의 `api` 한 줄만 Supabase 구현으로 바꾼다. 타입·함수 목록·목 시나리오는 [`src/lib/api/README.md`](src/lib/api/README.md).
 
-| 값 | 동작 |
-|---|---|
-| `mock` (기본) | 가짜 jobs. 0.8초 `queued` → `collect` → 3초 뒤 `structure` → 6초 뒤 `succeeded` |
-| `real` | `NEXT_PUBLIC_API_BASE_URL`의 `POST /jobs`, `GET /jobs/:id` 호출 (KAN-22) |
-
-jobs 필드(`status`, `stage`, `error_code`, `run_id`)는 `src/lib/api/types.ts`에 있다. API가 확정되면 이 파일부터 맞춘다.
-
-mock 모드에서 실패 화면 보기: 아래 영상 ID로 Shorts 링크를 넣는다(예: `youtube.com/shorts/NOTARECIPE0`). 2.5초 뒤 실패한다.
+목에서 실패 화면 보기: 아래 영상 ID로 Shorts 링크를 넣는다(예: `youtube.com/shorts/MockNotRcp1`). 그 밖의 링크는 약 5초 뒤 성공한다.
 
 | 영상 ID | 결과 |
 |---|---|
-| `RETRYABLE00` | `retryable` → [다시 시도] [다른 링크] |
-| `UNAVAILABLE` | `unavailable` → [다른 링크] |
-| `NOTARECIPE0` | `not_a_recipe` → [다른 링크] |
-| `INSUFFICIEN` | `insufficient` + 결과 있음 → [찾은 만큼 보기] [다른 링크] |
-| `EMPTYRECIPE` | `insufficient` + 결과 없음 → [다른 링크] |
+| `MockFlaky01` | `retryable` → [다시 시도] [다른 링크] |
+| `MockPrivat1`·`MockNoCap01` | `unavailable` → [다른 링크] |
+| `MockNotRcp1` | `not_a_recipe` → [다른 링크] |
+| `MockPartl01` | `insufficient` + 결과 있음 → [찾은 만큼 보기] [다른 링크] |
+| `MockEmpty01` | `insufficient` + 결과 없음 → [다른 링크] |
+| `MockIntrn01` | `internal` → [다시 시도] [다른 링크] |
 
 ## 화면
 

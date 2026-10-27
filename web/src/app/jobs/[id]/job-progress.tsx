@@ -34,13 +34,18 @@ export function JobProgress() {
         const next = await api.getJob(id);
         if (cancelled) return;
         errors = 0;
+        if (!next) {
+          // 없는 job도 계속 조회하지 않고 일시 오류로 안내한다.
+          setJob(failedWithoutCode(id));
+          return;
+        }
         if (next.status === "succeeded") {
-          if (next.run_id) {
+          if (next.runId) {
             setJob(next);
-            router.replace(`/runs/${encodeURIComponent(next.run_id)}`);
+            router.replace(`/runs/${encodeURIComponent(next.runId)}`);
           } else {
             // 성공인데 결과가 없으면 서버 쪽 문제다. 계속 조회하지 않고 일시 오류로 안내한다.
-            setJob({ ...next, status: "failed", error_code: null });
+            setJob({ ...next, status: "failed", errorCode: null });
           }
           return;
         }
@@ -68,9 +73,9 @@ export function JobProgress() {
     if (!source || retrying) return;
     setRetrying(true);
     try {
-      const { id: nextId } = await api.createJob(source);
-      rememberJobSource(nextId, source);
-      router.replace(`/jobs/${encodeURIComponent(nextId)}`);
+      const { jobId } = await api.createJob(source);
+      rememberJobSource(jobId, source);
+      router.replace(`/jobs/${encodeURIComponent(jobId)}`);
     } catch {
       setRetrying(false);
     }
@@ -137,6 +142,10 @@ export function JobProgress() {
   );
 }
 
+function failedWithoutCode(id: string): Job {
+  return { id, sourceUrl: "", status: "failed", stage: null, errorCode: null, reason: null, runId: null, createdAt: "" };
+}
+
 type Action = { label: string; href?: string; onClick?: () => void; disabled?: boolean };
 
 function toAction(
@@ -147,7 +156,7 @@ function toAction(
     case "retry":
       return { label: ctx.retrying ? "다시 시도하는 중…" : "다시 시도", onClick: ctx.retryJob, disabled: ctx.retrying };
     case "partial":
-      return { label: "찾은 만큼 보기", href: `/runs/${encodeURIComponent(ctx.job.run_id ?? "")}` };
+      return { label: "찾은 만큼 보기", href: `/runs/${encodeURIComponent(ctx.job.runId ?? "")}` };
     case "other_link":
       return { label: "다른 링크 넣기", href: "/" };
   }
