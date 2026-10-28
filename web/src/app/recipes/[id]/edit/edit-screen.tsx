@@ -71,6 +71,7 @@ export function EditScreen() {
       await api.updateRecipe(id, draft);
       setDirty(false);
       router.replace(`/recipes/${encodeURIComponent(id)}`);
+      setSaving(false); // 화면 상태가 남아 있어도(cacheComponents) "저장하는 중…"에 멈추지 않게
     } catch {
       setSaving(false);
       setSaveError("저장하지 못했어요. 고친 내용은 그대로 있어요. 다시 저장해 주세요.");

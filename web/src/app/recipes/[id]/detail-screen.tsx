@@ -142,7 +142,7 @@ export function DetailScreen() {
                   try {
                     await api.deleteRecipe(recipe.id);
                     // 지운 레시피의 작업이 레시피북에 "준비됐어요" 카드로 되살아나지 않게
-                    rememberSavedRun(recipe.runId);
+                    if (user) rememberSavedRun(user.id, recipe.runId);
                     router.replace("/book");
                   } catch {
                     setDeleting(false);

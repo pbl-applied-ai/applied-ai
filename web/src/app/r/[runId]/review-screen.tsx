@@ -31,16 +31,24 @@ export function ReviewScreen() {
         setLoad({ kind: "missing" });
         return;
       }
-      // 로그인하고 돌아온 경우: 맡겨 둔 수정 내용으로 이어서 저장한다(KAN-31)
+      // 맡겨 둔 수정 내용이 있으면 되살린다. 자동 저장은 로그인 화면에서 로그인하고 돌아온 경우(?resume=1)에만 한다(KAN-31).
+      // 로그인 화면에서 그냥 뒤로 왔다가 나중에 이 링크를 다시 열면 [저장]을 누르기 전까지 저장하지 않는다.
       const pending = takePendingSave(run.id);
       setLoad({ kind: "ready", run });
       setDraft(pending ?? toEditable(run));
-      if (pending && (await api.getUser())) {
+      if (pending) setDirty(true);
+      const resume = new URLSearchParams(window.location.search).get("resume") === "1";
+      const user = pending && resume ? await api.getUser() : null;
+      if (pending && user) {
         setSaving(true);
         try {
           const { id } = await api.saveRecipe(pending);
-          rememberSavedRun(pending.runId);
-          if (!cancelled) router.replace(`/recipes/${encodeURIComponent(id)}`);
+          rememberSavedRun(user.id, pending.runId);
+          setDirty(false);
+          if (!cancelled) {
+            router.replace(`/recipes/${encodeURIComponent(id)}`);
+            setSaving(false);
+          }
         } catch {
           if (!cancelled) {
             setSaving(false);
@@ -81,13 +89,16 @@ export function ReviewScreen() {
       if (!user) {
         // 로그인 화면(S0)으로 갔다가 돌아오면 위 useEffect가 이어서 저장한다
         stashPendingSave(draft);
-        router.push(`/login?next=${encodeURIComponent(`/r/${runId}`)}`);
+        router.push(`/login?next=${encodeURIComponent(`/r/${runId}?resume=1`)}`);
+        // 화면 상태가 남아 있어서(cacheComponents) 뒤로 오면 "저장하는 중…"에 멈추지 않게 푼다
+        setSaving(false);
         return;
       }
       const { id } = await api.saveRecipe(draft);
-      rememberSavedRun(draft.runId);
+      rememberSavedRun(user.id, draft.runId);
       setDirty(false);
       router.push(`/recipes/${encodeURIComponent(id)}`);
+      setSaving(false);
     } catch {
       setSaving(false);
       setSaveError(SAVE_FAILED);

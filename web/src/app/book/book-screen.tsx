@@ -20,6 +20,7 @@ export function BookScreen() {
 
   useEffect(() => {
     if (!user) return;
+    const userId = user.id;
     let cancelled = false;
     let timer: ReturnType<typeof setTimeout>;
     async function refresh() {
@@ -28,7 +29,7 @@ export function BookScreen() {
         if (cancelled) return;
         setJobs(nextJobs);
         setRecipes(nextRecipes);
-        setHidden(readBookHidden());
+        setHidden(readBookHidden(userId));
         setFailed(false);
         // 만드는 중인 작업이 있으면 카드 문구가 바뀌도록 가끔 다시 읽는다
         if (nextJobs.some((j) => j.status === "queued" || j.status === "running")) timer = setTimeout(refresh, POLL_MS);
@@ -119,8 +120,9 @@ export function BookScreen() {
                   type="button"
                   aria-label="실패 카드 닫기"
                   onClick={() => {
-                    hideJob(card.jobId);
-                    setHidden(readBookHidden());
+                    if (!user) return;
+                    hideJob(user.id, card.jobId);
+                    setHidden(readBookHidden(user.id));
                   }}
                   className="mr-1 flex size-11 shrink-0 items-center justify-center rounded-full"
                 >
