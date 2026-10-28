@@ -3,22 +3,29 @@
 import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
 import { useEffect, useState, useSyncExternalStore } from "react";
-import { api, type Job } from "@/lib/api";
-import { type FailureAction, failureCopy, stageText } from "@/lib/job-display";
+import { ACTION_LABEL, type FailAction, type Job, api } from "@/lib/api";
+import { failureView, stageText } from "@/lib/job-display";
 import { recallJobSource, rememberJobSource } from "@/lib/job-source";
 
 const POLL_MS = 1500;
 const MAX_POLL_ERRORS = 3;
 // 로그인은 KAN-24·KAN-31에서 붙인다. 그 전까지는 비로그인 화면만 보인다.
 const LOGGED_IN = false;
+// 영상 파일 업로드 경로가 생기면 true로 바꾼다.
+const UPLOAD_READY = false;
 
 const subscribeNothing = () => () => {};
+
+type View =
+  | { kind: "progress"; job: Job | null }
+  | { kind: "failed"; job: Pick<Job, "errorCode" | "reason" | "runId"> }
+  | { kind: "missing" }
+  | { kind: "poll_failed" };
 
 export function JobProgress() {
   const { id } = useParams<{ id: string }>();
   const router = useRouter();
-  const [job, setJob] = useState<Job | null>(null);
-  const [pollFailed, setPollFailed] = useState(false);
+  const [view, setView] = useState<View>({ kind: "progress", job: null });
   const [pollKey, setPollKey] = useState(0);
   // 서버에서는 탭 저장소를 읽을 수 없어 null, 브라우저에서만 기억해 둔 링크를 읽는다.
   const source = useSyncExternalStore(subscribeNothing, () => recallJobSource(id), () => null);
@@ -31,31 +38,33 @@ export function JobProgress() {
 
     async function poll() {
       try {
-        const next = await api.getJob(id);
+        const job = await api.getJob(id);
         if (cancelled) return;
         errors = 0;
-        if (!next) {
-          // 없는 job도 계속 조회하지 않고 일시 오류로 안내한다.
-          setJob(failedWithoutCode(id));
+        if (!job) {
+          setView({ kind: "missing" });
           return;
         }
-        if (next.status === "succeeded") {
-          if (next.runId) {
-            setJob(next);
-            router.replace(`/runs/${encodeURIComponent(next.runId)}`);
+        if (job.status === "succeeded") {
+          if (job.runId) {
+            setView({ kind: "progress", job });
+            router.replace(`/r/${encodeURIComponent(job.runId)}`);
           } else {
             // 성공인데 결과가 없으면 서버 쪽 문제다. 계속 조회하지 않고 일시 오류로 안내한다.
-            setJob({ ...next, status: "failed", errorCode: null });
+            setView({ kind: "failed", job: { errorCode: null, reason: null, runId: null } });
           }
           return;
         }
-        setJob(next);
-        if (next.status === "failed") return;
+        if (job.status === "failed") {
+          setView({ kind: "failed", job });
+          return;
+        }
+        setView({ kind: "progress", job });
       } catch {
         if (cancelled) return;
         errors += 1;
         if (errors >= MAX_POLL_ERRORS) {
-          setPollFailed(true);
+          setView({ kind: "poll_failed" });
           return;
         }
       }
@@ -81,25 +90,39 @@ export function JobProgress() {
     }
   }
 
-  if (pollFailed) {
+  if (view.kind === "poll_failed") {
     return (
       <Failure
         title="연결이 잠시 끊겼어요"
         body={"처리 상태를 불러오지 못했어요.\n다시 확인해 볼게요."}
         actions={[
-          { label: "다시 확인", onClick: () => { setPollFailed(false); setPollKey((k) => k + 1); } },
-          { label: "다른 링크 넣기", href: "/" },
+          {
+            label: "다시 확인",
+            onClick: () => {
+              setView({ kind: "progress", job: null });
+              setPollKey((k) => k + 1);
+            },
+          },
+          { label: ACTION_LABEL.other_link, href: "/" },
         ]}
       />
     );
   }
 
-  if (job?.status === "failed") {
-    const copy = failureCopy(job);
-    const actions = copy.actions
-      .filter((a) => a !== "retry" || source)
-      .map((a) => toAction(a, { job, retrying, retryJob }));
-    return <Failure title={copy.title} body={copy.body} actions={actions} />;
+  if (view.kind === "missing") {
+    return (
+      <Failure
+        title="이 작업을 찾을 수 없어요"
+        body={"주소가 바뀌었거나 오래된 작업이에요.\n링크를 다시 넣어 주세요."}
+        actions={[{ label: ACTION_LABEL.other_link, href: "/" }]}
+      />
+    );
+  }
+
+  if (view.kind === "failed") {
+    const failure = failureView(view.job, { loggedIn: LOGGED_IN, canRetry: Boolean(source), uploadReady: UPLOAD_READY });
+    const actions = failure.actions.map((a) => toAction(a, { runId: view.job.runId, retrying, retryJob }));
+    return <Failure title={failure.title} body={failure.body} actions={actions} />;
   }
 
   return (
@@ -114,7 +137,7 @@ export function JobProgress() {
       <div className="flex flex-1 flex-col items-center justify-center gap-4 px-8 text-center">
         <div className="size-14 animate-spin rounded-full border-4 border-disabled border-t-link" aria-hidden="true" />
         <p aria-live="polite" className="text-lg font-bold">
-          {job ? stageText(job) : "곧 시작해요…"}
+          {view.job ? stageText(view.job) : "곧 시작해요…"}
         </p>
       </div>
 
@@ -127,7 +150,7 @@ export function JobProgress() {
               다 되면 레시피북에서 볼 수 있어요.
             </p>
             <Link href="/book" className="flex h-13 items-center justify-center rounded-xl border-[1.5px] border-foreground text-base font-medium">
-              레시피북으로
+              {ACTION_LABEL.go_book}
             </Link>
           </>
         ) : (
@@ -142,23 +165,22 @@ export function JobProgress() {
   );
 }
 
-function failedWithoutCode(id: string): Job {
-  return { id, sourceUrl: "", status: "failed", stage: null, errorCode: null, reason: null, runId: null, createdAt: "" };
-}
-
 type Action = { label: string; href?: string; onClick?: () => void; disabled?: boolean };
 
 function toAction(
-  action: FailureAction,
-  ctx: { job: Job; retrying: boolean; retryJob: () => void },
+  action: FailAction,
+  ctx: { runId: string | null; retrying: boolean; retryJob: () => void },
 ): Action {
   switch (action) {
     case "retry":
-      return { label: ctx.retrying ? "다시 시도하는 중…" : "다시 시도", onClick: ctx.retryJob, disabled: ctx.retrying };
-    case "partial":
-      return { label: "찾은 만큼 보기", href: `/runs/${encodeURIComponent(ctx.job.runId ?? "")}` };
+      return { label: ctx.retrying ? "다시 시도하는 중…" : ACTION_LABEL.retry, onClick: ctx.retryJob, disabled: ctx.retrying };
+    case "show_partial":
+      return { label: ACTION_LABEL.show_partial, href: `/r/${encodeURIComponent(ctx.runId ?? "")}` };
+    case "go_book":
+      return { label: ACTION_LABEL.go_book, href: "/book" };
+    case "upload":
     case "other_link":
-      return { label: "다른 링크 넣기", href: "/" };
+      return { label: ACTION_LABEL[action], href: "/" };
   }
 }
 
@@ -175,7 +197,7 @@ function Failure({ title, body, actions }: { title: string; body: string; action
         <p role="alert" className="text-lg font-bold">
           {title}
         </p>
-        <p className="text-sm leading-relaxed whitespace-pre-line text-muted">{body}</p>
+        {body && <p className="text-sm leading-relaxed whitespace-pre-line text-muted">{body}</p>}
       </div>
       <div className="flex flex-col gap-2.5 px-5 pb-7">
         {actions.map((a, i) => {

@@ -38,6 +38,11 @@ export function LinkInputForm() {
       const { jobId } = await api.createJob(check.url);
       rememberJobSource(jobId, check.url);
       router.push(`/jobs/${encodeURIComponent(jobId)}`);
+      // 이 화면은 이동 뒤에도 상태가 남는다(cacheComponents). [다른 링크 넣기]·뒤로 가기로 오면
+      // 빈 입력칸에서 다시 시작하도록 비우고 버튼도 푼다. 보낸 링크는 처리 중 화면에 보인다.
+      setUrl("");
+      setShowFieldError(false);
+      setSubmitting(false);
     } catch {
       setSubmitError("잠시 문제가 생겼어요. 다시 시도해 주세요.");
       setSubmitting(false);

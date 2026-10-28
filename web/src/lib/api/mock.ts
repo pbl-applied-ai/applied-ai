@@ -5,7 +5,7 @@
 // 시간 흐름: 대기 0.8초 → collect → structure → 끝(약 5초).
 import { PARTIAL_RECIPE, SAMPLE_RECIPE } from './fixtures';
 import { toSummary } from './editable';
-import { checkSourceUrl } from './url';
+import { checkShortsUrl } from '../shorts';
 import {
   NotSignedInError,
   type EditableRecipe,
@@ -136,7 +136,7 @@ export function createMockApi(options: MockOptions = {}): RecipeApi {
       await wait();
       if (!/^https?:\/\//i.test(sourceUrl.trim())) throw new Error('invalid source_url');
       const state = load();
-      const check = checkSourceUrl(sourceUrl);
+      const check = checkShortsUrl(sourceUrl); // MVP는 Shorts만. 그 밖의 링크는 unsupported_source
       const job: StoredJob = {
         id: crypto.randomUUID(),
         sourceUrl: sourceUrl.trim(),
@@ -235,8 +235,9 @@ export function createMockApi(options: MockOptions = {}): RecipeApi {
       await wait();
       const state = load();
       requireUser(state);
-      const { [id]: _removed, ...rest } = state.recipes;
-      save({ ...state, recipes: rest });
+      const recipes = { ...state.recipes };
+      delete recipes[id];
+      save({ ...state, recipes });
     },
   };
 }
