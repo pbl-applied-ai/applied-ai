@@ -20,7 +20,9 @@ export interface ScreenContext {
 
 /** 실패 안내와 지금 보여 줄 버튼. 쓸 수 없는 버튼(업로드 전, 비로그인 레시피북, 링크 모름)은 뺀다. */
 export function failureView(job: Pick<Job, "errorCode" | "reason" | "runId">, ctx: ScreenContext) {
-  const guide: ErrorGuide = failGuide(job);
+  // partial_recipe인데 찾은 결과(runId)가 없으면 보여 줄 게 없으니 "레시피를 찾지 못했어요"로 안내한다
+  const noPartial = job.reason === "partial_recipe" && !job.runId;
+  const guide: ErrorGuide = failGuide(noPartial ? { ...job, reason: "empty_recipe" } : job);
   const actions = guide.actions.filter((a: FailAction) => {
     if (a === "retry") return ctx.canRetry;
     if (a === "upload") return ctx.uploadReady;
