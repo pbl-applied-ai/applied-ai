@@ -66,13 +66,17 @@ YouTube URL
 | `src/llm.mjs` | `resolveProvider(env)`, `callOpenAI`(추론 모델이 temperature를 거부하면 빼고 재시도), `callAnthropic`, `extractRecipe` |
 | `src/ingredients.mjs` | `parseAmount`: "2스푼", "1~2큰술", "한 개 반", "½ tsp", "약간"을 `{quantity, quantity2, unit, qualitative}`로 파싱. 검증·비교용이고 화면에는 항상 원문을 보여 준다 |
 | `src/resolve.mjs` | 결정론 후처리 전부 (아래 참고) |
-| `src/pipeline.mjs` | `loadSource`, `runPipeline` |
+| `src/pipeline.mjs` | `loadSource`, `runPipeline`(`onStage`로 단계 시작·끝을 알린다) |
+| `src/errors.mjs` | `PipelineError { stage, errorCode, reason, retry }`: 워커가 안내·재시도를 고르는 실패 |
+| `src/job.mjs` | `runJob`, `canonicalKey`, `extractorVersion`: 워커용 진입점 (아래 참고) |
+| `src/worker.mjs` | Supabase jobs를 가져와 `runJob`을 돌리고 runs·jobs에 저장하는 워커 |
 | `src/team-schema.mjs` | `toEvidenceBundle`, `toTeamRecipe`, `teamIdMap`: 파이프라인 결과 → 팀 스키마 v0.1 (아래 참고) |
 | `src/print.mjs` | 출력 포맷: 요약 줄, 출처별 분량, 상태 표시 |
 | `src/cli.mjs` | CLI 옵션: `--out`, `--transcript`, `--llm-output`, `--lang`(기본 `ko,en`), `--captions-only`, `--json`, `--team-out` |
 | `scripts/compare-models.mjs` | 같은 자막으로 여러 모델 실행. 결과는 `compare/<버전>/<영상ID>/<모델>.json` |
 | `scripts/repeat-model.mjs` | 같은 모델을 N번 실행해 실행 간 편차 확인. 결과는 `.../repeat/` |
 | `test/pipeline.test.mjs` | 단위 테스트 (`node --test`). LLM 호출은 `fetch`를 모킹한다 |
+| `test/job.test.mjs` | `runJob`의 실패 분류(워커 문서 6번 표)와 워커 저장 흐름. YouTube·LLM·DB 모두 가짜 |
 | `test/fixtures/sample-gochujang-bowl.*.json` | 테스트용으로 직접 쓴 가짜 자막·설명과 기준 LLM 출력. 실제 영상 자막이 아니다 |
 
 ## 결정론 규칙 (`src/resolve.mjs`)
@@ -152,6 +156,36 @@ bundle은 1~4단계 결과만 담는다. `run.stages`에는 자막 수집(`capti
 | `status: not_a_recipe`·`insufficient`, 재료나 단계가 0개 | `recipe.json` 없음 + 경고 | 팀 스키마는 재료·단계가 1개 이상이어야 한다 |
 
 팀 스키마에 아직 없어 내보내지 않는 것: `preparation`("얇게 썬"), `tips`, 그룹 머리말, 항목 ID(`ing_01`), 출처별 분량·충돌 내역, 근거 시각. 스키마 v0.2에서 넣을지 정한다.
+
+## 워커 (`src/job.mjs`, `src/worker.mjs`)
+
+호출 방식은 [워커 ↔ 파이프라인 문서](../docs/worker-interface.md) v0.3, DB 함수는 `supabase/migrations/`(#22)를 따른다.
+
+```bash
+# PowerShell 예시. 키는 환경 변수로만 넘기고 파일·로그에 남기지 않는다
+$env:SUPABASE_URL = "https://<project>.supabase.co"
+$env:SUPABASE_SERVICE_ROLE_KEY = "<service_role 키>"
+$env:OPENAI_API_KEY = "<OpenAI 키>"
+$env:PIPELINE_TREE = (git rev-parse HEAD:pipeline)   # 없으면 버전이 +dev가 되고 캐시를 쓰지 않는다
+node src/worker.mjs            # 계속 돌며 2초마다 대기 job 확인
+node src/worker.mjs --once     # 대기 job이 없으면 끝냄
+```
+
+- **클라우드 서버에서 돌리지 않는다.** 데이터센터 IP는 YouTube가 `LOGIN_REQUIRED`(봇 확인)로 막는다(KAN-38). 데모는 노트북 워커. 학교·회사 와이파이는 YouTube 제한 모드로 일부 영상이 막힐 수 있어 휴대폰 핫스팟을 쓴다.
+- `runJob({ source_url }, { onStage })`은 예외를 던지지 않고 `succeeded` 또는 `failed` 결과 하나를 돌려준다. 실패는 `error_code`(화면 안내 종류)·`reason`(세부 원인)·`retry`(자동 재시도 대상)로 나눈다.
+- 자막 트랙이 없는 영상은 설명란만으로 진행한다. 이때 성공 결과에 `description_only: true`가 붙고, 설명란에도 레시피가 없으면 `unavailable`·`no_captions_no_description`이다.
+- 재료나 단계 한쪽만 있으면 `insufficient`·`partial_recipe`로 실패하고 `partial`에 찾은 만큼의 결과를 담는다. 이 `recipe`만 팀 스키마 `minItems` 검사에서 빠진다.
+
+워커가 부르는 RPC (모두 `service_role` 전용):
+
+| 순서 | RPC | 워커가 하는 일 |
+|---|---|---|
+| 1 | `claim_next_job(p_lease)` | 대기 job 하나를 lease 10분으로 가져온다 |
+| 2 | `find_cached_run` → `complete_job_from_cache` | 같은 영상·같은 `extractor_version` 성공 run이 있으면 파이프라인을 안 돌리고 끝낸다(`+dev`면 안 봄) |
+| 3 | `set_job_stage` | `runJob`이 단계를 시작할 때마다 기록한다(처리 중 화면) |
+| 4 | `complete_job` / `fail_job` | 결과 저장. 재시도(30초·2분 뒤 다시)와 partial run 저장은 `fail_job`이 한다 |
+
+- 모든 쓰기는 claim 때의 `attempts`를 같이 보낸다. lease가 끝나 다른 시도가 잡은 job이면 DB가 `null`을 돌려주고, 워커는 `lost`로 기록만 하고 넘어간다.
 
 ## 프롬프트 버전 이력
 

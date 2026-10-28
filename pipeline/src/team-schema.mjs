@@ -61,7 +61,9 @@ export function toEvidenceBundle(result, { runId, createdAt } = {}) {
 // Only amounts the pipeline confirmed keep their text; needs_review, conflict and not_in_video
 // all become unconfirmed with an empty amount. A confirmed ingredient adds only the evidence of its
 // confirmed amounts, not of amounts left needing review.
-export function toTeamRecipe(result, warnings = []) {
+// With partial, a recipe missing all ingredients or all steps is still exported: a partial run
+// (docs/worker-interface.md section 4) is the one case allowed to break the schema's minItems.
+export function toTeamRecipe(result, warnings = [], { partial = false } = {}) {
   const { recipe } = result;
   if (recipe.status !== 'ok') {
     warnings.push(`team recipe: recipe status is ${recipe.status}, recipe.json skipped`);
@@ -88,7 +90,7 @@ export function toTeamRecipe(result, warnings = []) {
   const steps = recipe.steps
     .filter((s) => !s.is_group_header)
     .map((s, i) => ({ order: i + 1, text: s.text, evidence: toTeamIds(s.evidence, map) }));
-  if (!ingredients.length || !steps.length) {
+  if (!partial && (!ingredients.length || !steps.length)) {
     warnings.push(`team recipe: ${ingredients.length} ingredients and ${steps.length} steps, the team schema needs at least one of each, recipe.json skipped`);
     return null;
   }

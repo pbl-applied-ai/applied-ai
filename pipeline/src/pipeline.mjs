@@ -1,11 +1,12 @@
 import { readFile } from 'node:fs/promises';
+import { PipelineError } from './errors.mjs';
 import { fetchTranscript, parseVideoId, watchUrl } from './youtube.mjs';
 import { descriptionSegments, normalizeSegments, renderForPrompt } from './segments.mjs';
 import { buildUserPrompt, PROMPT_VERSION } from './schema.mjs';
 import { extractRecipe, resolveProvider } from './llm.mjs';
 import { resolveRecipe } from './resolve.mjs';
 
-export async function loadSource({ url, transcriptFile, languages }) {
+export async function loadSource({ url, transcriptFile, languages, fetchImpl = fetch }) {
   if (transcriptFile) {
     const file = JSON.parse(await readFile(transcriptFile, 'utf8'));
     const videoId = url ? parseVideoId(url) : file.video?.videoId ?? null;
@@ -16,28 +17,61 @@ export async function loadSource({ url, transcriptFile, languages }) {
     };
   }
   const videoId = parseVideoId(url);
-  if (!videoId) throw new Error(`Not a YouTube video URL or ID: ${url}`);
-  return fetchTranscript(videoId, { languages });
+  if (!videoId) {
+    throw new PipelineError(`Not a YouTube video URL or ID: ${url}`, { stage: 'collect', errorCode: 'unsupported_source', reason: 'not_youtube' });
+  }
+  return fetchTranscript(videoId, { languages, fetchImpl });
 }
 
-export async function runPipeline({ url, transcriptFile, languages, env = process.env, fetchImpl = fetch, llmOutput }) {
-  const source = await loadSource({ url, transcriptFile, languages });
-  const evidence = [...normalizeSegments(source.segments), ...descriptionSegments(source.video.description)];
+// Reports each stage to onStage({ stage, state, reason?, ms? }) and tags an error with the stage it came from.
+async function inStage(onStage, stage, fn) {
+  onStage({ stage, state: 'started' });
+  const t0 = Date.now();
+  try {
+    const out = await fn();
+    onStage({ stage, state: 'done', ms: Date.now() - t0 });
+    return out;
+  } catch (err) {
+    onStage({ stage, state: 'failed', ms: Date.now() - t0 });
+    if (err && typeof err === 'object' && !err.stage) err.stage = stage;
+    throw err;
+  }
+}
+
+export async function runPipeline({ url, transcriptFile, languages, env = process.env, fetchImpl = fetch, llmOutput, onStage = () => {} }) {
+  const { source, evidence } = await inStage(onStage, 'collect', async () => {
+    const source = await loadSource({ url, transcriptFile, languages, fetchImpl });
+    const evidence = [...normalizeSegments(source.segments), ...descriptionSegments(source.video.description)];
+    if (!evidence.length) {
+      throw new PipelineError(`No captions and no description for ${source.video.videoId}`, {
+        stage: 'collect', errorCode: 'unavailable', reason: 'no_captions_no_description',
+      });
+    }
+    return { source, evidence };
+  });
+  // Neither is implemented yet; with timed captions ASR would not run anyway.
+  onStage({ stage: 'asr', state: 'skipped', reason: source.segments.length ? 'timed_captions_available' : 'not_implemented' });
+  onStage({ stage: 'ocr', state: 'skipped', reason: 'not_implemented' });
 
   let llm = llmOutput;
   let model = null;
   let usage = null;
   let latencyMs = null;
   if (!llm) {
-    const config = resolveProvider(env);
-    const t0 = Date.now();
-    const out = await extractRecipe(config, buildUserPrompt(source.video, renderForPrompt(evidence)), { fetchImpl });
-    latencyMs = Date.now() - t0;
+    const out = await inStage(onStage, 'structure', async () => {
+      const config = resolveProvider(env);
+      const t0 = Date.now();
+      const res = await extractRecipe(config, buildUserPrompt(source.video, renderForPrompt(evidence)), { fetchImpl });
+      return { ...res, model: `${config.provider}:${config.model}`, latencyMs: Date.now() - t0 };
+    });
     llm = out.data;
     usage = out.usage;
-    model = `${config.provider}:${config.model}`;
+    model = out.model;
+    latencyMs = out.latencyMs;
   }
 
+  // Left open on purpose: runJob closes finalize after checking the result (CLI callers ignore stages).
+  onStage({ stage: 'finalize', state: 'started' });
   const recipe = resolveRecipe(llm, evidence);
   const videoId = source.video.videoId;
   for (const item of [...recipe.steps, ...recipe.ingredients, ...recipe.tips]) {
