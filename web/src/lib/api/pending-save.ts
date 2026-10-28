@@ -5,9 +5,9 @@
 //   const user = await api.getUser();
 //   if (!user) { stashPendingSave(draft); await api.signInWithGoogle(location.pathname); return; }
 //   await api.saveRecipe(draft);
-// S4가 다시 열릴 때(로그인 후 돌아옴):
+// S4가 다시 열릴 때(로그인 후 돌아옴, 로그인 화면의 next에 ?resume=1을 붙여 구분):
 //   const pending = takePendingSave(runId);
-//   if (pending && (await api.getUser())) { const { id } = await api.saveRecipe(pending); router.push(`/recipes/${id}`); }
+//   if (pending && resume && (await api.getUser())) { const { id } = await api.saveRecipe(pending); router.push(`/recipes/${id}`); }
 import type { EditableRecipe } from './types';
 
 const KEY = 'pending-save';
