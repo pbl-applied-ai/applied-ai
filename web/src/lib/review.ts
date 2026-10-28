@@ -1,10 +1,10 @@
 // S4 확인·수정 화면의 표시 규칙. 편집 자체는 @/lib/api의 editable.ts가 한다.
 import type { EditableIngredient, EditableRecipe, Run } from "@/lib/api";
 
-/** 근거가 모두 영상 설명·제목뿐이면 "설명 기반" 결과다(docs/ux-flow.md S4). */
+/** 근거가 모두 영상 설명·제목·작성자 고정 댓글뿐이면 "설명 기반" 결과다(docs/ux-flow.md S4). 음성·화면 글자는 보지 않은 결과다. */
 export function isDescriptionOnly(run: Run): boolean {
   const ids = [...run.recipe.ingredients, ...run.recipe.steps].flatMap((item) => item.evidence);
-  return ids.length > 0 && ids.every((id) => id.startsWith("desc-") || id.startsWith("title-"));
+  return ids.length > 0 && ids.every((id) => id.startsWith("desc-") || id.startsWith("title-") || id.startsWith("comment-"));
 }
 
 /** 추출 결과에서 비어 있던 쪽. 부분 결과(partial_recipe) 안내에 쓴다. */

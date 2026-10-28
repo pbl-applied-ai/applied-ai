@@ -61,7 +61,7 @@ describe("부분 결과", () => {
 });
 
 describe("설명 기반 안내", () => {
-  it("근거가 설명·제목뿐일 때만", () => {
+  it("근거가 설명·제목·고정 댓글뿐일 때만", () => {
     expect(isDescriptionOnly(run)).toBe(false);
     const descOnly: Run = {
       ...run,
@@ -72,5 +72,10 @@ describe("설명 기반 안내", () => {
       },
     };
     expect(isDescriptionOnly(descOnly)).toBe(true);
+
+    const withComment: Run = { ...descOnly, recipe: { ...descOnly.recipe, steps: [{ order: 1, text: "볶는다.", evidence: ["comment-0"] }] } };
+    expect(isDescriptionOnly(withComment)).toBe(true);
+    const withSpeech: Run = { ...descOnly, recipe: { ...descOnly.recipe, steps: [{ order: 1, text: "볶는다.", evidence: ["comment-0", "asr-3"] }] } };
+    expect(isDescriptionOnly(withSpeech)).toBe(false);
   });
 });
