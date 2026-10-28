@@ -109,7 +109,7 @@ export function RecipeEditor({
             editing={editing === step.id}
             onStartEdit={() => setEditing(step.id)}
             onCancel={() => setEditing(null)}
-            onSave={(text) => done(editStep(draft, step.id, text))}
+            onSave={(text) => done(text === step.text ? draft : editStep(draft, step.id, text))}
             onRevert={() => onChange(revertItem(draft, run, step.id))}
             onRemove={() => done(removeStep(draft, step.id))}
             onMove={(offset) => onChange(moveStep(draft, step.id, offset))}

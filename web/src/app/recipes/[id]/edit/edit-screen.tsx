@@ -6,6 +6,7 @@ import { useEffect, useState } from "react";
 import { RecipeEditor } from "@/components/recipe-editor";
 import { type EditableRecipe, type Run, api, canSave } from "@/lib/api";
 import { useRequireUser } from "@/lib/use-require-user";
+import { useUnsavedWarning } from "@/lib/use-unsaved-warning";
 
 type Load = { kind: "loading" } | { kind: "missing" } | { kind: "ready"; run: Run };
 
@@ -17,6 +18,8 @@ export function EditScreen() {
   const [draft, setDraft] = useState<EditableRecipe | null>(null);
   const [saving, setSaving] = useState(false);
   const [saveError, setSaveError] = useState<string | null>(null);
+  const [dirty, setDirty] = useState(false);
+  useUnsavedWarning(dirty && !saving);
 
   useEffect(() => {
     if (!user) return;
@@ -66,6 +69,7 @@ export function EditScreen() {
     setSaveError(null);
     try {
       await api.updateRecipe(id, draft);
+      setDirty(false);
       router.replace(`/recipes/${encodeURIComponent(id)}`);
     } catch {
       setSaving(false);
@@ -79,6 +83,7 @@ export function EditScreen() {
       draft={draft}
       onChange={(next) => {
         setDraft(next);
+        setDirty(true);
         setSaveError(null);
       }}
       onSave={save}
