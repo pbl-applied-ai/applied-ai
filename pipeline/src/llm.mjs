@@ -1,3 +1,4 @@
+import { isTransientStatus, PipelineError } from './errors.mjs';
 import { RECIPE_SCHEMA, SYSTEM_PROMPT } from './schema.mjs';
 
 const DEFAULT_MODELS = {
@@ -5,13 +6,23 @@ const DEFAULT_MODELS = {
   anthropic: 'claude-sonnet-4-5',
 };
 
+const configError = (message) => new PipelineError(message, { stage: 'structure', errorCode: 'internal', reason: 'llm_config' });
+const transient = (message, cause) => new PipelineError(message, { stage: 'structure', errorCode: 'retryable', reason: 'llm_transient', retry: true, cause });
+const cutOff = (message) => new PipelineError(message, { stage: 'structure', errorCode: 'internal', reason: 'llm_cut_off' });
+
+// 429 and 5xx are worth retrying; any other 4xx (bad key, unknown model, bad request) is our setup.
+function httpError(label, res, body) {
+  const message = `${label} ${res.status}: ${body.error?.message ?? JSON.stringify(body)}`;
+  return isTransientStatus(res.status) ? transient(message) : configError(message);
+}
+
 export function resolveProvider(env = process.env) {
   const explicit = env.LLM_PROVIDER?.toLowerCase();
   const provider = explicit || (env.OPENAI_API_KEY ? 'openai' : env.ANTHROPIC_API_KEY ? 'anthropic' : null);
-  if (!provider) throw new Error('Set OPENAI_API_KEY or ANTHROPIC_API_KEY (optionally LLM_PROVIDER and LLM_MODEL).');
-  if (!DEFAULT_MODELS[provider]) throw new Error(`Unsupported LLM_PROVIDER "${provider}" (use openai or anthropic).`);
+  if (!provider) throw configError('Set OPENAI_API_KEY or ANTHROPIC_API_KEY (optionally LLM_PROVIDER and LLM_MODEL).');
+  if (!DEFAULT_MODELS[provider]) throw configError(`Unsupported LLM_PROVIDER "${provider}" (use openai or anthropic).`);
   const apiKey = provider === 'openai' ? env.OPENAI_API_KEY : env.ANTHROPIC_API_KEY;
-  if (!apiKey) throw new Error(`LLM_PROVIDER is ${provider} but its API key is not set.`);
+  if (!apiKey) throw configError(`LLM_PROVIDER is ${provider} but its API key is not set.`);
   return { provider, apiKey, model: env.LLM_MODEL || DEFAULT_MODELS[provider] };
 }
 
@@ -22,8 +33,8 @@ async function post(label, fetchImpl, url, init, timeoutMs) {
   try {
     return await fetchImpl(url, { ...init, signal: AbortSignal.timeout(timeoutMs) });
   } catch (err) {
-    if (err?.name === 'TimeoutError' || err?.name === 'AbortError') throw new Error(`${label} request timed out after ${timeoutMs / 1000}s.`);
-    throw err;
+    if (err?.name === 'TimeoutError' || err?.name === 'AbortError') throw transient(`${label} request timed out after ${timeoutMs / 1000}s.`, err);
+    throw transient(`${label} request failed: ${err?.message ?? err}`, err);
   }
 }
 
@@ -33,7 +44,7 @@ async function readJson(label, res) {
     return await res.json();
   } catch {
     const type = res.headers?.get?.('content-type') ?? 'unknown content type';
-    throw new Error(`${label} ${res.status}: response is not JSON (${type}).`);
+    throw transient(`${label} ${res.status}: response is not JSON (${type}).`);
   }
 }
 
@@ -59,12 +70,18 @@ async function callOpenAI({ apiKey, model }, userPrompt, fetchImpl, timeoutMs) {
     res = await request(false);
     body = await readJson('OpenAI', res);
   }
-  if (!res.ok) throw new Error(`OpenAI ${res.status}: ${body.error?.message ?? JSON.stringify(body)}`);
+  if (!res.ok) throw httpError('OpenAI', res, body);
   const choice = body.choices?.[0];
   const msg = choice?.message;
-  if (msg?.refusal) throw new Error(`OpenAI refused: ${msg.refusal}`);
-  if (choice?.finish_reason === 'length') throw new Error('OpenAI response was cut off (finish_reason "length"); the recipe JSON is incomplete.');
-  return { data: JSON.parse(msg.content), usage: body.usage };
+  if (msg?.refusal) throw new PipelineError(`OpenAI refused: ${msg.refusal}`, { stage: 'structure', errorCode: 'internal', reason: 'llm_refused' });
+  if (choice?.finish_reason === 'length') throw cutOff('OpenAI response was cut off (finish_reason "length"); the recipe JSON is incomplete.');
+  let data;
+  try {
+    data = JSON.parse(msg?.content);
+  } catch (err) {
+    throw transient('OpenAI response content is not valid JSON.', err);
+  }
+  return { data, usage: body.usage };
 }
 
 async function callAnthropic({ apiKey, model }, userPrompt, fetchImpl, timeoutMs) {
@@ -82,10 +99,10 @@ async function callAnthropic({ apiKey, model }, userPrompt, fetchImpl, timeoutMs
     }),
   }, timeoutMs);
   const body = await readJson('Anthropic', res);
-  if (!res.ok) throw new Error(`Anthropic ${res.status}: ${body.error?.message ?? JSON.stringify(body)}`);
-  if (body.stop_reason === 'max_tokens') throw new Error('Anthropic response was cut off (stop_reason "max_tokens"); the recipe JSON is incomplete.');
+  if (!res.ok) throw httpError('Anthropic', res, body);
+  if (body.stop_reason === 'max_tokens') throw cutOff('Anthropic response was cut off (stop_reason "max_tokens"); the recipe JSON is incomplete.');
   const tool = body.content?.find((c) => c.type === 'tool_use');
-  if (!tool) throw new Error('Anthropic response contained no tool_use block.');
+  if (!tool) throw transient('Anthropic response contained no tool_use block.');
   return { data: tool.input, usage: body.usage };
 }
 

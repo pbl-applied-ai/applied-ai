@@ -1,3 +1,5 @@
+import { isTransientStatus, PipelineError } from './errors.mjs';
+
 const PLAYER_URL = 'https://www.youtube.com/youtubei/v1/player?prettyPrint=false';
 
 // The web watch page's caption URLs often return empty bodies without a PO token;
@@ -85,19 +87,65 @@ function pickTrack(tracks, preferredLangs) {
   return tracks.find((t) => t.kind !== 'asr') || tracks[0];
 }
 
-export async function fetchTranscript(videoId, { languages = ['ko', 'en'], fetchImpl = fetch } = {}) {
+const YOUTUBE_TIMEOUT_MS = 15_000;
+
+// A network error or timeout is recorded like an HTTP failure so the next client still gets a try.
+async function request(fetchImpl, url, init, timeoutMs) {
+  try {
+    return { res: await fetchImpl(url, { ...init, signal: AbortSignal.timeout(timeoutMs) }) };
+  } catch (err) {
+    const timedOut = err?.name === 'TimeoutError' || err?.name === 'AbortError';
+    return { error: timedOut ? `timed out after ${timeoutMs / 1000}s` : `network error (${err?.message ?? err})` };
+  }
+}
+
+// Picks the failure to report when no client produced captions or a playable video.
+// Anything temporary wins, so the worker retries instead of telling the user the video cannot be read.
+function classifyFailure(failures) {
+  const has = (kind) => failures.some((f) => f.kind === kind);
+  if (has('caption_transient')) return { errorCode: 'retryable', reason: 'caption_transient', retry: true };
+  if (has('player_transient')) return { errorCode: 'retryable', reason: 'collect_network', retry: true };
+  if (has('caption_blocked')) return { errorCode: 'unavailable', reason: 'caption_blocked', retry: false };
+  return { errorCode: 'unavailable', reason: 'not_playable', retry: false };
+}
+
+function videoFields(videoId, player) {
+  const d = player.videoDetails || {};
+  return {
+    platform: 'youtube',
+    videoId,
+    title: d.title ?? null,
+    author: d.author ?? null,
+    durationMs: d.lengthSeconds ? Number(d.lengthSeconds) * 1000 : null,
+    description: d.shortDescription ?? '',
+  };
+}
+
+// Returns captions from the first client that has them. A playable video with no caption tracks
+// returns its description with no segments, so a recipe written in the description can still be read.
+export async function fetchTranscript(videoId, { languages = ['ko', 'en'], fetchImpl = fetch, timeoutMs = YOUTUBE_TIMEOUT_MS } = {}) {
   const attempts = [];
+  const failures = [];
+  let noCaptions = null;
+  const fail = (kind, text) => {
+    attempts.push(text);
+    failures.push({ kind });
+  };
   for (const client of CLIENTS) {
-    const res = await fetchImpl(PLAYER_URL, {
+    const { res, error } = await request(fetchImpl, PLAYER_URL, {
       method: 'POST',
       headers: { 'content-type': 'application/json', 'user-agent': client.userAgent },
       body: JSON.stringify({
         videoId,
         context: { client: { clientName: client.name, clientVersion: client.version, hl: languages[0], ...client.extra } },
       }),
-    });
+    }, timeoutMs);
+    if (error) {
+      fail('player_transient', `${client.name}: player ${error}`);
+      continue;
+    }
     if (!res.ok) {
-      attempts.push(`${client.name}: player HTTP ${res.status}`);
+      fail(isTransientStatus(res.status) ? 'player_transient' : 'not_playable', `${client.name}: player HTTP ${res.status}`);
       continue;
     }
     const player = await res.json();
@@ -105,32 +153,38 @@ export async function fetchTranscript(videoId, { languages = ['ko', 'en'], fetch
     const tracks = player.captions?.playerCaptionsTracklistRenderer?.captionTracks || [];
     if (!tracks.length) {
       attempts.push(`${client.name}: playability=${status}, no caption tracks`);
+      if (status === 'OK') noCaptions ??= player;
+      else failures.push({ kind: 'not_playable' });
       continue;
     }
     const track = pickTrack(tracks, languages);
-    const captionRes = await fetchImpl(track.baseUrl, { headers: { 'user-agent': client.userAgent } });
-    if (!captionRes.ok) {
-      attempts.push(`${client.name}: track ${track.languageCode} caption HTTP ${captionRes.status}`);
+    const caption = await request(fetchImpl, track.baseUrl, { headers: { 'user-agent': client.userAgent } }, timeoutMs);
+    if (caption.error) {
+      fail('caption_transient', `${client.name}: track ${track.languageCode} caption ${caption.error}`);
       continue;
     }
-    const segments = parseCaptionXml(await captionRes.text());
+    if (!caption.res.ok) {
+      const kind = isTransientStatus(caption.res.status) ? 'caption_transient' : 'caption_blocked';
+      fail(kind, `${client.name}: track ${track.languageCode} caption HTTP ${caption.res.status}`);
+      continue;
+    }
+    const segments = parseCaptionXml(await caption.res.text());
     if (!segments.length) {
-      attempts.push(`${client.name}: track ${track.languageCode} returned no segments`);
+      fail('caption_blocked', `${client.name}: track ${track.languageCode} returned no segments`);
       continue;
     }
-    const d = player.videoDetails || {};
     return {
-      video: {
-        platform: 'youtube',
-        videoId,
-        title: d.title ?? null,
-        author: d.author ?? null,
-        durationMs: d.lengthSeconds ? Number(d.lengthSeconds) * 1000 : null,
-        description: d.shortDescription ?? '',
-      },
+      video: videoFields(videoId, player),
       caption: { language: track.languageCode, autoGenerated: track.kind === 'asr', client: client.name },
       segments,
     };
   }
-  throw new Error(`No usable captions for ${videoId} (${attempts.join('; ')})`);
+  if (noCaptions) {
+    return {
+      video: videoFields(videoId, noCaptions),
+      caption: { language: null, autoGenerated: null, client: null },
+      segments: [],
+    };
+  }
+  throw new PipelineError(`No usable captions for ${videoId} (${attempts.join('; ')})`, { stage: 'collect', ...classifyFailure(failures) });
 }
