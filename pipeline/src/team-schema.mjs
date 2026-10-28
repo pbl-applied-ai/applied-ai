@@ -1,12 +1,17 @@
 export const TEAM_SCHEMA_VERSION = '0.1';
 
-// Internal evidence IDs (S01, D01) become team IDs (asr-0, desc-0). Platform captions map to
-// "asr" because the team schema has no separate caption type yet.
+// Internal evidence IDs (S01, D01, C01) become team IDs (asr-0, desc-0, comment-0). Platform captions
+// map to "asr" because the team schema has no separate caption type yet.
+const TEAM_PREFIX = { speech: 'asr', description: 'desc', comment: 'comment' };
+
 export function teamIdMap(evidence) {
   const map = new Map();
-  let asr = 0;
-  let desc = 0;
-  for (const seg of evidence) map.set(seg.id, seg.kind === 'description' ? `desc-${desc++}` : `asr-${asr++}`);
+  const next = {};
+  for (const seg of evidence) {
+    const prefix = TEAM_PREFIX[seg.kind];
+    next[prefix] = (next[prefix] ?? -1) + 1;
+    map.set(seg.id, `${prefix}-${next[prefix]}`);
+  }
   return map;
 }
 
@@ -26,7 +31,7 @@ export function toEvidenceBundle(result, { runId, createdAt } = {}) {
   if (source.title) segments.push({ id: 'title-0', type: 'title', text: source.title });
   for (const seg of result.evidence) {
     const id = map.get(seg.id);
-    if (seg.kind === 'description') segments.push({ id, type: 'description', text: seg.text });
+    if (seg.kind === 'description' || seg.kind === 'comment') segments.push({ id, type: seg.kind, text: seg.text });
     else segments.push({ id, type: 'asr', start_ms: seg.startMs, end_ms: seg.endMs, text: seg.text });
   }
   return {
@@ -49,6 +54,7 @@ export function toEvidenceBundle(result, { runId, createdAt } = {}) {
           version: caption.client ?? 'unknown',
           ...(Object.keys(captionConfig).length && { config: captionConfig }),
         },
+        ...(result.evidence.some((s) => s.kind === 'comment') && { pinned_comment: { tool: 'youtube-next', version: 'WEB' } }),
       },
     },
     segments,
