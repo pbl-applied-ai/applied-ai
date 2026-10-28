@@ -49,7 +49,9 @@ describe("failureView", () => {
 
   it("찾은 만큼 보기는 결과(runId)가 있을 때만", () => {
     expect(failureView({ errorCode: "insufficient", reason: "partial_recipe", runId: "run-1" }, demo).actions).toEqual(["show_partial", "other_link"]);
-    expect(failureView({ errorCode: "insufficient", reason: "partial_recipe", runId: null }, demo).actions).toEqual(["other_link"]);
+    const noRun = failureView({ errorCode: "insufficient", reason: "partial_recipe", runId: null }, demo);
+    expect(noRun.title).toBe("영상에서 레시피를 찾지 못했어요");
+    expect(noRun.actions).toEqual(["other_link"]);
   });
 
   it("모르는 error_code나 코드 없음은 일시 오류로", () => {
