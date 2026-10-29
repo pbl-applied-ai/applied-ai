@@ -8,5 +8,4 @@ export const api: RecipeApi = createMockApi();
 export * from './types';
 export * from './labels';
 export * from './editable';
-export * from './pending-save';
 export { MOCK_LINKS } from './mock';

@@ -1,4 +1,4 @@
-// 재료·조리 순서를 읽기 전용으로 보여 주는 영역. 저장한 레시피 상세(/recipes/[id])가 쓴다.
+// 재료·조리 순서를 읽기 전용으로 보여 주는 영역. 저장한 레시피 상세(/recipes/[id])와 로그인 전 결과 화면(/r/[runId])이 쓴다.
 import type { EditableRecipe } from "@/lib/api";
 import { amountView } from "@/lib/review";
 
@@ -9,6 +9,7 @@ export function RecipeView({ recipe }: { recipe: Pick<EditableRecipe, "ingredien
         <h2 id="d-ing" className="mb-2 text-lg font-bold">
           재료 {recipe.ingredients.length}
         </h2>
+        {recipe.ingredients.length === 0 && <p className="border-t border-[#ecece8] py-3.5 text-sm text-muted">영상에서 찾은 재료가 없어요.</p>}
         {recipe.ingredients.map((ing) => {
           const view = amountView(ing);
           return (
@@ -31,6 +32,7 @@ export function RecipeView({ recipe }: { recipe: Pick<EditableRecipe, "ingredien
         <h2 id="d-step" className="mb-2 text-lg font-bold">
           조리 순서
         </h2>
+        {recipe.steps.length === 0 && <p className="border-t border-[#ecece8] py-3.5 text-sm text-muted">영상에서 찾은 조리 순서가 없어요.</p>}
         {recipe.steps.map((step, i) => (
           <div key={step.id} className="flex gap-3 border-t border-[#ecece8] py-3.5">
             <span className="flex size-[26px] shrink-0 items-center justify-center rounded-full bg-foreground text-[13px] font-bold text-background">

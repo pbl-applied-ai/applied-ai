@@ -1,4 +1,4 @@
-// S0 로그인 (KAN-31 최소 동작). S4에서 [레시피북에 저장]을 눌렀는데 로그인 안 했을 때만 온다(KAN-39).
+// S0 로그인 (KAN-31 최소 동작). 결과 화면(S4)에서 [로그인하고 고치기]를 누르거나, 로그인이 필요한 화면(S1·S5)을 열 때 온다.
 // 지금은 목 로그인이다. 실제 구글 로그인(KAN-24)이 붙으면 api.signInWithGoogle만 바뀐다.
 import { Suspense } from "react";
 import { GoogleButton } from "./google-button";
@@ -13,7 +13,7 @@ export default function LoginPage() {
           <br />
           따라 할 수 있는 레시피로
         </h1>
-        <p className="text-[15px] leading-relaxed text-muted">레시피북에 저장하려면 로그인해 주세요. 고친 내용은 그대로 저장돼요.</p>
+        <p className="text-[15px] leading-relaxed text-muted">레시피를 고치고 레시피북에 저장하려면 로그인해 주세요.</p>
       </div>
       <div className="flex flex-col gap-3 pb-10">
         <Suspense fallback={null}>
