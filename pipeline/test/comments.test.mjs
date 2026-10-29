@@ -91,6 +91,20 @@ test('fetchPinnedComment returns the comment, or null with a reason, and never t
   }
 });
 
+test('fetchPinnedComment takes any YouTube link, but sends YouTube only the video ID', async () => {
+  const sent = [];
+  const fetchImpl = async (url, init) => {
+    sent.push(JSON.parse(init.body).videoId);
+    return youtubeNext({ comments: recipeComments })(url, init);
+  };
+  for (const input of ['https://www.youtube.com/shorts/Smpl0Gochu1', 'https://youtu.be/Smpl0Gochu1?si=x', ' Smpl0Gochu1 ']) {
+    assert.equal((await fetchPinnedComment(input, { fetchImpl })).comment.text, RECIPE_COMMENT, input);
+  }
+  assert.deepEqual(sent.filter(Boolean), ['Smpl0Gochu1', 'Smpl0Gochu1', 'Smpl0Gochu1']);
+  const bad = await fetchPinnedComment('https://www.instagram.com/reel/abc/', { fetchImpl: () => assert.fail('fetched') });
+  assert.deepEqual(bad, { comment: null, note: 'not a YouTube video URL or ID: https://www.instagram.com/reel/abc/' });
+});
+
 test('loadSource adds the pinned comment, and a comment failure keeps the captions', async () => {
   const ok = await loadSource({ url: 'https://www.youtube.com/shorts/Smpl0Gochu1', fetchImpl: youtubeNext({ comments: recipeComments }) });
   assert.equal(ok.video.pinnedComment, RECIPE_COMMENT);

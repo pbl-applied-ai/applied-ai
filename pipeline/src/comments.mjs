@@ -1,3 +1,5 @@
+import { parseVideoId } from './youtube.mjs';
+
 const NEXT_URL = 'https://www.youtube.com/youtubei/v1/next?prettyPrint=false';
 const WEB_CLIENT = { clientName: 'WEB', clientVersion: '2.20251020.01.00', hl: 'ko', gl: 'KR' };
 const TIMEOUT_MS = 15_000;
@@ -46,7 +48,11 @@ export function pinnedCreatorComment(page) {
 
 // Returns the creator's pinned comment, or null when there is none or it cannot be read.
 // Comments are an extra source: a failure here is reported, never fatal to the recipe.
-export async function fetchPinnedComment(videoId, { fetchImpl = fetch, timeoutMs = TIMEOUT_MS } = {}) {
+// Takes a video ID or any YouTube link: sent as-is, a link makes YouTube answer with a page that
+// has no comments section, which looks exactly like comments being turned off.
+export async function fetchPinnedComment(input, { fetchImpl = fetch, timeoutMs = TIMEOUT_MS } = {}) {
+  const videoId = typeof input === 'string' ? parseVideoId(input.trim()) : null;
+  if (!videoId) return { comment: null, note: `not a YouTube video URL or ID: ${input}` };
   try {
     const token = commentsToken(await next(fetchImpl, { videoId }, timeoutMs));
     if (!token) return { comment: null, note: 'no comments section (comments may be turned off)' };
