@@ -29,6 +29,34 @@ export function commentsToken(page) {
   return token;
 }
 
+// When YouTube will not show comments it puts a message in the comment section instead of a token,
+// e.g. "제한 모드이므로 이 동영상의 댓글을 숨겼습니다." Restricted Mode is often forced by the network
+// (DNS rewrite to restrictmoderate.youtube.com), so every video then looks like comments are off.
+export function commentsMessage(page) {
+  let message = null;
+  JSON.stringify(page, (key, value) => {
+    if (!message && key === 'itemSectionRenderer' && value?.sectionIdentifier === 'comment-item-section') {
+      const text = (value.contents ?? [])
+        .flatMap((c) => c.messageRenderer?.text?.runs ?? [])
+        .map((r) => r.text)
+        .join('')
+        .trim();
+      if (text) message = text;
+    }
+    return value;
+  });
+  return message;
+}
+
+function noCommentsNote(page) {
+  const message = commentsMessage(page);
+  if (!message) return 'no comments section (comments may be turned off)';
+  if (/제한 모드|restricted mode/i.test(message)) {
+    return `comments hidden by YouTube Restricted Mode (check the network: nslookup www.youtube.com shows restrict): ${message}`;
+  }
+  return `no comments section: ${message}`;
+}
+
 // Comment text lives in entity payloads; the pinned badge lives on the thread renderer. They share
 // the comment ID. Only a comment the creator wrote and pinned counts: a pinned viewer comment is
 // often a question or a joke, not the recipe.
@@ -54,8 +82,9 @@ export async function fetchPinnedComment(input, { fetchImpl = fetch, timeoutMs =
   const videoId = typeof input === 'string' ? parseVideoId(input.trim()) : null;
   if (!videoId) return { comment: null, note: `not a YouTube video URL or ID: ${input}` };
   try {
-    const token = commentsToken(await next(fetchImpl, { videoId }, timeoutMs));
-    if (!token) return { comment: null, note: 'no comments section (comments may be turned off)' };
+    const page = await next(fetchImpl, { videoId }, timeoutMs);
+    const token = commentsToken(page);
+    if (!token) return { comment: null, note: noCommentsNote(page) };
     const comment = pinnedCreatorComment(await next(fetchImpl, { continuation: token }, timeoutMs));
     return { comment, note: comment ? null : 'no pinned comment by the creator' };
   } catch (err) {

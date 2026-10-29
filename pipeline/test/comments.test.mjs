@@ -74,13 +74,24 @@ const youtubeNext = ({ page = watchPage, comments, status = 200, fail } = {}) =>
   const body = JSON.parse(init.body);
   return { ok: status === 200, status, json: async () => (body.continuation ? comments : page) };
 };
+// The watch page as YouTube sends it when it shows a message instead of comments (shape seen with Restricted Mode).
+const messagePage = (text) => ({
+  contents: {
+    twoColumnWatchNextResults: {
+      results: { results: { contents: [{ itemSectionRenderer: { sectionIdentifier: 'comment-item-section', contents: [{ messageRenderer: { text: { runs: [{ text }] } } }] } }] } },
+    },
+  },
+});
 const recipeComments = commentsPage([{ id: 'b', text: RECIPE_COMMENT, author: '@cook', creator: true, pinned: true }]);
 
 test('fetchPinnedComment returns the comment, or null with a reason, and never throws', async () => {
   assert.equal((await fetchPinnedComment('Smpl0Gochu1', { fetchImpl: youtubeNext({ comments: recipeComments }) })).comment.text, RECIPE_COMMENT);
   const cases = [
     [{ comments: commentsPage([]) }, /no pinned comment/],
-    [{ page: { contents: {} } }, /no comments section/],
+    [{ page: { contents: {} } }, /no comments section \(comments may be turned off\)/],
+    [{ page: messagePage('제한 모드이므로 이 동영상의 댓글을 숨겼습니다.') }, /^comments hidden by YouTube Restricted Mode .*: 제한 모드이므로/],
+    [{ page: messagePage('Restricted Mode has hidden comments for this video.') }, /^comments hidden by YouTube Restricted Mode/],
+    [{ page: messagePage('댓글이 사용 중지되었습니다.') }, /^no comments section: 댓글이 사용 중지되었습니다\.$/],
     [{ status: 403 }, /HTTP 403/],
     [{ fail: true }, /fetch failed/],
   ];
