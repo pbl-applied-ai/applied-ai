@@ -1,0 +1,14 @@
+{
+  "schema_version": "0.1",
+  "video_id": "Smpl0Kimch2",
+  "title": "김치볶음밥",
+  "servings_raw": null,
+  "ingredients": [
+    { "name": "김치", "amount_raw": "1컵", "amount_status": "confirmed", "evidence": ["desc-0", "asr-0"] },
+    { "name": "밥", "amount_raw": "1공기", "amount_status": "confirmed", "evidence": ["desc-0", "asr-1"] }
+  ],
+  "steps": [
+    { "order": 1, "text": "김치를 볶는다.", "evidence": ["asr-0"] },
+    { "order": 2, "text": "밥을 넣고 섞는다.", "evidence": ["asr-1"] }
+  ]
+}
