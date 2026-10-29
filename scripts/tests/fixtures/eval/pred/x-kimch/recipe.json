@@ -1,0 +1,11 @@
+{
+  "schema_version": "0.1",
+  "video_id": "Smpl0Kimch2",
+  "title": "김치볶음밥",
+  "servings_raw": null,
+  "ingredients": [
+    { "name": "김치", "amount_raw": "1컵", "amount_status": "confirmed", "evidence": ["desc-0"] },
+    { "name": "밥", "amount_raw": null, "amount_status": "unconfirmed", "evidence": ["asr-1"] }
+  ],
+  "steps": []
+}
