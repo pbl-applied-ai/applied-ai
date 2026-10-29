@@ -1,4 +1,5 @@
-// S4 확인·수정 (KAN-30). 처리 중 화면이 성공하면 여기로 온다. 공개 링크(KAN-32)도 같은 주소를 쓴다.
+// S4 확인·수정 (KAN-30). 처리 중 화면이 성공하면 여기로 온다.
+// 공개 링크(KAN-32)도 같은 주소를 쓰고, 로그인 안 했으면 보기만 된다.
 import Link from "next/link";
 import { Suspense } from "react";
 import { ReviewScreen } from "./review-screen";

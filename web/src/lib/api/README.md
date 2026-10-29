@@ -22,7 +22,6 @@ import { checkShortsUrl } from '@/lib/shorts';
 | `mock.ts` | 목 구현. 링크별 시나리오(`MOCK_LINKS`) |
 | `labels.ts` | 처리 단계 문구, 실패 안내 7종(Figma 문구표 수정안 13-111), `failGuide(job)` |
 | `editable.ts` | 확인·수정 화면 편집 함수(수정·추가·삭제·되돌리기·저장 가능 여부) |
-| `pending-save.ts` | 저장 → 구글 로그인 → 돌아와서 자동 저장 |
 | `fixtures.ts` | 목 레시피(직접 만든 가짜 fixture의 출력) |
 
 ## 화면별로 부르는 함수
@@ -31,11 +30,11 @@ import { checkShortsUrl } from '@/lib/shorts';
 |---|---|
 | S2 링크 입력 | `checkShortsUrl`(`@/lib/shorts`) → `api.createJob` |
 | S3 처리 중·실패 안내 | `api.getJob` 1~2초마다, `STAGE_LABEL`, 실패면 `failGuide(job)` + `ACTION_LABEL`. `partial_recipe`면 `job.runId`로 "찾은 만큼 보기" |
-| S4 확인·수정 | `api.getRun` → `toEditable` → `editIngredient`·`addStep`·`revertItem` 등, `canSave` |
-| S4 저장 | `api.getUser` → 없으면 `stashPendingSave` + `api.signInWithGoogle`, 있으면 `api.saveRecipe` |
+| S4 확인·수정 | `api.getRun`·`api.getUser` → 로그인 안 했으면 보기만, 했으면 `toEditable` → `editIngredient`·`addStep`·`revertItem` 등, `canSave` |
+| S4 저장 | `api.saveRecipe` (로그인한 사람만 저장 버튼이 보인다) |
 | S1 레시피북 | `api.listMyJobs`(만드는 중 카드), `api.listRecipes` |
 | S5 상세 | `api.getRecipe`, `api.updateRecipe`, `api.deleteRecipe` |
-| 공개 링크 `/r/<runId>` | `api.getRun` (로그인 없음) |
+| 공개 링크 `/r/<runId>` | S4와 같은 주소. 로그인 안 했으면 `api.getRun` 결과를 보기만 한다 |
 
 ## 목 시나리오
 
@@ -51,7 +50,7 @@ import { checkShortsUrl } from '@/lib/shorts';
 | `MOCK_LINKS.internal` | `internal` → 서비스에 문제가 생겼어요 |
 | `MOCK_LINKS.unsupported` | `unsupported_source` → 링크로 가져올 수 없어요(문구표에 없어 원본 문구) |
 
-로그인은 `signInWithGoogle`을 부르면 바로 로그인된 상태로 `returnTo`를 다시 연다. 실제 구글 로그인처럼 페이지가 새로 열리므로 `pending-save` 흐름까지 확인할 수 있다. 데이터를 지우려면 브라우저 저장소의 `mock-api-v1`을 지운다.
+로그인은 `signInWithGoogle`을 부르면 바로 로그인된 상태로 `returnTo`를 다시 연다. 실제 구글 로그인처럼 페이지가 새로 열린다. 데이터를 지우려면 브라우저 저장소의 `mock-api-v1`을 지운다.
 
 ## 아직 정해지지 않은 것
 
