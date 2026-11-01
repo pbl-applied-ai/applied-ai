@@ -7,11 +7,15 @@
 // Every write goes through the worker RPCs in supabase/migrations (claim_next_job, set_job_stage,
 // complete_job, complete_job_from_cache, fail_job). They only touch the job while it is still the
 // attempt this worker claimed, and fail_job owns retries and their delay.
+// An upload job (KAN-49) also reads its file from the private "uploads" bucket and deletes it once
+// the job is finished, as the upload screen promises.
 import { pathToFileURL } from 'node:url';
 import { canonicalKey, extractorVersion, isDevVersion, runJob } from './job.mjs';
 
 const POLL_MS = 2000;
 const LEASE = '10 minutes';
+const UPLOAD_BUCKET = 'uploads';
+const MIME_BY_EXT = { mp4: 'video/mp4', m4v: 'video/mp4', mov: 'video/quicktime', webm: 'video/webm' };
 
 // Minimal PostgREST RPC client: the pipeline keeps zero dependencies, so no supabase-js.
 export function supabaseRpc({ url, key, fetchImpl = fetch }) {
@@ -26,7 +30,21 @@ export function supabaseRpc({ url, key, fetchImpl = fetch }) {
     if (!res.ok) throw new Error(`Supabase rpc ${name} ${res.status}: ${text.slice(0, 300)}`);
     return text ? JSON.parse(text) : null;
   };
+  // Storage REST API, same service key. A missing file reads as null so the job fails as upload_missing.
+  const object = (path) => `${url.replace(/\/$/, '')}/storage/v1/object/${UPLOAD_BUCKET}/${path.split('/').map(encodeURIComponent).join('/')}`;
+  const auth = { apikey: key, authorization: `Bearer ${key}` };
   return {
+    downloadUpload: async (path) => {
+      const res = await fetchImpl(object(path), { headers: auth });
+      if (res.status === 404 || res.status === 400) return null;
+      if (!res.ok) throw new Error(`Supabase storage get ${res.status}: ${(await res.text()).slice(0, 300)}`);
+      const ext = path.split('.').pop().toLowerCase();
+      return { bytes: new Uint8Array(await res.arrayBuffer()), filename: `upload.${ext}`, mime: MIME_BY_EXT[ext] ?? 'application/octet-stream' };
+    },
+    deleteUpload: async (path) => {
+      const res = await fetchImpl(object(path), { method: 'DELETE', headers: auth });
+      if (!res.ok && res.status !== 404 && res.status !== 400) throw new Error(`Supabase storage delete ${res.status}: ${(await res.text()).slice(0, 300)}`);
+    },
     claimJob: async () => (await rpc('claim_next_job', { p_lease: LEASE }))?.[0] ?? null,
     setStage: (job, stage) => rpc('set_job_stage', { p_job_id: job.id, p_attempt: job.attempts, p_stage: stage }),
     findCachedRun: (key, version) => rpc('find_cached_run', { p_canonical_key: key, p_extractor_version: version }),
@@ -61,7 +79,8 @@ export async function processJob(job, { db, env = process.env, fetchImpl = fetch
   const key = canonicalKey(job.source_url);
   const version = extractorVersion(env);
 
-  if (key && !isDevVersion(version)) {
+  // An upload is never in the cache (its key is the upload ID), so it skips the lookup.
+  if (key && !job.upload_path && !isDevVersion(version)) {
     const cached = await db.findCachedRun(key, version);
     if (cached) {
       const done = await db.completeFromCache(job, cached);
@@ -75,10 +94,26 @@ export async function processJob(job, { db, env = process.env, fetchImpl = fetch
     if (state !== 'started') return;
     writes = writes.then(() => db.setStage(job, stage)).catch((err) => log(`job ${job.id}: stage write failed: ${err.message}`));
   };
-  const out = await run({ job_id: job.id, source_url: job.source_url }, { onStage, env, fetchImpl });
+  const input = { job_id: job.id, source_url: job.source_url };
+  // A missing file goes to runJob as no upload, which fails the job as upload_missing.
+  if (job.upload_path) input.upload = (await db.downloadUpload(job.upload_path)) ?? undefined;
+  const out = await run(input, { onStage, env, fetchImpl });
   await writes;
 
-  // A null answer means the lease ran out and another attempt owns the job now.
+  const result = await save(job, out, db);
+  // The file is deleted once the job is over. A retry still needs it, and a lost job belongs to another attempt.
+  if (job.upload_path && (result.outcome === 'succeeded' || result.outcome === 'failed')) {
+    try {
+      await db.deleteUpload(job.upload_path);
+    } catch (err) {
+      log(`job ${job.id}: upload delete failed: ${err.message}`);
+    }
+  }
+  return result;
+}
+
+// A null answer means the lease ran out and another attempt owns the job now.
+async function save(job, out, db) {
   if (out.status === 'succeeded') {
     const runId = await db.complete(job, out);
     return runId ? { outcome: 'succeeded', run_id: runId, metrics: out.metrics } : { outcome: 'lost' };

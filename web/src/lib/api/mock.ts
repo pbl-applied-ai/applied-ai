@@ -6,6 +6,7 @@
 import { PARTIAL_RECIPE, SAMPLE_RECIPE } from './fixtures';
 import { toSummary } from './editable';
 import { checkShortsUrl } from '../shorts';
+import { checkUploadFile } from '../upload';
 import {
   NotSignedInError,
   type EditableRecipe,
@@ -141,6 +142,22 @@ export function createMockApi(options: MockOptions = {}): RecipeApi {
         id: crypto.randomUUID(),
         sourceUrl: sourceUrl.trim(),
         videoId: check.ok ? check.videoId : null,
+        requestedBy: state.user?.id ?? null,
+        createdAt: now(),
+      };
+      save({ ...state, jobs: { ...state.jobs, [job.id]: job } });
+      return { jobId: job.id };
+    },
+
+    // 업로드는 항상 성공 예시 레시피가 나온다. 원본을 지우는 것처럼 링크는 비워 둔다.
+    async createUploadJob(file) {
+      await wait();
+      if (!checkUploadFile(file).ok) throw new Error('invalid upload');
+      const state = load();
+      const job: StoredJob = {
+        id: crypto.randomUUID(),
+        sourceUrl: '',
+        videoId: 'Smpl0Gochu1',
         requestedBy: state.user?.id ?? null,
         createdAt: now(),
       };

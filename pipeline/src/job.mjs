@@ -1,4 +1,5 @@
 import { readFileSync } from 'node:fs';
+import { ASR_MODEL } from './asr.mjs';
 import { PipelineError } from './errors.mjs';
 import { resolveProvider } from './llm.mjs';
 import { runPipeline } from './pipeline.mjs';
@@ -8,8 +9,18 @@ import { parseVideoId } from './youtube.mjs';
 
 const PACKAGE_VERSION = JSON.parse(readFileSync(new URL('../package.json', import.meta.url), 'utf8')).version;
 
+const UPLOAD_SOURCE = /^upload:([0-9a-f-]{36})$/;
+
+// The upload ID of an uploaded file's job (source_url "upload:<uuid>", from create_upload_job), else null.
+export function uploadId(sourceUrl) {
+  return typeof sourceUrl === 'string' ? UPLOAD_SOURCE.exec(sourceUrl.trim())?.[1] ?? null : null;
+}
+
 // Same video, same key, whatever link shape it came from. null when the link cannot be read.
+// An upload is its own key: the file is deleted after one run, so it is never reused from the cache.
 export function canonicalKey(sourceUrl) {
+  const upload = uploadId(sourceUrl);
+  if (upload) return `upload:${upload}`;
   const videoId = typeof sourceUrl === 'string' ? parseVideoId(sourceUrl.trim()) : null;
   return videoId ? `youtube:${videoId}` : null;
 }
@@ -48,8 +59,11 @@ function exportRun(result, warnings, { partial = false } = {}) {
 
 // Runs one job and always resolves to a result object, never throws (docs/worker-interface.md v0.3).
 // onStage gets { stage, state, reason?, ms? } as each stage starts and ends.
+// For an upload job the worker passes the file as input.upload ({ bytes, filename, mime }).
 export async function runJob(input, { onStage = () => {}, env = process.env, fetchImpl = fetch, transcriptFile, llmOutput } = {}) {
   const key = canonicalKey(input.source_url);
+  const upload = uploadId(input.source_url);
+  const version = { ...extractorVersion(env), ...(upload && { collector: `upload+${ASR_MODEL}` }) };
   const stages = [];
   let current = null;
   let startedAt = 0;
@@ -75,8 +89,13 @@ export async function runJob(input, { onStage = () => {}, env = process.env, fet
       report({ stage: 'collect', state: 'started' });
       throw new PipelineError(`Not a YouTube video URL: ${input.source_url}`, { stage: 'collect', errorCode: 'unsupported_source', reason: 'not_youtube' });
     }
+    if (upload && !input.upload?.bytes) {
+      report({ stage: 'collect', state: 'started' });
+      throw new PipelineError(`Upload ${upload} has no file`, { stage: 'collect', errorCode: 'unavailable', reason: 'upload_missing' });
+    }
     const result = await runPipeline({
-      url: input.source_url,
+      url: upload ? null : input.source_url,
+      upload: upload ? { id: upload, ...input.upload } : null,
       transcriptFile,
       languages: input.options?.languages,
       env,
@@ -107,7 +126,7 @@ export async function runJob(input, { onStage = () => {}, env = process.env, fet
     return {
       status: 'succeeded',
       canonical_key: key,
-      extractor_version: extractorVersion(env),
+      extractor_version: version,
       ...run,
       description_only: descriptionOnly,
       metrics: { stages, usage },
@@ -119,7 +138,7 @@ export async function runJob(input, { onStage = () => {}, env = process.env, fet
     return {
       status: 'failed',
       canonical_key: key,
-      extractor_version: extractorVersion(env),
+      extractor_version: version,
       stage: known && err.stage ? err.stage : current,
       error_code: known ? err.errorCode : 'internal',
       reason: known ? err.reason : 'unexpected',

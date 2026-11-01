@@ -1,6 +1,7 @@
 // 데모용 최소 연결: 로그인 없이 쓰는 3개(createJob·getJob·getRun)만 실제 Supabase RPC로 부르고,
 // 로그인·저장·레시피북은 목(base)을 그대로 쓴다. 나머지는 KAN-22~24에서 Supabase로 옮긴다.
 // supabase-js 없이 PostgREST RPC를 fetch로 부른다. anon 키는 공개해도 되는 키다(권한은 RLS·RPC grant가 막는다).
+import { checkUploadFile } from '../upload';
 import type { Job, RecipeApi, Run, TeamRecipe, UserRecipe } from './types';
 
 export interface SupabaseOptions {
@@ -31,7 +32,8 @@ interface RunRow {
 const SOURCE_KEY = 'supabase-run-sources-v1';
 
 export function createSupabaseApi(base: RecipeApi, options: SupabaseOptions): RecipeApi {
-  const endpoint = `${options.url.replace(/\/$/, '')}/rest/v1/rpc`;
+  const apiBase = options.url.replace(/\/$/, '');
+  const endpoint = `${apiBase}/rest/v1/rpc`;
   const fetchImpl = options.fetchImpl ?? ((...args: Parameters<typeof fetch>) => fetch(...args));
   const storage = options.storage === undefined ? browserStorage() : options.storage;
 
@@ -76,6 +78,22 @@ export function createSupabaseApi(base: RecipeApi, options: SupabaseOptions): Re
       return { jobId: id };
     },
 
+    // 비공개 버킷 uploads에 incoming/<uuid>.<확장자>로 올린 뒤 job을 만든다. anon은 올리기만 된다(supabase/migrations).
+    async createUploadJob(file) {
+      const check = checkUploadFile(file);
+      if (!check.ok) throw new Error(`invalid upload: ${check.reason}`);
+      const path = `incoming/${crypto.randomUUID()}.${check.ext}`;
+      const res = await fetchImpl(`${apiBase}/storage/v1/object/uploads/${path}`, {
+        method: 'POST',
+        headers: { apikey: options.anonKey, authorization: `Bearer ${options.anonKey}`, 'content-type': check.mime, 'x-upsert': 'false' },
+        body: file,
+      });
+      if (!res.ok) throw new Error(`upload ${res.status}: ${(await res.text()).slice(0, 200)}`);
+      const id = await rpc<string>('create_upload_job', { p_upload_path: path });
+      if (!id) throw new Error('create_upload_job returned no id');
+      return { jobId: id };
+    },
+
     async getJob(jobId) {
       const rows = await rpc<JobRow[]>('get_job', { p_job_id: jobId });
       const row = rows?.[0];
@@ -96,8 +114,10 @@ export function createSupabaseApi(base: RecipeApi, options: SupabaseOptions): Re
       const rows = await rpc<RunRow[]>('get_run', { p_run_id: runId });
       const row = rows?.[0];
       if (!row) return null;
-      rememberSource(row.id, row.source_url);
-      return { id: row.id, sourceUrl: row.source_url, recipe: row.recipe, createdAt: row.created_at };
+      // 업로드로 만든 결과는 원본을 지워서 열 링크가 없다(source_url은 upload:<uuid>)
+      const sourceUrl = row.source_url.startsWith('upload:') ? '' : row.source_url;
+      rememberSource(row.id, sourceUrl);
+      return { id: row.id, sourceUrl, recipe: row.recipe, createdAt: row.created_at };
     },
 
     async getRecipe(id) {

@@ -29,13 +29,15 @@ export function toEvidenceBundle(result, { runId, createdAt } = {}) {
     if (seg.kind === 'description') segments.push({ id, type: 'description', text: seg.text });
     else segments.push({ id, type: 'asr', start_ms: seg.startMs, end_ms: seg.endMs, text: seg.text });
   }
+  const upload = source.platform === 'upload';
   return {
     schema_version: TEAM_SCHEMA_VERSION,
     video_id: source.videoId,
     source: {
-      kind: 'youtube_shorts',
+      kind: upload ? 'upload' : 'youtube_shorts',
       // Built from the video ID, not the CLI input, which may be a bare ID or a watch link.
-      url: `https://www.youtube.com/shorts/${source.videoId}`,
+      // An upload is deleted after the run, so it has no URL.
+      ...(!upload && { url: `https://www.youtube.com/shorts/${source.videoId}` }),
       ...(source.title && { title: source.title }),
       ...(source.author && { channel: source.author }),
       ...(source.durationMs != null && { duration_ms: source.durationMs }),
@@ -44,8 +46,8 @@ export function toEvidenceBundle(result, { runId, createdAt } = {}) {
       run_id: runId ?? `${source.videoId}-${meta.generated_at}`,
       created_at: createdAt ?? meta.generated_at,
       stages: {
-        captions: {
-          tool: 'youtube-timedtext',
+        [upload ? 'asr' : 'captions']: {
+          tool: upload ? 'openai-transcriptions' : 'youtube-timedtext',
           version: caption.client ?? 'unknown',
           ...(Object.keys(captionConfig).length && { config: captionConfig }),
         },

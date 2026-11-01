@@ -1,8 +1,9 @@
-# 워커 ↔ 파이프라인 호출 방식 v0.3
+# 워커 ↔ 파이프라인 호출 방식 v0.4
 
 작성: 전수빈 · 2026-10-24 · 선규 합의용
-수정일: 2026-10-26
-변경: #14 2차 리뷰 반영. #17·#18·#19 코드에서 정해진 것에 맞춤: 화면은 `reason`을 먼저 보고 안내를 고른다(`reason`도 화면 계약), 한쪽만 있는 결과는 partial run으로 저장하고 캐시에서 뺀다, 캐시는 워커에서 확인한다. 파이프라인 버전을 `pipeline/` 폴더 트리 해시로 바꾸고, 워커가 죽었을 때의 lease 규칙, 같은 영상 동시 요청, LLM 429 분류, watch·youtu.be 링크 처리를 정함. [개발 계획](dev-plan.md) jobs 표도 같이 고침.
+수정일: 2026-10-31
+변경(v0.4, KAN-49): 영상 파일 업로드 입력(`upload_path`)과 업로드용 음성 인식(`asr` 단계), 업로드 실패 `reason` 4개 추가.
+변경(v0.3): #14 2차 리뷰 반영. #17·#18·#19 코드에서 정해진 것에 맞춤: 화면은 `reason`을 먼저 보고 안내를 고른다(`reason`도 화면 계약), 한쪽만 있는 결과는 partial run으로 저장하고 캐시에서 뺀다, 캐시는 워커에서 확인한다. 파이프라인 버전을 `pipeline/` 폴더 트리 해시로 바꾸고, 워커가 죽었을 때의 lease 규칙, 같은 영상 동시 요청, LLM 429 분류, watch·youtu.be 링크 처리를 정함. [개발 계획](dev-plan.md) jobs 표도 같이 고침.
 관련 문서: [개발 계획](dev-plan.md)의 jobs 표 · [UX 플로우](ux-flow.md) · `schemas/` · `web/src/lib/api/labels.ts`(실패 안내) · `supabase/migrations/`(#18)
 
 > **[후속]** 은 이 문서 밖에서 고칠 부분이다. 구현은 별도 PR로 한다.
@@ -43,7 +44,14 @@ jobs의 claim·complete·fail은 Supabase RPC로 한다. 동시 claim 방지는 
 
 - 워커는 처리 전에 `canonicalKey(source_url)`로 `canonical_key`(예: `youtube:Smpl0Gochu1`)를 구한다. 링크를 해석할 수 없으면 `null`이고, `runJob`이 `unsupported_source`로 실패시킨다.
 - API 키·모델 설정은 입력에 넣지 않고 워커 환경 변수로만 준다(`OPENAI_API_KEY`, `LLM_MODEL` 등).
-- 업로드 입력(`upload_ref`)은 업로드 경로가 생기면 추가한다.
+
+### 업로드 입력 (KAN-49)
+
+- 화면이 비공개 버킷 `uploads`에 `incoming/<uuid>.<mp4|mov|webm|m4v>`로 파일을 올리고 `create_upload_job(경로)`를 부른다. 로그인 없이 올리기만 되고 읽기·지우기는 안 된다. 25MB까지(음성 인식 API 한도).
+- job의 `source_url`은 `upload:<uuid>`, 파일 위치는 `jobs.upload_path`(화면에는 열지 않음). `canonical_key`도 `upload:<uuid>`라 캐시를 쓰지 않는다.
+- 워커는 claim한 job에 `upload_path`가 있으면 service_role로 파일을 읽어 `runJob`의 `input.upload`(`{ bytes, filename, mime }`)로 넘긴다. job이 끝나면(성공·최종 실패) 파일을 지운다. 자동 재시도로 다시 큐에 들어가면 남겨 둔다.
+- 업로드는 자막·설명란이 없어서 음성 인식(`whisper-1`, 시각 있는 구간)이 유일한 근거다. 링크 영상의 직접 음성 인식·자막과의 비교는 KAN-50에서 정한다.
+- **[후속]** job을 만들지 않고 남은 파일 정리, 익명 업로드 횟수 제한.
 
 ### 링크 범위
 
@@ -112,7 +120,8 @@ jobs의 claim·complete·fail은 Supabase RPC로 한다. 동시 claim 방지는 
 - **`error_code`**: 안내의 큰 분류. 개발 계획 jobs 표의 값이다.
 - **`reason`**: 세부 원인(아래 6번 표). 화면은 **`reason`을 먼저 보고, 없거나 모르는 값이면 `error_code`로** 안내를 고른다(`web/src/lib/api/labels.ts`의 `failGuide`). 둘 다 모르면 "잠시 문제가 생겼어요"(일시 오류)로 안내한다.
   - 그래서 `reason`은 집계·디버깅용만이 아니라 **화면 계약의 일부**다. 6번 표의 `reason` 값을 바꾸거나 지우거나 새 안내가 필요한 값을 더할 때는 `labels.ts`의 `BY_REASON`과 같은 PR에서 고친다.
-  - 지금 화면이 따로 보는 값: `not_playable`, `caption_blocked`, `no_captions`, `no_captions_no_description`, `partial_recipe`, `empty_recipe`.
+  - 지금 화면이 따로 보는 값: `not_playable`, `caption_blocked`, `no_captions`, `no_captions_no_description`, `partial_recipe`, `empty_recipe`, `no_speech`, `upload_too_large`, `upload_unreadable`, `upload_missing`.
+  - 업로드한 파일이 실패하면 [영상 파일로 넣기] 대신 [다른 파일 올리기]를 보여 준다(UX 플로우 S3).
 - **`retry`**: 워커가 **자동으로 다시 시도할지** 여부. `error_code`가 `retryable`(사용자에게 "다시 시도" 안내)이어도 자동 재시도 여부는 이 필드로만 판단한다.
 - `message`는 원문 오류. 서버 로그나 접근 제한 컬럼에만 남기고 사용자에게 보여 주지 않는다(영상 ID·내부 정보 포함).
 - **`partial`**: `partial_recipe`일 때 찾은 만큼의 결과. 성공과 같은 모양(`bundle`·`recipe`·`internal`)이고, 없으면 `null`이다. 저장 방법은 아래.
@@ -130,7 +139,7 @@ jobs의 claim·complete·fail은 Supabase RPC로 한다. 동시 claim 방지는 
 | stage | 화면 표시 | 지금 동작 |
 |---|---|---|
 | `collect` | 영상 정보 가져오는 중 | YouTube 자막·설명·제목 수집 |
-| `asr` | 음성 듣는 중 | 미구현. 시간 있는 자막이 있으면 `skipped`(`timed_captions_available`) |
+| `asr` | 음성 듣는 중 | 업로드만 실행(음성 인식). 링크는 `skipped`(`timed_captions_available` / `not_implemented`) |
 | `ocr` | 화면 글자 읽는 중 | 미구현. `skipped`(`not_implemented`) |
 | `structure` | 레시피 정리 중 | LLM 구조화 |
 | `finalize` | (표시 안 함, 앞 단계 문구 유지) | 근거 검증·분량 상태·팀 스키마 변환 |
@@ -154,6 +163,12 @@ jobs의 claim·complete·fail은 Supabase RPC로 한다. 동시 claim 방지는 
 | LLM 시간 초과(120초), 5xx, 429, JSON 아닌 응답 | structure | `retryable` | `llm_transient` | ○ | 잠시 문제가 생겼어요 → 다시 시도 / 다른 링크 |
 | LLM 응답이 토큰 한도에서 잘림 | structure | `internal` | `llm_cut_off` | ✕ | 서비스에 문제가 생겼어요 → 다시 시도 / 레시피북 |
 | LLM 거절(refusal), 키 없음, **429를 뺀** 4xx | structure | `internal` | `llm_refused` / `llm_config` | ✕ | 서비스에 문제가 생겼어요 → 다시 시도 / 레시피북 |
+| 업로드 job인데 파일이 없음(지워졌거나 못 읽음) | collect | `unavailable` | `upload_missing` | ✕ | 영상 파일을 읽을 수 없어요 → 다른 파일 올리기 / 다른 링크 |
+| 업로드 파일이 25MB 초과 | asr | `unavailable` | `upload_too_large` | ✕ | 파일이 너무 커요 → 다른 파일 올리기 / 다른 링크 |
+| 음성 인식이 파일을 못 읽음(HTTP 400: 깨진 파일·소리 없음) | asr | `unavailable` | `upload_unreadable` | ✕ | 영상 파일을 읽을 수 없어요 → 다른 파일 올리기 / 다른 링크 |
+| 음성 인식 결과에 말소리가 없음 | asr | `unavailable` | `no_speech` | ✕ | 영상에서 말소리를 찾지 못했어요 → 다른 파일 올리기 / 다른 링크 |
+| 음성 인식 HTTP 429·5xx, 네트워크 오류, 시간 초과 | asr | `retryable` | `asr_transient` | ○ | 잠시 문제가 생겼어요 → 다시 시도 / 다른 링크 |
+| 음성 인식 키 없음, 429를 뺀 그 밖의 4xx | asr | `internal` | `asr_config` | ✕ | 서비스에 문제가 생겼어요 → 다시 시도 / 레시피북 |
 | 모델이 요리 영상이 아니라고 판단 | finalize | `not_a_recipe` | `model_not_a_recipe` | ✕ | 요리 영상이 아닌 것 같아요 → 다른 링크 |
 | 재료·단계 둘 다 0개 | finalize | `insufficient` | `empty_recipe` | ✕ | 레시피를 찾지 못했어요 → 다른 링크 / 파일 업로드 (`partial` 없음) |
 | 재료나 단계 한쪽만 0개 | finalize | `insufficient` | `partial_recipe` | ✕ | 찾은 정보가 적어요 → 찾은 만큼 보기 / 다른 링크 |

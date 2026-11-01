@@ -5,14 +5,14 @@ import { useParams, useRouter } from "next/navigation";
 import { useEffect, useState, useSyncExternalStore } from "react";
 import { ACTION_LABEL, type FailAction, type Job, api } from "@/lib/api";
 import { failureView, stageText } from "@/lib/job-display";
-import { recallJobSource, rememberJobSource } from "@/lib/job-source";
+import { recallJobSource, rememberJobSource, sourceFileName } from "@/lib/job-source";
 
 const POLL_MS = 1500;
 const MAX_POLL_ERRORS = 3;
 // 로그인은 KAN-24·KAN-31에서 붙인다. 그 전까지는 비로그인 화면만 보인다.
 const LOGGED_IN = false;
-// 영상 파일 업로드 경로가 생기면 true로 바꾼다.
-const UPLOAD_READY = false;
+// 영상 파일 업로드(KAN-49). S2 [영상 파일로 넣기]로 간다.
+const UPLOAD_READY = true;
 
 const subscribeNothing = () => () => {};
 
@@ -30,6 +30,7 @@ export function JobProgress() {
   // 서버에서는 탭 저장소를 읽을 수 없어 null, 브라우저에서만 기억해 둔 링크를 읽는다.
   const source = useSyncExternalStore(subscribeNothing, () => recallJobSource(id), () => null);
   const [retrying, setRetrying] = useState(false);
+  const fileName = sourceFileName(source);
 
   useEffect(() => {
     let cancelled = false;
@@ -79,7 +80,7 @@ export function JobProgress() {
   }, [id, router, pollKey]);
 
   async function retryJob() {
-    if (!source || retrying) return;
+    if (!source || fileName || retrying) return;
     setRetrying(true);
     try {
       const { jobId } = await api.createJob(source);
@@ -120,7 +121,12 @@ export function JobProgress() {
   }
 
   if (view.kind === "failed") {
-    const failure = failureView(view.job, { loggedIn: LOGGED_IN, canRetry: Boolean(source), uploadReady: UPLOAD_READY });
+    const failure = failureView(view.job, {
+      loggedIn: LOGGED_IN,
+      canRetry: Boolean(source) && !fileName,
+      uploadReady: UPLOAD_READY,
+      fromUpload: Boolean(fileName),
+    });
     const actions = failure.actions.map((a) => toAction(a, { runId: view.job.runId, retrying, retryJob }));
     return <Failure title={failure.title} body={failure.body} actions={actions} />;
   }
@@ -130,7 +136,7 @@ export function JobProgress() {
       {source && (
         <div className="mx-5 mt-2 flex items-center gap-3 rounded-xl bg-subtle p-3">
           <div className="size-14 shrink-0 rounded-lg bg-disabled" />
-          <span className="min-w-0 truncate text-xs text-muted">{source.replace(/^https:\/\/(www\.)?/, "")}</span>
+          <span className="min-w-0 truncate text-xs text-muted">{fileName ?? source.replace(/^https:\/\/(www\.)?/, "")}</span>
         </div>
       )}
 
@@ -179,6 +185,7 @@ function toAction(
     case "go_book":
       return { label: ACTION_LABEL.go_book, href: "/book" };
     case "upload":
+    case "other_file":
     case "other_link":
       return { label: ACTION_LABEL[action], href: "/" };
   }

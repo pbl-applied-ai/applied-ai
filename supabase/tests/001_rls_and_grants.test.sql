@@ -46,12 +46,12 @@ select set_eq(
   'authenticated는 jobs의 화면용 열만 읽는다'
 );
 
--- 실행 권한: 로그인 없이·로그인해서 부를 수 있는 함수는 이 3개뿐이다.
+-- 실행 권한: 로그인 없이·로그인해서 부를 수 있는 함수는 이 4개뿐이다(업로드 job은 KAN-49).
 select set_eq(
   $$ select p.proname::text from pg_catalog.pg_proc p
        join pg_catalog.pg_namespace n on n.oid = p.pronamespace
       where n.nspname = 'public' and has_function_privilege('anon', p.oid, 'execute') $$,
-  array['create_job', 'get_job', 'get_run'],
+  array['create_job', 'create_upload_job', 'get_job', 'get_run'],
   'anon이 실행할 수 있는 public 함수 목록'
 );
 
@@ -59,7 +59,7 @@ select set_eq(
   $$ select p.proname::text from pg_catalog.pg_proc p
        join pg_catalog.pg_namespace n on n.oid = p.pronamespace
       where n.nspname = 'public' and has_function_privilege('authenticated', p.oid, 'execute') $$,
-  array['create_job', 'get_job', 'get_run'],
+  array['create_job', 'create_upload_job', 'get_job', 'get_run'],
   'authenticated가 실행할 수 있는 public 함수 목록'
 );
 
