@@ -15,7 +15,10 @@ import { canonicalKey, extractorVersion, isDevVersion, runJob } from './job.mjs'
 const POLL_MS = 2000;
 const LEASE = '10 minutes';
 const UPLOAD_BUCKET = 'uploads';
-const MIME_BY_EXT = { mp4: 'video/mp4', m4v: 'video/mp4', mov: 'video/quicktime', webm: 'video/webm' };
+// The transcription API picks the format from the file name and takes mp4 and webm, not mov or m4v.
+// mov and m4v are the same ISO-BMFF family as mp4 (iPhone videos are mov), so they go as upload.mp4.
+const ASR_FILE_BY_EXT = { mp4: 'mp4', m4v: 'mp4', mov: 'mp4', webm: 'webm' };
+const MIME_BY_ASR_FILE = { mp4: 'video/mp4', webm: 'video/webm' };
 
 // Minimal PostgREST RPC client: the pipeline keeps zero dependencies, so no supabase-js.
 export function supabaseRpc({ url, key, fetchImpl = fetch }) {
@@ -39,7 +42,8 @@ export function supabaseRpc({ url, key, fetchImpl = fetch }) {
       if (res.status === 404 || res.status === 400) return null;
       if (!res.ok) throw new Error(`Supabase storage get ${res.status}: ${(await res.text()).slice(0, 300)}`);
       const ext = path.split('.').pop().toLowerCase();
-      return { bytes: new Uint8Array(await res.arrayBuffer()), filename: `upload.${ext}`, mime: MIME_BY_EXT[ext] ?? 'application/octet-stream' };
+      const asrExt = ASR_FILE_BY_EXT[ext] ?? 'mp4';
+      return { bytes: new Uint8Array(await res.arrayBuffer()), filename: `upload.${asrExt}`, mime: MIME_BY_ASR_FILE[asrExt] };
     },
     deleteUpload: async (path) => {
       const res = await fetchImpl(object(path), { method: 'DELETE', headers: auth });
@@ -95,9 +99,17 @@ export async function processJob(job, { db, env = process.env, fetchImpl = fetch
     writes = writes.then(() => db.setStage(job, stage)).catch((err) => log(`job ${job.id}: stage write failed: ${err.message}`));
   };
   const input = { job_id: job.id, source_url: job.source_url };
-  // A missing file goes to runJob as no upload, which fails the job as upload_missing.
-  if (job.upload_path) input.upload = (await db.downloadUpload(job.upload_path)) ?? undefined;
-  const out = await run(input, { onStage, env, fetchImpl });
+  // A missing file goes to runJob as no upload, which fails the job as upload_missing. A storage error
+  // fails it as a retry, so it does not sit in running until the lease runs out.
+  let out;
+  if (job.upload_path) {
+    try {
+      input.upload = (await db.downloadUpload(job.upload_path)) ?? undefined;
+    } catch (err) {
+      out = { status: 'failed', canonical_key: key, extractor_version: version, stage: 'collect', error_code: 'retryable', reason: 'collect_network', retry: true, message: err.message, partial: null, metrics: { stages: [] } };
+    }
+  }
+  out ??= await run(input, { onStage, env, fetchImpl });
   await writes;
 
   const result = await save(job, out, db);

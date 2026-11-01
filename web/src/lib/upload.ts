@@ -31,6 +31,7 @@ export function checkUploadFile(file: Pick<File, 'name' | 'size' | 'type'>): Upl
   if (!ext) return { ok: false, reason: 'type' };
   if (file.size === 0) return { ok: false, reason: 'empty' };
   if (file.size > MAX_UPLOAD_BYTES) return { ok: false, reason: 'size' };
-  const mime = file.type || (ext === 'mov' ? 'video/quicktime' : ext === 'm4v' ? 'video/x-m4v' : `video/${ext}`);
+  // 브라우저가 목록에 없는 형식(application/octet-stream 등)을 주면 버킷이 거부하므로 확장자로 정한다
+  const mime = EXT_BY_TYPE[file.type] ? file.type : ext === 'mov' ? 'video/quicktime' : ext === 'm4v' ? 'video/x-m4v' : `video/${ext}`;
   return { ok: true, ext: ext as UploadExt, mime };
 }

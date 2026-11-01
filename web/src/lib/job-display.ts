@@ -24,9 +24,10 @@ export function failureView(job: Pick<Job, "errorCode" | "reason" | "runId">, ct
   // partial_recipe인데 찾은 결과(runId)가 없으면 보여 줄 게 없으니 "레시피를 찾지 못했어요"로 안내한다
   const noPartial = job.reason === "partial_recipe" && !job.runId;
   const guide: ErrorGuide = failGuide(noPartial ? { ...job, reason: "empty_recipe" } : job);
-  // 이미 파일을 올린 사용자에게 같은 안내를 반복하지 않는다(UX 플로우 S3 "업로드한 파일 실패")
+  // 이미 파일을 올린 사용자에게 같은 안내를 반복하지 않는다(UX 플로우 S3 "업로드한 파일 실패").
+  // 업로드 원본은 job이 끝나면 지워져서 [다시 시도]도 [다른 파일 올리기]로 바꾼다
   const asked = ctx.fromUpload
-    ? [...new Set(guide.actions.map((a): FailAction => (a === "upload" ? "other_file" : a)))]
+    ? [...new Set(guide.actions.map((a): FailAction => (a === "upload" || a === "retry" ? "other_file" : a)))]
     : guide.actions.filter((a) => a !== "other_file");
   const actions = asked.filter((a: FailAction) => {
     if (a === "retry") return ctx.canRetry;

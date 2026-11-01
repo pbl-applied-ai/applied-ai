@@ -2,7 +2,7 @@
 
 작성: 전수빈 · 2026-10-24 · 선규 합의용
 수정일: 2026-10-31
-변경(v0.4, KAN-49): 영상 파일 업로드 입력(`upload_path`)과 업로드용 음성 인식(`asr` 단계), 업로드 실패 `reason` 4개 추가.
+변경(v0.4, KAN-49): 영상 파일 업로드 입력(`upload_path`)과 업로드용 음성 인식(`asr` 단계), 업로드 실패 `reason` 6개 추가(`upload_missing`·`upload_too_large`·`upload_unreadable`·`no_speech`·`asr_transient`·`asr_config`). 업로드 job은 [다시 시도] 대신 [다른 파일 올리기].
 변경(v0.3): #14 2차 리뷰 반영. #17·#18·#19 코드에서 정해진 것에 맞춤: 화면은 `reason`을 먼저 보고 안내를 고른다(`reason`도 화면 계약), 한쪽만 있는 결과는 partial run으로 저장하고 캐시에서 뺀다, 캐시는 워커에서 확인한다. 파이프라인 버전을 `pipeline/` 폴더 트리 해시로 바꾸고, 워커가 죽었을 때의 lease 규칙, 같은 영상 동시 요청, LLM 429 분류, watch·youtu.be 링크 처리를 정함. [개발 계획](dev-plan.md) jobs 표도 같이 고침.
 관련 문서: [개발 계획](dev-plan.md)의 jobs 표 · [UX 플로우](ux-flow.md) · `schemas/` · `web/src/lib/api/labels.ts`(실패 안내) · `supabase/migrations/`(#18)
 
@@ -49,9 +49,10 @@ jobs의 claim·complete·fail은 Supabase RPC로 한다. 동시 claim 방지는 
 
 - 화면이 비공개 버킷 `uploads`에 `incoming/<uuid>.<mp4|mov|webm|m4v>`로 파일을 올리고 `create_upload_job(경로)`를 부른다. 로그인 없이 올리기만 되고 읽기·지우기는 안 된다. 25MB까지(음성 인식 API 한도).
 - job의 `source_url`은 `upload:<uuid>`, 파일 위치는 `jobs.upload_path`(화면에는 열지 않음). `canonical_key`도 `upload:<uuid>`라 캐시를 쓰지 않는다.
-- 워커는 claim한 job에 `upload_path`가 있으면 service_role로 파일을 읽어 `runJob`의 `input.upload`(`{ bytes, filename, mime }`)로 넘긴다. job이 끝나면(성공·최종 실패) 파일을 지운다. 자동 재시도로 다시 큐에 들어가면 남겨 둔다.
+- 워커는 claim한 job에 `upload_path`가 있으면 service_role로 파일을 읽어 `runJob`의 `input.upload`(`{ bytes, filename, mime }`)로 넘긴다. job이 끝나면(성공·최종 실패) 파일을 지운다. 자동 재시도로 다시 큐에 들어가면 남겨 둔다. 파일을 읽다가 Storage 오류가 나면 `collect_network`(자동 재시도)로 실패시킨다.
+- 음성 인식 API는 파일 이름으로 형식을 보고 mov·m4v를 받지 않는다. 워커는 mov·m4v를 `upload.mp4`로 이름 붙여 보낸다(같은 ISO-BMFF 계열).
 - 업로드는 자막·설명란이 없어서 음성 인식(`whisper-1`, 시각 있는 구간)이 유일한 근거다. 링크 영상의 직접 음성 인식·자막과의 비교는 KAN-50에서 정한다.
-- **[후속]** job을 만들지 않고 남은 파일 정리, 익명 업로드 횟수 제한.
+- **[후속]** job을 만들지 않고 남은 파일과 `worker_lost`로 끝난 job의 파일 정리, 익명 업로드 횟수 제한.
 
 ### 링크 범위
 
@@ -121,7 +122,7 @@ jobs의 claim·complete·fail은 Supabase RPC로 한다. 동시 claim 방지는 
 - **`reason`**: 세부 원인(아래 6번 표). 화면은 **`reason`을 먼저 보고, 없거나 모르는 값이면 `error_code`로** 안내를 고른다(`web/src/lib/api/labels.ts`의 `failGuide`). 둘 다 모르면 "잠시 문제가 생겼어요"(일시 오류)로 안내한다.
   - 그래서 `reason`은 집계·디버깅용만이 아니라 **화면 계약의 일부**다. 6번 표의 `reason` 값을 바꾸거나 지우거나 새 안내가 필요한 값을 더할 때는 `labels.ts`의 `BY_REASON`과 같은 PR에서 고친다.
   - 지금 화면이 따로 보는 값: `not_playable`, `caption_blocked`, `no_captions`, `no_captions_no_description`, `partial_recipe`, `empty_recipe`, `no_speech`, `upload_too_large`, `upload_unreadable`, `upload_missing`.
-  - 업로드한 파일이 실패하면 [영상 파일로 넣기] 대신 [다른 파일 올리기]를 보여 준다(UX 플로우 S3).
+  - 업로드한 파일이 실패하면 [영상 파일로 넣기]와 [다시 시도] 대신 [다른 파일 올리기]를 보여 준다(UX 플로우 S3). 원본이 job이 끝나면 지워져서 다시 시도할 수 없다.
 - **`retry`**: 워커가 **자동으로 다시 시도할지** 여부. `error_code`가 `retryable`(사용자에게 "다시 시도" 안내)이어도 자동 재시도 여부는 이 필드로만 판단한다.
 - `message`는 원문 오류. 서버 로그나 접근 제한 컬럼에만 남기고 사용자에게 보여 주지 않는다(영상 ID·내부 정보 포함).
 - **`partial`**: `partial_recipe`일 때 찾은 만큼의 결과. 성공과 같은 모양(`bundle`·`recipe`·`internal`)이고, 없으면 `null`이다. 저장 방법은 아래.
@@ -167,8 +168,8 @@ jobs의 claim·complete·fail은 Supabase RPC로 한다. 동시 claim 방지는 
 | 업로드 파일이 25MB 초과 | asr | `unavailable` | `upload_too_large` | ✕ | 파일이 너무 커요 → 다른 파일 올리기 / 다른 링크 |
 | 음성 인식이 파일을 못 읽음(HTTP 400: 깨진 파일·소리 없음) | asr | `unavailable` | `upload_unreadable` | ✕ | 영상 파일을 읽을 수 없어요 → 다른 파일 올리기 / 다른 링크 |
 | 음성 인식 결과에 말소리가 없음 | asr | `unavailable` | `no_speech` | ✕ | 영상에서 말소리를 찾지 못했어요 → 다른 파일 올리기 / 다른 링크 |
-| 음성 인식 HTTP 429·5xx, 네트워크 오류, 시간 초과 | asr | `retryable` | `asr_transient` | ○ | 잠시 문제가 생겼어요 → 다시 시도 / 다른 링크 |
-| 음성 인식 키 없음, 429를 뺀 그 밖의 4xx | asr | `internal` | `asr_config` | ✕ | 서비스에 문제가 생겼어요 → 다시 시도 / 레시피북 |
+| 음성 인식 HTTP 429·5xx, 네트워크 오류, 시간 초과 | asr | `retryable` | `asr_transient` | ○ | 잠시 문제가 생겼어요 → 다른 파일 올리기 / 다른 링크 |
+| 음성 인식 키 없음, 429를 뺀 그 밖의 4xx | asr | `internal` | `asr_config` | ✕ | 서비스에 문제가 생겼어요 → 다른 파일 올리기 / 레시피북 |
 | 모델이 요리 영상이 아니라고 판단 | finalize | `not_a_recipe` | `model_not_a_recipe` | ✕ | 요리 영상이 아닌 것 같아요 → 다른 링크 |
 | 재료·단계 둘 다 0개 | finalize | `insufficient` | `empty_recipe` | ✕ | 레시피를 찾지 못했어요 → 다른 링크 / 파일 업로드 (`partial` 없음) |
 | 재료나 단계 한쪽만 0개 | finalize | `insufficient` | `partial_recipe` | ✕ | 찾은 정보가 적어요 → 찾은 만큼 보기 / 다른 링크 |

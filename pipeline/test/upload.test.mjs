@@ -144,6 +144,24 @@ test('worker fails a job whose file is gone as upload_missing', async () => {
   assert.deepEqual({ outcome: r.outcome, reason: r.reason }, { outcome: 'failed', reason: 'upload_missing' });
 });
 
+test('a storage error while reading the file fails the job as a retry and keeps the file', async () => {
+  const db = { ...fakeDb({ failStatus: 'queued' }), downloadUpload: async () => { throw new Error('Supabase storage get 503: busy'); } };
+  const r = await processJob(job, { db, env: OPENAI, fetchImpl: () => assert.fail('fetched'), run: () => assert.fail('ran the pipeline') });
+  assert.equal(r.outcome, 'requeued');
+  const [, out] = db.calls.find(([k]) => k === 'fail');
+  assert.deepEqual({ stage: out.stage, error_code: out.error_code, reason: out.reason, retry: out.retry }, { stage: 'collect', error_code: 'retryable', reason: 'collect_network', retry: true });
+  assert.ok(!kinds(db).includes('delete'));
+});
+
+test('mov and m4v go to speech recognition as mp4, which the API accepts', async () => {
+  const fetchImpl = async () => ({ ok: true, status: 200, arrayBuffer: async () => new Uint8Array([9]).buffer, text: async () => '' });
+  const db = supabaseRpc({ url: 'https://db.test', key: 'svc', fetchImpl });
+  const sent = async (ext) => { const { filename, mime } = await db.downloadUpload(`incoming/${ID}.${ext}`); return [filename, mime]; };
+  assert.deepEqual(await sent('mov'), ['upload.mp4', 'video/mp4']);
+  assert.deepEqual(await sent('m4v'), ['upload.mp4', 'video/mp4']);
+  assert.deepEqual(await sent('webm'), ['upload.webm', 'video/webm']);
+});
+
 test('supabaseRpc reads and deletes uploads in the private uploads bucket with the service key', async () => {
   const sent = [];
   const fetchImpl = async (url, init = {}) => {

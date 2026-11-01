@@ -12,6 +12,8 @@ describe('checkUploadFile', () => {
     expect(checkUploadFile(file('a.mp4', 'video/mp4'))).toEqual({ ok: true, ext: 'mp4', mime: 'video/mp4' });
     expect(checkUploadFile(file('a.MOV', ''))).toEqual({ ok: true, ext: 'mov', mime: 'video/quicktime' });
     expect(checkUploadFile(file('a.webm', 'video/webm'))).toEqual({ ok: true, ext: 'webm', mime: 'video/webm' });
+    // 목록에 없는 형식이면 버킷이 거부하므로 확장자로 정한 형식을 쓴다
+    expect(checkUploadFile(file('a.mov', 'application/octet-stream'))).toEqual({ ok: true, ext: 'mov', mime: 'video/quicktime' });
   });
 
   it('영상이 아니거나 비었거나 25MB를 넘으면 거부한다', () => {
@@ -68,6 +70,13 @@ describe('failureView 업로드', () => {
     const job = { errorCode: 'unavailable' as const, reason: 'not_playable', runId: null };
     expect(failureView(job, ctx).actions).toEqual(['upload', 'other_link']);
     expect(failureView(job, { ...ctx, fromUpload: true }).actions).toEqual(['other_file', 'other_link']);
+  });
+
+  it('업로드한 파일은 원본이 지워져서 [다시 시도] 대신 [다른 파일 올리기]', () => {
+    const view = (errorCode: 'retryable' | 'internal', reason: string) =>
+      failureView({ errorCode, reason, runId: null }, { ...ctx, loggedIn: true, canRetry: true, fromUpload: true }).actions;
+    expect(view('retryable', 'asr_transient')).toEqual(['other_file', 'other_link']);
+    expect(view('internal', 'asr_config')).toEqual(['other_file', 'go_book']);
   });
 
   it('업로드 실패 reason마다 안내가 있다', () => {
