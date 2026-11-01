@@ -49,7 +49,7 @@ jobs의 claim·complete·fail은 Supabase RPC로 한다. 동시 claim 방지는 
 
 - 화면이 비공개 버킷 `uploads`에 `incoming/<uuid>.<mp4|mov|webm|m4v>`로 파일을 올리고 `create_upload_job(경로)`를 부른다. 로그인 없이 올리기만 되고 읽기·지우기는 안 된다. 25MB까지(음성 인식 API 한도).
 - job의 `source_url`은 `upload:<uuid>`, 파일 위치는 `jobs.upload_path`(화면에는 열지 않음). `canonical_key`도 `upload:<uuid>`라 캐시를 쓰지 않는다.
-- 워커는 claim한 job에 `upload_path`가 있으면 service_role로 파일을 읽어 `runJob`의 `input.upload`(`{ bytes, filename, mime }`)로 넘긴다. job이 끝나면(성공·최종 실패) 파일을 지운다. 자동 재시도로 다시 큐에 들어가면 남겨 둔다. 파일을 읽다가 Storage 오류가 나면 `collect_network`(자동 재시도)로 실패시킨다.
+- 워커는 claim한 job에 `upload_path`가 있으면 service_role로 파일을 읽어 `runJob`의 `input.upload`(`{ bytes, filename, mime }`)로 넘긴다. job이 끝나면(성공·최종 실패) 파일을 지운다. 자동 재시도로 다시 큐에 들어가면 남겨 둔다. 파일을 읽다가 Storage 오류(키·요청 오류의 400 포함)가 나면 `collect_network`(자동 재시도)로 실패시키고, 이때는 최종 실패여도 파일을 지우지 않는다.
 - 음성 인식 API는 파일 이름으로 형식을 보고 mov·m4v를 받지 않는다. 워커는 mov·m4v를 `upload.mp4`로 이름 붙여 보낸다(같은 ISO-BMFF 계열).
 - 업로드는 자막·설명란이 없어서 음성 인식(`whisper-1`, 시각 있는 구간)이 유일한 근거다. 링크 영상의 직접 음성 인식·자막과의 비교는 KAN-50에서 정한다.
 - **[후속]** job을 만들지 않고 남은 파일과 `worker_lost`로 끝난 job의 파일 정리, 익명 업로드 횟수 제한.
@@ -164,7 +164,7 @@ jobs의 claim·complete·fail은 Supabase RPC로 한다. 동시 claim 방지는 
 | LLM 시간 초과(120초), 5xx, 429, JSON 아닌 응답 | structure | `retryable` | `llm_transient` | ○ | 잠시 문제가 생겼어요 → 다시 시도 / 다른 링크 |
 | LLM 응답이 토큰 한도에서 잘림 | structure | `internal` | `llm_cut_off` | ✕ | 서비스에 문제가 생겼어요 → 다시 시도 / 레시피북 |
 | LLM 거절(refusal), 키 없음, **429를 뺀** 4xx | structure | `internal` | `llm_refused` / `llm_config` | ✕ | 서비스에 문제가 생겼어요 → 다시 시도 / 레시피북 |
-| 업로드 job인데 파일이 없음(지워졌거나 못 읽음) | collect | `unavailable` | `upload_missing` | ✕ | 영상 파일을 읽을 수 없어요 → 다른 파일 올리기 / 다른 링크 |
+| 업로드 job인데 파일이 없음(Storage 404, 또는 400에 `not_found` 본문) | collect | `unavailable` | `upload_missing` | ✕ | 영상 파일을 읽을 수 없어요 → 다른 파일 올리기 / 다른 링크 |
 | 업로드 파일이 25MB 초과 | asr | `unavailable` | `upload_too_large` | ✕ | 파일이 너무 커요 → 다른 파일 올리기 / 다른 링크 |
 | 음성 인식이 파일을 못 읽음(HTTP 400: 깨진 파일·소리 없음) | asr | `unavailable` | `upload_unreadable` | ✕ | 영상 파일을 읽을 수 없어요 → 다른 파일 올리기 / 다른 링크 |
 | 음성 인식 결과에 말소리가 없음 | asr | `unavailable` | `no_speech` | ✕ | 영상에서 말소리를 찾지 못했어요 → 다른 파일 올리기 / 다른 링크 |

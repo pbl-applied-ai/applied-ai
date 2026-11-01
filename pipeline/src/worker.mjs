@@ -34,12 +34,15 @@ export function supabaseRpc({ url, key, fetchImpl = fetch }) {
     return text ? JSON.parse(text) : null;
   };
   // Storage REST API, same service key. A missing file reads as null so the job fails as upload_missing.
+  // Storage answers a missing object with 400 and a not_found body, but also answers key and request
+  // errors with 400, so only the body decides: anything else is an error and the job is retried.
+  const isMissing = async (res) => res.status === 404 || (res.status === 400 && /not_found|not found/i.test(await res.clone().text()));
   const object = (path) => `${url.replace(/\/$/, '')}/storage/v1/object/${UPLOAD_BUCKET}/${path.split('/').map(encodeURIComponent).join('/')}`;
   const auth = { apikey: key, authorization: `Bearer ${key}` };
   return {
     downloadUpload: async (path) => {
       const res = await fetchImpl(object(path), { headers: auth });
-      if (res.status === 404 || res.status === 400) return null;
+      if (await isMissing(res)) return null;
       if (!res.ok) throw new Error(`Supabase storage get ${res.status}: ${(await res.text()).slice(0, 300)}`);
       const ext = path.split('.').pop().toLowerCase();
       const asrExt = ASR_FILE_BY_EXT[ext] ?? 'mp4';
@@ -47,7 +50,7 @@ export function supabaseRpc({ url, key, fetchImpl = fetch }) {
     },
     deleteUpload: async (path) => {
       const res = await fetchImpl(object(path), { method: 'DELETE', headers: auth });
-      if (!res.ok && res.status !== 404 && res.status !== 400) throw new Error(`Supabase storage delete ${res.status}: ${(await res.text()).slice(0, 300)}`);
+      if (!res.ok && !(await isMissing(res))) throw new Error(`Supabase storage delete ${res.status}: ${(await res.text()).slice(0, 300)}`);
     },
     claimJob: async () => (await rpc('claim_next_job', { p_lease: LEASE }))?.[0] ?? null,
     setStage: (job, stage) => rpc('set_job_stage', { p_job_id: job.id, p_attempt: job.attempts, p_stage: stage }),
@@ -102,10 +105,12 @@ export async function processJob(job, { db, env = process.env, fetchImpl = fetch
   // A missing file goes to runJob as no upload, which fails the job as upload_missing. A storage error
   // fails it as a retry, so it does not sit in running until the lease runs out.
   let out;
+  let unread = false;
   if (job.upload_path) {
     try {
       input.upload = (await db.downloadUpload(job.upload_path)) ?? undefined;
     } catch (err) {
+      unread = true;
       out = { status: 'failed', canonical_key: key, extractor_version: version, stage: 'collect', error_code: 'retryable', reason: 'collect_network', retry: true, message: err.message, partial: null, metrics: { stages: [] } };
     }
   }
@@ -113,8 +118,9 @@ export async function processJob(job, { db, env = process.env, fetchImpl = fetch
   await writes;
 
   const result = await save(job, out, db);
-  // The file is deleted once the job is over. A retry still needs it, and a lost job belongs to another attempt.
-  if (job.upload_path && (result.outcome === 'succeeded' || result.outcome === 'failed')) {
+  // The file is deleted once the job is over. A retry still needs it, a lost job belongs to another attempt,
+  // and a file the worker could not read (storage or key error) is kept so the job can be run again.
+  if (job.upload_path && !unread && (result.outcome === 'succeeded' || result.outcome === 'failed')) {
     try {
       await db.deleteUpload(job.upload_path);
     } catch (err) {

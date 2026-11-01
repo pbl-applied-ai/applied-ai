@@ -179,3 +179,23 @@ test('supabaseRpc reads and deletes uploads in the private uploads bucket with t
     { url: `https://db.test/storage/v1/object/uploads/${PATH}`, method: 'DELETE', key: 'svc' },
   ]);
 });
+
+test('a storage 400 means a missing file only when its body says not_found', async () => {
+  const reply = { missing: [400, '{"statusCode":"404","error":"not_found","message":"Object not found"}'], badKey: [400, '{"statusCode":"403","error":"Unauthorized","message":"invalid signature"}'] };
+  const fetchImpl = async (url) => {
+    const [status, body] = reply[url.split('/').pop().split('.')[0]];
+    return new Response(body, { status });
+  };
+  const db = supabaseRpc({ url: 'https://db.test', key: 'svc', fetchImpl });
+  assert.equal(await db.downloadUpload('incoming/missing.mp4'), null);
+  await assert.rejects(db.downloadUpload('incoming/badKey.mp4'), /storage get 400: .*invalid signature/);
+  await db.deleteUpload('incoming/missing.mp4');
+  await assert.rejects(db.deleteUpload('incoming/badKey.mp4'), /storage delete 400/);
+});
+
+test('a file the worker could not read is kept even when the job fails for good', async () => {
+  const db = { ...fakeDb({ failStatus: 'failed' }), downloadUpload: async () => { throw new Error('Supabase storage get 400: invalid signature'); } };
+  const r = await processJob(job, { db, env: OPENAI, fetchImpl: () => assert.fail('fetched'), run: () => assert.fail('ran the pipeline') });
+  assert.equal(r.outcome, 'failed');
+  assert.ok(!kinds(db).includes('delete'));
+});
