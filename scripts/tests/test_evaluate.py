@@ -7,6 +7,9 @@ from __future__ import annotations
 
 import io
 import json
+import os
+import shutil
+import subprocess
 import sys
 import tempfile
 import unittest
@@ -61,6 +64,13 @@ class MatchTest(unittest.TestCase):
     def test_name_raw_fallback(self):
         gold = [ing("식용유", name_raw="카놀라유")]
         self.assertEqual(evaluate.match_ingredients(gold, [ing("카놀라유")], SYN), [(0, 0)])
+        pred = [ing("카놀라유유", name_raw="식용유유")]
+        self.assertEqual(evaluate.match_ingredients([ing("식용유유")], pred, SYN), [(0, 0)])
+
+    def test_name_raw_pair_not_matched(self):
+        # 양쪽 name_raw만 같으면 다른 재료일 수 있다.
+        gold = [ing("참기름", name_raw="기름")]
+        self.assertEqual(evaluate.match_ingredients(gold, [ing("들기름", name_raw="기름")], SYN), [])
 
     def test_synonym_does_not_steal_later_exact_match(self):
         # gold 순서대로 모든 단계를 돌면 "파"가 동의어로 pred "대파"를 먼저 가져간다.
@@ -97,6 +107,17 @@ class CaseScoreTest(unittest.TestCase):
         pred = {"bundle": None, "recipe": {"ingredients": [ing("간장", "1T", ["asr-0"])], "steps": []}}
         c = evaluate.evaluate_case(gold, pred, SYN)
         self.assertEqual((c["amount_pairs"], c["amount_norm"]), (1, 0))
+
+    def test_unknown_pred_status_not_counted_as_amount(self):
+        gold = {"bundle": {"segments": [{"id": "asr-0", "type": "asr", "start_ms": 0, "end_ms": 1, "text": "간장 1큰술"}]},
+                "recipe": {"ingredients": [ing("간장", "1큰술", ["asr-0"])], "steps": []}}
+        p = ing("간장", "1큰술", ["asr-0"])
+        p["amount_status"] = "estimated"
+        c = evaluate.evaluate_case(gold, {"bundle": None, "recipe": {"ingredients": [p], "steps": []}}, SYN)
+        self.assertEqual((c["amount_pairs"], c["amount_exact"], c["amount_norm"]), (1, 0, 0))
+        self.assertEqual(c["sources"]["말소리"]["correct"], 0)
+        self.assertEqual(c["status_unknown"], 1)
+        self.assertEqual(c["status_unknown_list"], [{"name": "간장", "amount_status": "estimated"}])
 
     def test_status_table(self):
         c = self.c
@@ -156,6 +177,16 @@ class SegmentTest(unittest.TestCase):
         self.assertTrue(evaluate.seg_match(self.seg("description", "김치 1컵"), self.seg("description", "김치  1컵")))
         self.assertFalse(evaluate.seg_match(self.seg("comment", "김치 1컵"), self.seg("comment", "김치 2컵")))
 
+    def test_contains_amount_number_boundary(self):
+        self.assertFalse(evaluate.contains_amount("1", "간장 넣고 10분"))
+        self.assertFalse(evaluate.contains_amount("2큰술", "고추장 12큰술"))
+        self.assertFalse(evaluate.contains_amount("1", "1.5큰술"))
+        self.assertFalse(evaluate.contains_amount("2", "1~2큰술"))
+        self.assertTrue(evaluate.contains_amount("1", "간장 1 큰술"))
+        self.assertTrue(evaluate.contains_amount("1", "10분 뒤 간장 1큰술"))
+        self.assertFalse(evaluate.contains_amount("", "간장 1큰술"))
+        self.assertFalse(evaluate.contains_amount(None, "간장 1큰술"))
+
     def test_amount_source_fallback(self):
         segs = {"asr-0": self.seg("asr", "소금 조금 넣어요", 0, 1)}
         self.assertEqual(evaluate.amount_sources(ing("소금", "약간", ["asr-0"]), segs), ({"말소리"}, True))
@@ -200,6 +231,32 @@ class RunTest(unittest.TestCase):
         self.assertEqual(r["cases"]["Smpl0Kimch2"]["pred_dir"], "x-kimch")
         self.assertTrue(any("x-kimch" in w and "gold bundle" in w for w in r["warnings"]))
 
+    def test_unknown_status_warned(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            pred = Path(tmp) / "pred"
+            shutil.copytree(FIX / "pred", pred)
+            path = pred / "Smpl0Gochu1" / "recipe.json"
+            recipe = evaluate.load(path)
+            recipe["ingredients"][2]["amount_status"] = "estimated"
+            path.write_text(json.dumps(recipe, ensure_ascii=False), encoding="utf-8")
+            r = evaluate.evaluate_run(FIX / "gold", pred, SYN, {})
+        self.assertTrue(any("Smpl0Gochu1" in w and "estimated" in w for w in r["warnings"]))
+
+    def test_leftover_and_duplicate_pred_warned(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            pred = Path(tmp) / "pred"
+            shutil.copytree(FIX / "pred", pred)
+            shutil.copytree(pred / "x-kimch", pred / "y-kimch")  # 같은 video_id
+            extra = pred / "Smpl0Extra9"
+            shutil.copytree(pred / "Smpl0Gochu1", extra)
+            recipe = evaluate.load(extra / "recipe.json")
+            recipe["video_id"] = "Smpl0Extra9"
+            (extra / "recipe.json").write_text(json.dumps(recipe, ensure_ascii=False), encoding="utf-8")
+            r = evaluate.evaluate_run(FIX / "gold", pred, SYN, {})
+        self.assertEqual(r["cases"]["Smpl0Kimch2"]["pred_dir"], "x-kimch")
+        self.assertTrue(any("Smpl0Extra9" in w and "짝지을 정답 없음" in w for w in r["warnings"]))
+        self.assertTrue(any("Smpl0Kimch2" in w and "x-kimch" in w and "y-kimch" in w for w in r["warnings"]))
+
     def test_totals(self):
         t = self.run_fixture()["total"]
         self.assertEqual((t["cases"], t["gold_ings"], t["matched"]), (3, 8, 5))
@@ -226,6 +283,17 @@ class RunTest(unittest.TestCase):
             recall = data["groups"]["v7"]["recall"]
             self.assertEqual((recall["mean"], recall["min"], recall["max"], recall["runs"]), (0.625, 0.625, 0.625, 2))
             self.assertEqual(data["runs"]["v7#1"]["rates"]["recall"], {"n": 5, "d": 8, "rate": 0.625})
+
+    def test_cli_cp949_stdout(self):
+        # 한국어 Windows에서 출력을 파일로 돌리면 stdout이 cp949가 된다. 환경 변수로 같은 조건을 만든다.
+        with tempfile.TemporaryDirectory() as tmp:
+            out = Path(tmp) / "eval.json"
+            env = {**os.environ, "PYTHONIOENCODING": "cp949"}
+            argv = [sys.executable, str(Path(evaluate.__file__)), "--gold", str(FIX / "gold"),
+                    "--pred", f"v7#1={FIX / 'pred'}", "--out", str(out)]
+            p = subprocess.run(argv, env=env, capture_output=True)
+            self.assertEqual(p.returncode, 0, p.stderr.decode("utf-8", "replace"))
+            self.assertTrue(out.exists())
 
     def test_cli_missing_gold(self):
         with redirect_stdout(io.StringIO()), redirect_stderr(io.StringIO()):

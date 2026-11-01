@@ -9,6 +9,8 @@
   폴더 이름으로 짝짓고, 없으면 recipe.video_id로 찾는다. recipe.json이 없으면 "결과 없음".
 - --pred 라벨의 '#' 앞(v7#1 → v7)으로 묶어 평균·최소·최대를 낸다.
 - --manifest: case,platform,category 열(category = 분량 출처 분류). 소계에 쓴다.
+- 분량 상태는 confirmed·unconfirmed만 처리한다. 그 밖의 값은 따로 세고 경고한다.
+- 근거 정확도는 짝지은 재료만 본다(짝 안 된 재료·단계의 근거는 제외).
 
 지표 정의는 PR(KAN-26) 설명을 따른다. 점수·정답·실행 결과는 레포에 커밋하지 않는다.
 """
@@ -33,6 +35,12 @@ DEFAULT_SYNONYMS = Path(__file__).resolve().parent / "eval_synonyms.json"
 
 SOURCE = {"title": "제목", "description": "설명", "comment": "고정 댓글", "asr": "말소리", "ocr": "화면 글자"}
 TIMED = {"asr", "ocr"}
+STATUSES = {"confirmed", "unconfirmed"}
+COUNTERS = (
+    "status_pairs", "status_agree", "amount_pairs", "amount_exact", "amount_norm", "fabricated",
+    "ev_pred_segs", "ev_pred_timed", "ev_pred_correct", "ev_gold_segs", "ev_gold_timed", "ev_gold_covered",
+    "gold_confirmed", "gold_unconfirmed", "amount_gold_confirmed", "source_estimated",
+)
 NO_EVIDENCE = "근거 없음"
 
 _recipe_v = None
@@ -72,7 +80,7 @@ def load_synonyms(path: Path) -> dict[str, str]:
 def match_ingredients(gold: list[dict], pred: list[dict], synonyms: dict[str, str]) -> list[tuple[int, int]]:
     """1:1 탐욕 매칭. 단계마다 모든 gold를 돈 뒤 다음 단계로 간다(앞 단계 짝을 뒤 단계가 가로채지 않게).
 
-    ① name 정확 일치 ② 동의어 ③ 어느 쪽이든 name_raw ↔ 상대 name.
+    ① name 정확 일치 ② 동의어 ③ 한쪽 name_raw ↔ 상대 name.
     항목 id(v0.2)는 보지 않는다(#3 A: 평가는 재료 이름으로).
     """
     def keys_exact(item):
@@ -82,13 +90,11 @@ def match_ingredients(gold: list[dict], pred: list[dict], synonyms: dict[str, st
         k = norm_name(item["name"])
         return {synonyms.get(k, k)}
 
-    def keys_raw(item):
-        return {norm_name(item[f]) for f in ("name", "name_raw") if item.get(f)}
-
     def raw_match(g, p):
-        # 같은 name끼리는 ①에서 끝났으므로 name_raw가 낀 조합만 본다.
-        gk, pk = keys_raw(g), keys_raw(p)
-        return bool(gk & pk)
+        # 한쪽 name_raw ↔ 상대 name만. name_raw끼리만 같으면 다른 재료일 수 있다(참기름·들기름의 "기름").
+        return (bool(g.get("name_raw")) and norm_name(g["name_raw"]) == norm_name(p["name"])) or (
+            bool(p.get("name_raw")) and norm_name(p["name_raw"]) == norm_name(g["name"])
+        )
 
     passes = [
         lambda g, p: keys_exact(g) == keys_exact(p),
@@ -122,19 +128,38 @@ def seg_match(p: dict, g: dict) -> bool:
     return norm_text(p["text"]) == norm_text(g["text"])
 
 
+# 파이프라인 #12의 숫자 경계와 같은 규칙: "2스푼"은 "12스푼"·"1.2스푼"·"1~2스푼" 안에 없다.
+# 한국어 수사("두 스푼" in "열두 스푼")는 보지 않는다.
+DIGIT_BEFORE = re.compile(r"(?:\d|\d[.,/~\-–])$")
+DIGIT_AFTER = re.compile(r"^(?:\d|[.,/]\d)")
+
+
+def contains_amount(amount: str | None, text: str) -> bool:
+    """정규화한 분량이 정규화한 문장에 숫자 경계를 지켜 나오는지."""
+    amount, text = norm_text(amount), norm_text(text)
+    if not amount:
+        return False
+    start = text.find(amount)
+    while start != -1:
+        before, after = text[:start], text[start + len(amount):]
+        if not ((amount[0].isdigit() and DIGIT_BEFORE.search(before))
+                or (amount[-1].isdigit() and DIGIT_AFTER.search(after))):
+            return True
+        start = text.find(amount, start + 1)
+    return False
+
+
 def amount_sources(item: dict, segs: dict[str, dict]) -> tuple[set[str], bool]:
     """분량이 나온 출처. 근거 중 분량 문자열이 든 segment로 정하고, 없으면 근거 전체로 추정(True)."""
     ev = [segs[i] for i in item["evidence"] if i in segs]
     if not ev:
         return {NO_EVIDENCE}, True
-    amount = norm_text(item["amount_raw"])
-    hit = [s for s in ev if amount and amount in norm_text(s["text"])]
+    hit = [s for s in ev if contains_amount(item["amount_raw"], s["text"])]
     return {SOURCE.get(s["type"], s["type"]) for s in (hit or ev)}, not hit
 
 
 def amount_in_evidence(item: dict, segs: dict[str, dict]) -> bool:
-    amount = norm_text(item["amount_raw"])
-    return any(amount in norm_text(segs[i]["text"]) for i in item["evidence"] if i in segs)
+    return any(contains_amount(item["amount_raw"], segs[i]["text"]) for i in item["evidence"] if i in segs)
 
 
 # ---------- 스키마 ----------
@@ -163,7 +188,8 @@ def evaluate_case(gold: dict, pred: dict, synonyms: dict[str, str]) -> dict:
     p_steps = p_recipe.get("steps", []) if p_recipe else []
     partial = bool(p_recipe) and (not p_ings) != (not p_steps)
 
-    c = defaultdict(int)
+    # 늘 같은 키가 나오도록 0으로 시작한다(JSON 케이스끼리 비교하기 쉽게).
+    c = defaultdict(int, dict.fromkeys(COUNTERS, 0))
     c["cases"] = 1
     c["no_result"] = int(p_recipe is None)
     c["partial"] = int(partial)
@@ -190,9 +216,11 @@ def evaluate_case(gold: dict, pred: dict, synonyms: dict[str, str]) -> dict:
         c["status_agree"] += int(gs == ps)
         status_table[f"{gs}>{ps}"] += 1
         if gs == "confirmed":
+            # 분량 맞힘은 pred도 confirmed일 때만. 추정값 등 다른 상태는 값이 같아도 맞힘이 아니다.
             c["amount_pairs"] += 1
-            c["amount_exact"] += int((p.get("amount_raw") or "").strip() == g["amount_raw"].strip())
-            c["amount_norm"] += int(norm_text(p.get("amount_raw")) == norm_text(g["amount_raw"]))
+            if ps == "confirmed":
+                c["amount_exact"] += int((p.get("amount_raw") or "").strip() == g["amount_raw"].strip())
+                c["amount_norm"] += int(norm_text(p.get("amount_raw")) == norm_text(g["amount_raw"]))
         elif ps == "confirmed":
             c["fabricated"] += 1
             for src in amount_sources(p, p_segs)[0]:
@@ -206,6 +234,14 @@ def evaluate_case(gold: dict, pred: dict, synonyms: dict[str, str]) -> dict:
         c["ev_gold_segs"] += len(g_ev)
         c["ev_gold_timed"] += sum(1 for s in g_ev if s["type"] in TIMED)
         c["ev_gold_covered"] += sum(1 for t in g_ev if any(seg_match(s, t) for s in p_ev))
+
+    status_unknown = [
+        {"name": p["name"], "amount_status": p.get("amount_status")}
+        for p in p_ings
+        if p.get("amount_status") not in STATUSES
+    ]
+    c["status_unknown"] = len(status_unknown)
+    c["gold_status_unknown"] = sum(1 for g in g_ings if g["amount_status"] not in STATUSES)
 
     # 근거 미확인 분량(검토 필요): pred confirmed 분량이 pred 근거 문장 어디에도 없음
     unverified = [
@@ -227,7 +263,11 @@ def evaluate_case(gold: dict, pred: dict, synonyms: dict[str, str]) -> dict:
         srcs, estimated = amount_sources(g, g_segs)
         c["source_estimated"] += int(estimated)
         pi = pred_of.get(gi)
-        correct = pi is not None and norm_text(p_ings[pi].get("amount_raw")) == norm_text(g["amount_raw"])
+        correct = (
+            pi is not None
+            and p_ings[pi].get("amount_status") == "confirmed"
+            and norm_text(p_ings[pi].get("amount_raw")) == norm_text(g["amount_raw"])
+        )
         for src in srcs:
             sources[src]["with"] += 1
             sources[src]["correct"] += int(correct)
@@ -240,7 +280,6 @@ def evaluate_case(gold: dict, pred: dict, synonyms: dict[str, str]) -> dict:
     c["pred_steps"] = len(p_steps)
     c["steps_missing"] = max(0, len(g_steps) - len(p_steps))
     c["steps_diff"] = len(p_steps) - len(g_steps)
-    c["steps_missing_cases"] = int(c["steps_missing"] > 0)
 
     # 스키마
     errors = ["결과 없음"] if p_recipe is None else schema_check(p_recipe, p_bundle, partial)
@@ -253,6 +292,7 @@ def evaluate_case(gold: dict, pred: dict, synonyms: dict[str, str]) -> dict:
         "sources": {k: dict(v) for k, v in sources.items()},
         "schema_errors": errors,
         "unverified_list": unverified,
+        "status_unknown_list": status_unknown,
         "unmatched_gold": [g["name"] for gi, g in enumerate(g_ings) if gi not in matched_g],
         "unmatched_pred": [p["name"] for pi, p in enumerate(p_ings) if pi not in matched_p],
     }
@@ -308,18 +348,23 @@ def evaluate_run(gold_dir: Path, pred_dir: Path, synonyms: dict[str, str], manif
     gold_cases = sorted(p.parent for p in gold_dir.glob("*/recipe.json"))
     if not gold_cases:
         raise FileNotFoundError(f"{gold_dir}: 정답 케이스(*/recipe.json) 없음")
-    pred_by_video = {}
-    for d in sorted(p.parent for p in pred_dir.glob("*/recipe.json")):
-        pred_by_video.setdefault(load(d / "recipe.json").get("video_id"), d)
-
     cases, warnings = {}, []
+    pred_by_video = defaultdict(list)
+    for d in sorted(p.parent for p in pred_dir.glob("*/recipe.json")):
+        pred_by_video[load(d / "recipe.json").get("video_id")].append(d)
+    for video_id, dirs in pred_by_video.items():
+        if len(dirs) > 1:
+            names = ", ".join(d.name for d in dirs)
+            warnings.append(f"video_id {video_id}: 폴더 {names} 중 {dirs[0].name} 사용")
+    used = set()
     total = {}
     by_platform, by_category = defaultdict(dict), defaultdict(dict)
     for gd in gold_cases:
         gold = {"recipe": load(gd / "recipe.json"), "bundle": load(gd / "bundle.json")}
         pd = pred_dir / gd.name
         if not (pd / "recipe.json").exists():
-            pd = pred_by_video.get(gold["recipe"]["video_id"], pd)
+            pd = (pred_by_video.get(gold["recipe"]["video_id"]) or [pd])[0]
+        used.add(pd.name)
         pred = load_case_dir(pd) if pd.is_dir() else {"recipe": None, "bundle": None}
         if pred["recipe"] is None:
             warnings.append(f"{gd.name}: 결과 없음")
@@ -327,6 +372,11 @@ def evaluate_run(gold_dir: Path, pred_dir: Path, synonyms: dict[str, str], manif
             warnings.append(f"{gd.name}: {pd.name}/bundle.json 없음, gold bundle로 근거를 찾음")
 
         c = evaluate_case(gold, pred, synonyms)
+        if c["status_unknown"]:
+            found = sorted({str(u["amount_status"]) for u in c["status_unknown_list"]})
+            warnings.append(f"{gd.name}: 처리하지 않는 amount_status {found} {c['status_unknown']}개, 분량 맞힘에서 제외")
+        if c["gold_status_unknown"]:
+            warnings.append(f"{gd.name}: 정답에 처리하지 않는 amount_status {c['gold_status_unknown']}개")
         c["pred_dir"] = pd.name if pred["recipe"] is not None else None
         row = manifest.get(gd.name, {})
         c["platform"] = row.get("platform") or "unknown"
@@ -335,6 +385,10 @@ def evaluate_run(gold_dir: Path, pred_dir: Path, synonyms: dict[str, str], manif
         add_counts(total, c)
         add_counts(by_platform[c["platform"]], c)
         add_counts(by_category[c["category"]], c)
+
+    for d in sorted(p for p in pred_dir.iterdir() if p.is_dir()):
+        if d.name not in used:
+            warnings.append(f"{d.name}: 짝지을 정답 없음(무시)")
 
     return {
         "cases": cases,
@@ -434,6 +488,10 @@ def main(argv: list[str]) -> int:
     ap.add_argument("--synonyms", type=Path, default=DEFAULT_SYNONYMS)
     ap.add_argument("--out", type=Path, help="결과 JSON (레포 밖 경로 권장)")
     args = ap.parse_args(argv)
+    # 한국어 Windows에서 출력을 파일로 돌리면 cp949라 표의 문자를 못 쓴다.
+    for stream in (sys.stdout, sys.stderr):
+        if hasattr(stream, "reconfigure"):
+            stream.reconfigure(encoding="utf-8")
 
     synonyms = load_synonyms(args.synonyms)
     manifest = load_manifest(args.manifest) if args.manifest else {}
@@ -453,8 +511,6 @@ def main(argv: list[str]) -> int:
             print(f"경고 [{label}] {w}", file=sys.stderr)
 
     groups = group_stats(runs)
-    print_report(runs, groups, bool(manifest))
-
     if args.out:
         data = {
             "meta": {
@@ -469,6 +525,7 @@ def main(argv: list[str]) -> int:
         }
         args.out.parent.mkdir(parents=True, exist_ok=True)
         args.out.write_text(json.dumps(data, ensure_ascii=False, indent=2), encoding="utf-8")
+    print_report(runs, groups, bool(manifest))
     return 0
 
 
