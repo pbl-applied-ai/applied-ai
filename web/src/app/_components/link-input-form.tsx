@@ -2,7 +2,7 @@
 
 import { useRouter } from "next/navigation";
 import { useRef, useState } from "react";
-import { api } from "@/lib/api";
+import { UPLOAD_ENABLED, api } from "@/lib/api";
 import { fileSource, rememberJobSource } from "@/lib/job-source";
 import { SHORTS_ERROR_TEXT, checkShortsUrl } from "@/lib/shorts";
 import { UPLOAD_ACCEPT, UPLOAD_ERROR_TEXT, checkUploadFile } from "@/lib/upload";
@@ -133,23 +133,38 @@ export function LinkInputForm() {
         <span className="text-[13px] text-muted">링크가 안 되면</span>
         <div className="h-px flex-1 bg-line" />
       </div>
-      <input ref={fileInput} type="file" accept={UPLOAD_ACCEPT} onChange={upload} hidden />
-      <button
-        type="button"
-        onClick={() => fileInput.current?.click()}
-        disabled={uploading}
-        className="mt-5 h-13 rounded-xl border-[1.5px] border-foreground text-base font-medium disabled:border-line-strong disabled:text-muted"
-      >
-        {uploading ? "올리는 중…" : "영상 파일로 넣기"}
-      </button>
-      {uploadError && (
-        <p role="alert" className="mt-2 text-[13px] text-danger">
-          {uploadError}
-        </p>
+      {UPLOAD_ENABLED ? (
+        <>
+          <input ref={fileInput} type="file" accept={UPLOAD_ACCEPT} onChange={upload} hidden />
+          <button
+            type="button"
+            onClick={() => fileInput.current?.click()}
+            disabled={uploading}
+            className="mt-5 h-13 rounded-xl border-[1.5px] border-foreground text-base font-medium disabled:border-line-strong disabled:text-muted"
+          >
+            {uploading ? "올리는 중…" : "영상 파일로 넣기"}
+          </button>
+          {uploadError && (
+            <p role="alert" className="mt-2 text-[13px] text-danger">
+              {uploadError}
+            </p>
+          )}
+          <p className="mt-2 text-[13px] leading-relaxed text-muted">
+            직접 찍었거나 사용 권한이 있는 영상만 올려 주세요. 올린 영상은 레시피를 만든 뒤 지워져요. (25MB까지)
+          </p>
+        </>
+      ) : (
+        <>
+          <button
+            type="button"
+            disabled
+            className="mt-5 h-13 rounded-xl border-[1.5px] border-line-strong text-base font-medium text-muted"
+          >
+            영상 파일로 넣기
+          </button>
+          <p className="mt-2 text-[13px] leading-relaxed text-muted">영상 파일 올리기는 준비 중이에요.</p>
+        </>
       )}
-      <p className="mt-2 text-[13px] leading-relaxed text-muted">
-        직접 찍었거나 사용 권한이 있는 영상만 올려 주세요. 올린 영상은 레시피를 만든 뒤 지워져요. (25MB까지)
-      </p>
     </form>
   );
 }

@@ -20,7 +20,7 @@ import { checkShortsUrl } from '@/lib/shorts';
 |---|---|
 | `types.ts` | `RecipeApi`(함수 목록), Job·Run·UserRecipe 등 타입 |
 | `mock.ts` | 목 구현. 링크별 시나리오(`MOCK_LINKS`) |
-| `supabase.ts` | 데모용 최소 연결. `NEXT_PUBLIC_SUPABASE_URL`·`NEXT_PUBLIC_SUPABASE_ANON_KEY`가 있으면 `createJob`·`getJob`·`getRun`만 Supabase RPC(`create_job`·`get_job`·`get_run`)로 부르고 나머지는 목. 없으면 `index.ts`가 전부 목을 쓴다 |
+| `supabase.ts` | 데모용 최소 연결. `NEXT_PUBLIC_SUPABASE_URL`·`NEXT_PUBLIC_SUPABASE_ANON_KEY`가 있으면 `createJob`·`getJob`·`getRun`(RPC `create_job`·`get_job`·`get_run`)과 `createUploadJob`(Storage `uploads` 버킷에 `incoming/<uuid>.<확장자>`로 올린 뒤 RPC `create_upload_job`)만 Supabase로 부르고 나머지는 목. 없으면 `index.ts`가 전부 목을 쓴다 |
 | `labels.ts` | 처리 단계 문구, 실패 안내 7종(Figma 문구표 수정안 13-111), `failGuide(job)` |
 | `editable.ts` | 확인·수정 화면 편집 함수(수정·추가·삭제·되돌리기·저장 가능 여부) |
 | `fixtures.ts` | 목 레시피(직접 만든 가짜 fixture의 출력) |
@@ -30,6 +30,7 @@ import { checkShortsUrl } from '@/lib/shorts';
 | 화면 | 함수 |
 |---|---|
 | S2 링크 입력 | `checkShortsUrl`(`@/lib/shorts`) → `api.createJob` |
+| S2 영상 파일로 넣기 | `UPLOAD_ENABLED`일 때만 켠다. `checkUploadFile`(`@/lib/upload`) → `api.createUploadJob` |
 | S3 처리 중·실패 안내 | `api.getJob` 1~2초마다, `STAGE_LABEL`, 실패면 `failGuide(job)` + `ACTION_LABEL`. `partial_recipe`면 `job.runId`로 "찾은 만큼 보기" |
 | S4 확인·수정 | `api.getRun`·`api.getUser` → 로그인 안 했으면 보기만, 했으면 `toEditable` → `editIngredient`·`addStep`·`revertItem` 등, `canSave` |
 | S4 저장 | `api.saveRecipe` (로그인한 사람만 저장 버튼이 보인다) |

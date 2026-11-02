@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
 import { useEffect, useState, useSyncExternalStore } from "react";
-import { ACTION_LABEL, type FailAction, type Job, api } from "@/lib/api";
+import { ACTION_LABEL, type FailAction, type Job, UPLOAD_ENABLED, api } from "@/lib/api";
 import { failureView, stageText } from "@/lib/job-display";
 import { recallJobSource, rememberJobSource, sourceFileName } from "@/lib/job-source";
 
@@ -11,8 +11,6 @@ const POLL_MS = 1500;
 const MAX_POLL_ERRORS = 3;
 // 로그인은 KAN-24·KAN-31에서 붙인다. 그 전까지는 비로그인 화면만 보인다.
 const LOGGED_IN = false;
-// 영상 파일 업로드(KAN-49). S2 [영상 파일로 넣기]로 간다.
-const UPLOAD_READY = true;
 
 const subscribeNothing = () => () => {};
 
@@ -124,7 +122,7 @@ export function JobProgress() {
     const failure = failureView(view.job, {
       loggedIn: LOGGED_IN,
       canRetry: Boolean(source) && !fileName,
-      uploadReady: UPLOAD_READY,
+      uploadReady: UPLOAD_ENABLED,
       fromUpload: Boolean(fileName),
     });
     const actions = failure.actions.map((a) => toAction(a, { runId: view.job.runId, retrying, retryJob }));

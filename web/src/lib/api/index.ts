@@ -9,6 +9,10 @@ import type { RecipeApi } from './types';
 const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL;
 const SUPABASE_ANON_KEY = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
 
+// 영상 파일 업로드(KAN-49). 배포 DB에 uploads 버킷·create_upload_job이 들어가기 전에는 끈다(#32 리뷰).
+// 목 모드는 항상 켜고, Supabase를 쓰면 NEXT_PUBLIC_UPLOAD_ENABLED=true일 때만 켠다.
+export const UPLOAD_ENABLED = !(SUPABASE_URL && SUPABASE_ANON_KEY) || process.env.NEXT_PUBLIC_UPLOAD_ENABLED === 'true';
+
 export const api: RecipeApi =
   SUPABASE_URL && SUPABASE_ANON_KEY
     ? createSupabaseApi(createMockApi(), { url: SUPABASE_URL, anonKey: SUPABASE_ANON_KEY })
