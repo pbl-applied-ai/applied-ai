@@ -2,7 +2,7 @@ import { formatClock } from './segments.mjs';
 
 const ids = (refs) => refs.map((r) => r.segment_id).join(',');
 const clock = (ms) => (ms != null ? formatClock(ms) : '--:--');
-const SOURCE = { speech: '말', description: '설명' };
+const SOURCE = { speech: '말', description: '설명', comment: '고정 댓글' };
 const STATUS = { needs_review: ' [확인 필요]', conflict: ' [출처 간 불일치]', confirmed: '' };
 
 const amountLine = (i) =>
