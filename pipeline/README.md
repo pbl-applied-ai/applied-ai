@@ -1,9 +1,9 @@
 # pipeline
 
-YouTube 요리 영상 링크를 받아 자막과 설명란을 가져오고, LLM(사용자 본인 키)으로 재료·단계·팁을 추출한다. 모든 항목은 근거 세그먼트 ID에 연결되고, 시각은 코드가 근거에서 계산한다.
+YouTube 요리 영상 링크를 받아 자막·설명란·작성자 고정 댓글을 가져오고, LLM(사용자 본인 키)으로 재료·단계·팁을 추출한다. 모든 항목은 근거 세그먼트 ID에 연결되고, 시각은 코드가 근거에서 계산한다.
 
 - 런타임: Node.js 22 이상, 외부 의존성 없음 (ESM, `"type": "module"`)
-- 현재 프롬프트 버전: `recipe-extract-v6` (`src/schema.mjs`의 `PROMPT_VERSION`)
+- 현재 프롬프트 버전: `recipe-extract-v7` (`src/schema.mjs`의 `PROMPT_VERSION`)
 - 기본 모델: `gpt-4.1` (`src/llm.mjs`의 `DEFAULT_MODELS.openai`)
 - 테스트: `npm test` (LLM·네트워크 호출 없음)
 
@@ -44,7 +44,8 @@ YouTube URL
   └─ youtube.mjs   innertube player API(ANDROID → IOS 클라이언트)로 자막 트랙 URL을 얻고 timedtext XML을 파싱
       └─ segments.mjs  자막 → S01.. 세그먼트(kind=speech, 시각 있음)
                        설명란 → 줄마다 D01.. (kind=description, 시각 없음, URL·해시태그 줄 제외)
-          └─ renderForPrompt  "[S07 00:12] 텍스트" / "[D03 설명] 텍스트"
+                       작성자 고정 댓글 → 줄마다 C01.. (kind=comment, 설명란과 같은 규칙)
+          └─ renderForPrompt  "[S07 00:12] 텍스트" / "[D03 설명] 텍스트" / "[C02 고정 댓글] 텍스트"
               └─ llm.mjs   OpenAI strict json_schema 또는 Anthropic 강제 tool use
                   └─ resolve.mjs  근거 검증, 시각 계산, 분량 상태, 중복·도구 제거, 요약
                       └─ pipeline.mjs  watch_url 추가, meta(model, prompt_version, usage, latency_ms)
@@ -61,7 +62,8 @@ YouTube URL
 | 파일 | 역할 |
 |---|---|
 | `src/youtube.mjs` | `parseVideoId`(watch/shorts/youtu.be/embed/live/ID), `watchUrl(id, sec)`(Shorts는 시크가 안 돼서 watch URL로 변환), `parseCaptionXml`(timedtext와 srv3), `fetchTranscript` |
-| `src/segments.mjs` | `normalizeSegments`, `descriptionSegments`, `renderForPrompt`, `formatClock` |
+| `src/segments.mjs` | `normalizeSegments`, `descriptionSegments`, `commentSegments`, `renderForPrompt`, `formatClock` |
+| `src/comments.mjs` | `fetchPinnedComment`: 작성자가 쓰고 고정한 댓글. 실패하거나 없으면 `null`이고 파이프라인은 계속 간다 |
 | `src/schema.mjs` | `PROMPT_VERSION`, `RECIPE_SCHEMA`(OpenAI strict용: 모든 속성 required, `additionalProperties:false`), `SYSTEM_PROMPT`, `buildUserPrompt` |
 | `src/llm.mjs` | `resolveProvider(env)`, `callOpenAI`(추론 모델이 temperature를 거부하면 빼고 재시도), `callAnthropic`, `extractRecipe` |
 | `src/ingredients.mjs` | `parseAmount`: "2스푼", "1~2큰술", "한 개 반", "½ tsp", "약간"을 `{quantity, quantity2, unit, qualitative}`로 파싱. 검증·비교용이고 화면에는 항상 원문을 보여 준다 |
@@ -150,6 +152,7 @@ bundle은 1~4단계 결과만 담는다. `run.stages`에는 자막 수집(`capti
 |---|---|---|
 | 자막 `S01`, `S02`… | `asr-0`, `asr-1`… | 플랫폼 자막도 `asr`로 둔다. 자막/직접 전사 구분은 #3에서 정한다 |
 | 설명 `D01`… | `desc-0`… | 시각 없음 |
+| 고정 댓글 `C01`… | `comment-0`… | 시각 없음. 있으면 `run.stages.pinned_comment` 추가 |
 | 영상 제목 | `title-0` | |
 | `amount_status: confirmed` | `confirmed` + `amount_raw` | 재료 근거에 분량 근거를 합친다 |
 | `needs_review`·`conflict`·`not_in_video` | `unconfirmed` + `amount_raw: null` | 화면에서 빈칸. 내부 상태 구분은 사라진다 |
@@ -199,6 +202,7 @@ node src/worker.mjs --once     # 대기 job이 없으면 끝냄
 | v4 | 분량을 출처별 `amounts[]`로 변경. 말과 설명란 분량이 다르면 둘 다 넣는다. 단위 추가 금지 | 말로 한 분량("약간")을 버리고 설명란의 단위 없는 숫자만 쓰는 경우 |
 | v5 | 도구는 재료가 아님, 교정한 이름만 남김, "생략가능"은 분량이 아님 | 도구를 재료로 넣음, 교정 전후 이름이 둘 다 남음 |
 | v6 | 대안 분량·다른 인분 분량은 팁으로, "다/전부"는 분량이 아님 | v4 규칙이 너무 넓게 적용돼 선택 사항 분량을 분량에 넣고 불일치로 표시 |
+| v7 | 근거에 작성자 고정 댓글(`[C01 고정 댓글]`) 추가, 분량은 설명란처럼 다룸 | 개발용 영상 6개 중 4개가 재료·분량을 고정 댓글에 씀. 그중 2개는 음성·설명란에 분량이 거의 없음 |
 
 코드 쪽 변경: 팁 중복 단계 제거와 대안 병합(v3), 문자열 "null" 처리(v3 이후), 출처별 분량·불일치·확인 필요(v4), 중복 경고(v5), 도구 제거(v6).
 
