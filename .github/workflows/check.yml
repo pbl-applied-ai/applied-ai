@@ -16,6 +16,8 @@ jobs:
       - run: pip install -r requirements-dev.txt
       - name: Validate schemas and examples
         run: python scripts/validate.py
+      - name: Evaluation script tests
+        run: python -m unittest discover -s scripts/tests -v
       - uses: actions/setup-node@v4
         with:
           node-version: "22"

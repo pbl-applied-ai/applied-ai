@@ -1,0 +1,12 @@
+{
+  "schema_version": "0.1",
+  "video_id": "Smpl0Missng3",
+  "title": "두부부침",
+  "servings_raw": null,
+  "ingredients": [
+    { "name": "두부", "amount_raw": "1모", "amount_status": "confirmed", "evidence": ["desc-0"] }
+  ],
+  "steps": [
+    { "order": 1, "text": "두부를 부친다.", "evidence": ["desc-0"] }
+  ]
+}

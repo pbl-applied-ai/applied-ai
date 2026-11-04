@@ -1,0 +1,9 @@
+{
+  "schema_version": "0.1",
+  "video_id": "Smpl0Missng3",
+  "source": { "kind": "youtube_shorts" },
+  "run": { "run_id": "fake-gold-3", "created_at": "2026-10-29T00:00:00Z", "stages": {} },
+  "segments": [
+    { "id": "desc-0", "type": "description", "text": "두부 1모 부쳐 드세요" }
+  ]
+}

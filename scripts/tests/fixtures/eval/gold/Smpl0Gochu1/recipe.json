@@ -1,0 +1,18 @@
+{
+  "schema_version": "0.1",
+  "video_id": "Smpl0Gochu1",
+  "title": "고추장 목살덮밥",
+  "servings_raw": null,
+  "ingredients": [
+    { "name": "목살", "amount_raw": "200g", "amount_status": "confirmed", "evidence": ["desc-0", "asr-0"] },
+    { "name": "고추장", "amount_raw": "2큰술", "amount_status": "confirmed", "evidence": ["desc-0", "asr-1"] },
+    { "name": "밥", "amount_raw": "1공기", "amount_status": "confirmed", "evidence": ["desc-0"] },
+    { "name": "대파", "amount_raw": null, "amount_status": "unconfirmed", "evidence": ["asr-2"] },
+    { "name": "깨", "amount_raw": null, "amount_status": "unconfirmed", "optional": true, "evidence": [] }
+  ],
+  "steps": [
+    { "order": 1, "text": "목살을 굽는다.", "evidence": ["asr-0"] },
+    { "order": 2, "text": "고추장을 넣고 볶는다.", "evidence": ["asr-1"] },
+    { "order": 3, "text": "밥 위에 올리고 대파를 뿌린다.", "evidence": ["asr-2"] }
+  ]
+}
