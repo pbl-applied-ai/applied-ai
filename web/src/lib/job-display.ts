@@ -16,6 +16,7 @@ export interface ScreenContext {
   loggedIn: boolean;
   canRetry: boolean; // 다시 시도할 링크를 기억하고 있는지
   uploadReady: boolean; // 영상 파일 업로드 경로가 있는지
+  fromUpload?: boolean; // 이 job이 업로드한 파일인지. 그러면 [영상 파일로 넣기] 대신 [다른 파일 올리기]
 }
 
 /** 실패 안내와 지금 보여 줄 버튼. 쓸 수 없는 버튼(업로드 전, 비로그인 레시피북, 링크 모름)은 뺀다. */
@@ -23,15 +24,20 @@ export function failureView(job: Pick<Job, "errorCode" | "reason" | "runId">, ct
   // partial_recipe인데 찾은 결과(runId)가 없으면 보여 줄 게 없으니 "레시피를 찾지 못했어요"로 안내한다
   const noPartial = job.reason === "partial_recipe" && !job.runId;
   const guide: ErrorGuide = failGuide(noPartial ? { ...job, reason: "empty_recipe" } : job);
-  const actions = guide.actions.filter((a: FailAction) => {
+  // 이미 파일을 올린 사용자에게 같은 안내를 반복하지 않는다(UX 플로우 S3 "업로드한 파일 실패").
+  // 업로드 원본은 job이 끝나면 지워져서 [다시 시도]도 [다른 파일 올리기]로 바꾼다
+  const asked = ctx.fromUpload
+    ? [...new Set(guide.actions.map((a): FailAction => (a === "upload" || a === "retry" ? "other_file" : a)))]
+    : guide.actions.filter((a) => a !== "other_file");
+  const actions = asked.filter((a: FailAction) => {
     if (a === "retry") return ctx.canRetry;
-    if (a === "upload") return ctx.uploadReady;
+    if (a === "upload" || a === "other_file") return ctx.uploadReady;
     if (a === "go_book") return ctx.loggedIn;
     if (a === "show_partial") return Boolean(job.runId);
     return true;
   });
   // 다른 출구(레시피북·업로드)를 뺐으면 막다른 화면이 되지 않게 [다른 링크 넣기]를 붙인다
-  const exitRemoved = guide.actions.some((a) => (a === "go_book" || a === "upload") && !actions.includes(a));
+  const exitRemoved = asked.some((a) => (a === "go_book" || a === "upload" || a === "other_file") && !actions.includes(a));
   if ((exitRemoved || actions.length === 0) && !actions.includes("other_link")) actions.push("other_link");
   return { title: guide.title, body: guide.body ?? "", actions };
 }

@@ -12,7 +12,8 @@ export const STAGE_LABEL: Record<JobStage, string | null> = {
   finalize: null, // 표시하지 않는다
 };
 
-export type FailAction = 'retry' | 'upload' | 'other_link' | 'show_partial' | 'go_book';
+// other_file은 업로드한 파일이 실패했을 때 [영상 파일로 넣기] 대신 쓴다(UX 플로우 S3)
+export type FailAction = 'retry' | 'upload' | 'other_file' | 'other_link' | 'show_partial' | 'go_book';
 
 export interface ErrorGuide {
   title: string;
@@ -23,6 +24,7 @@ export interface ErrorGuide {
 export const ACTION_LABEL: Record<FailAction, string> = {
   retry: '다시 시도',
   upload: '영상 파일로 넣기',
+  other_file: '다른 파일 올리기',
   other_link: '다른 링크 넣기',
   show_partial: '찾은 만큼 보기',
   go_book: '레시피북으로',
@@ -71,6 +73,22 @@ export const FAIL_GUIDE = {
     body: '지금은 YouTube Shorts만 지원해요.',
     actions: ['upload', 'other_link'],
   },
+  // 업로드 실패(KAN-49). 화면 원본에 없어 UX 플로우 S3 "업로드한 파일 실패" 기준으로 썼다
+  no_speech: {
+    title: '영상에서 말소리를 찾지 못했어요',
+    body: '지금은 말로 설명하는 영상만 읽을 수 있어요.\n화면 글자 읽기는 준비 중이에요.',
+    actions: ['other_file', 'other_link'],
+  },
+  upload_too_large: {
+    title: '파일이 너무 커요',
+    body: '25MB 이하 영상만 올릴 수 있어요.',
+    actions: ['other_file', 'other_link'],
+  },
+  upload_unreadable: {
+    title: '영상 파일을 읽을 수 없어요',
+    body: '파일이 손상됐거나 소리가 없는 영상일 수 있어요.\n다른 파일로 다시 올려 주세요.',
+    actions: ['other_file', 'other_link'],
+  },
 } satisfies Record<string, ErrorGuide>;
 
 export type FailGuideKey = keyof typeof FAIL_GUIDE;
@@ -84,6 +102,10 @@ const BY_REASON: Record<string, FailGuideKey> = {
   no_captions_no_description: 'no_captions',
   partial_recipe: 'partial_recipe',
   empty_recipe: 'empty_recipe',
+  no_speech: 'no_speech',
+  upload_too_large: 'upload_too_large',
+  upload_unreadable: 'upload_unreadable',
+  upload_missing: 'upload_unreadable',
 };
 
 const BY_CODE: Record<JobErrorCode, FailGuideKey> = {
