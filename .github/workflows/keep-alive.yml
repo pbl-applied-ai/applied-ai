@@ -9,6 +9,8 @@ jobs:
     steps:
       - name: Ping Supabase Database
         run: |
-          curl -X GET "${{ secrets.SUPABASE_URL }}/rest/v1/jobs?select=id&limit=1" \
+          curl -fsS --max-time 30 -X POST "${{ secrets.SUPABASE_URL }}/rest/v1/rpc/get_job" \
           -H "apikey: ${{ secrets.SUPABASE_ANON_KEY }}" \
-          -H "Authorization: Bearer ${{ secrets.SUPABASE_ANON_KEY }}"
+          -H "Authorization: Bearer ${{ secrets.SUPABASE_ANON_KEY }}" \
+          -H "Content-Type: application/json" \
+          -d '{"p_job_id":"00000000-0000-0000-0000-000000000000"}'
