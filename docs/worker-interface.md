@@ -1,7 +1,8 @@
-# 워커 ↔ 파이프라인 호출 방식 v0.4
+# 워커 ↔ 파이프라인 호출 방식 v0.5
 
 작성: 전수빈 · 2026-10-24 · 선규 합의용
-수정일: 2026-10-31
+수정일: 2026-11-05
+변경(v0.5, KAN-50): `no_speech` 판단 보강. 음악만 있는 영상에서 whisper가 엉뚱한 언어로 짧은 글을 만드는 경우를 잡는다.
 변경(v0.4, KAN-49): 영상 파일 업로드 입력(`upload_path`)과 업로드용 음성 인식(`asr` 단계), 업로드 실패 `reason` 6개 추가(`upload_missing`·`upload_too_large`·`upload_unreadable`·`no_speech`·`asr_transient`·`asr_config`). 업로드 job은 [다시 시도] 대신 [다른 파일 올리기].
 변경(v0.3): #14 2차 리뷰 반영. #17·#18·#19 코드에서 정해진 것에 맞춤: 화면은 `reason`을 먼저 보고 안내를 고른다(`reason`도 화면 계약), 한쪽만 있는 결과는 partial run으로 저장하고 캐시에서 뺀다, 캐시는 워커에서 확인한다. 파이프라인 버전을 `pipeline/` 폴더 트리 해시로 바꾸고, 워커가 죽었을 때의 lease 규칙, 같은 영상 동시 요청, LLM 429 분류, watch·youtu.be 링크 처리를 정함. [개발 계획](dev-plan.md) jobs 표도 같이 고침.
 관련 문서: [개발 계획](dev-plan.md)의 jobs 표 · [UX 플로우](ux-flow.md) · `schemas/` · `web/src/lib/api/labels.ts`(실패 안내) · `supabase/migrations/`(#18)
@@ -167,7 +168,7 @@ jobs의 claim·complete·fail은 Supabase RPC로 한다. 동시 claim 방지는 
 | 업로드 job인데 파일이 없음(Storage 404, 또는 400에 `not_found` 본문) | collect | `unavailable` | `upload_missing` | ✕ | 영상 파일을 읽을 수 없어요 → 다른 파일 올리기 / 다른 링크 |
 | 업로드 파일이 25MB 초과 | asr | `unavailable` | `upload_too_large` | ✕ | 파일이 너무 커요 → 다른 파일 올리기 / 다른 링크 |
 | 음성 인식이 파일을 못 읽음(HTTP 400: 깨진 파일·소리 없음) | asr | `unavailable` | `upload_unreadable` | ✕ | 영상 파일을 읽을 수 없어요 → 다른 파일 올리기 / 다른 링크 |
-| 음성 인식 결과에 말소리가 없음 | asr | `unavailable` | `no_speech` | ✕ | 영상에서 말소리를 찾지 못했어요 → 다른 파일 올리기 / 다른 링크 |
+| 음성 인식 결과에 말소리가 없음(글자 없음, whisper가 무음으로 본 구간뿐, 또는 한국어·영어가 아닌데 글자가 초당 2자 미만) | asr | `unavailable` | `no_speech` | ✕ | 영상에서 말소리를 찾지 못했어요 → 다른 파일 올리기 / 다른 링크 |
 | 음성 인식 HTTP 429·5xx, 네트워크 오류, 시간 초과 | asr | `retryable` | `asr_transient` | ○ | 잠시 문제가 생겼어요 → 다른 파일 올리기 / 다른 링크 |
 | 음성 인식 키 없음, 429를 뺀 그 밖의 4xx | asr | `internal` | `asr_config` | ✕ | 서비스에 문제가 생겼어요 → 다른 파일 올리기 / 레시피북 |
 | 모델이 요리 영상이 아니라고 판단 | finalize | `not_a_recipe` | `model_not_a_recipe` | ✕ | 요리 영상이 아닌 것 같아요 → 다른 링크 |
