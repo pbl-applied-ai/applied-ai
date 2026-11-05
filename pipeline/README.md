@@ -169,6 +169,8 @@ bundle은 1~4단계 결과만 담는다. `run.stages`에는 자막 수집(`capti
 $env:SUPABASE_URL = "https://<project>.supabase.co"
 $env:SUPABASE_SERVICE_ROLE_KEY = "<service_role 키>"
 $env:OPENAI_API_KEY = "<OpenAI 키>"
+$env:APIFY_TOKEN = "<Apify 토큰>"            # Instagram 수집. 이 키와 아래 키가 둘 다 없으면 Instagram은 지원 전처럼 not_youtube로 끝남
+$env:SCRAPECREATORS_API_KEY = "<예비 업체 키>"
 $env:PIPELINE_TREE = (git rev-parse HEAD:pipeline)   # 없으면 버전이 +dev가 되고 캐시를 쓰지 않는다
 node src/worker.mjs            # 계속 돌며 2초마다 대기 job 확인
 node src/worker.mjs --once     # 대기 job이 없으면 끝냄
