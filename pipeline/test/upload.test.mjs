@@ -2,7 +2,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
-import { toSegments } from '../src/asr.mjs';
+import { readTranscript, toSegments } from '../src/asr.mjs';
 import { canonicalKey, runJob, uploadId } from '../src/job.mjs';
 import { processJob, supabaseRpc } from '../src/worker.mjs';
 
@@ -53,6 +53,20 @@ test('Whisper segments become timed speech segments, empty text dropped', () => 
   assert.deepEqual(toSegments({}), []);
 });
 
+test('a segment Whisper itself marks as silent is dropped', () => {
+  const silent = { start: 0, end: 2, text: '자막 제공', no_speech_prob: 0.9, avg_logprob: -1.5 };
+  const unsure = { start: 2, end: 4, text: '고추장 두 스푼', no_speech_prob: 0.9, avg_logprob: -0.3 };
+  assert.deepEqual(toSegments({ segments: [silent, unsure] }).map((s) => s.text), ['고추장 두 스푼']);
+});
+
+test('a few words in an unexpected language count as no speech, real speech does not', () => {
+  const body = (language, text, duration = 40) => ({ language, duration, segments: [{ start: 0, end: 2, text }] });
+  assert.deepEqual(readTranscript(body('khmer', '짧은 글')).segments, []);
+  assert.equal(readTranscript(body('korean', '짧은 글')).segments.length, 1, 'an expected language keeps short speech');
+  assert.equal(readTranscript(body('japanese', 'あ'.repeat(200))).segments.length, 1, 'long speech in another language stays');
+  assert.equal(readTranscript({ language: 'khmer', segments: [{ start: 0, end: 2, text: '짧은 글' }] }).segments.length, 1, 'no duration, no rate to judge');
+});
+
 test('an uploaded file is transcribed and makes a recipe with an upload bundle and no video links', async () => {
   const events = [];
   const { fetchImpl, seen } = asr();
@@ -79,6 +93,7 @@ test('an uploaded file is transcribed and makes a recipe with an upload bundle a
 test('upload failures map to the section 6 table', async () => {
   const cases = [
     [{ fetchImpl: asr({ body: { segments: [] } }).fetchImpl }, { stage: 'asr', error_code: 'unavailable', reason: 'no_speech', retry: false }],
+    [{ fetchImpl: asr({ body: { language: 'khmer', duration: 40, segments: [{ start: 0, end: 2, text: '음악' }] } }).fetchImpl }, { stage: 'asr', error_code: 'unavailable', reason: 'no_speech', retry: false }],
     [{ fetchImpl: asr({ status: 429, body: { error: { message: 'slow down' } } }).fetchImpl }, { stage: 'asr', error_code: 'retryable', reason: 'asr_transient', retry: true }],
     [{ fetchImpl: asr({ status: 503, body: {} }).fetchImpl }, { stage: 'asr', error_code: 'retryable', reason: 'asr_transient', retry: true }],
     [{ fetchImpl: asr({ throws: true }).fetchImpl }, { stage: 'asr', error_code: 'retryable', reason: 'asr_transient', retry: true }],
