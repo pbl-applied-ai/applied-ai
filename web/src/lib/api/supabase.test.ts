@@ -9,7 +9,7 @@ const JOB_ID = '22222222-2222-4222-8222-222222222222';
 
 function memoryStorage() {
   const data: Record<string, string> = {};
-  return { getItem: (k: string) => data[k] ?? null, setItem: (k: string, v: string) => void (data[k] = v) };
+  return { getItem: (k: string) => data[k] ?? null, setItem: (k: string, v: string) => void (data[k] = v), removeItem: (k: string) => void delete data[k] };
 }
 
 // PostgREST처럼 rpc 이름별로 응답한다. 보낸 요청은 sent에 쌓인다.

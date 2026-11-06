@@ -190,6 +190,12 @@ export function createMockApi(options: MockOptions = {}): RecipeApi {
       navigate(returnTo); // 실제 구글 로그인처럼 페이지를 다시 연다
     },
 
+    // 목 로그인은 구글에 다녀오지 않아서 실제로 불리지 않는다
+    async completeSignIn() {
+      await wait();
+      return '/book';
+    },
+
     async signOut() {
       await wait();
       save({ ...load(), user: null });

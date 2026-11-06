@@ -1,5 +1,5 @@
 // S0 로그인 (KAN-31 최소 동작). 결과 화면(S4)에서 [로그인하고 고치기]를 누르거나, 로그인이 필요한 화면(S1·S5)을 열 때 온다.
-// 지금은 목 로그인이다. 실제 구글 로그인(KAN-24)이 붙으면 api.signInWithGoogle만 바뀐다.
+// NEXT_PUBLIC_RECIPE_BOOK_ENABLED=true면 실제 구글 로그인(KAN-24), 아니면 목 로그인이다.
 import { Suspense } from "react";
 import { GoogleButton } from "./google-button";
 

@@ -132,6 +132,7 @@ export interface RecipeApi {
   // 로그인
   getUser(): Promise<User | null>;
   signInWithGoogle(returnTo: string): Promise<void>; // 페이지를 떠났다가 returnTo로 돌아온다
+  completeSignIn(code: string): Promise<string>; // /auth/callback이 부른다. 돌아갈 주소를 돌려준다
   signOut(): Promise<void>;
 
   // 로그인 필요. 안 했으면 NotSignedInError
