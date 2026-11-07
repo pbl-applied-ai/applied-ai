@@ -106,6 +106,15 @@ describe('sign-in', () => {
     expect(await ctx.api.getUser()).toBeNull();
   });
 
+  it('remembers where to return until the code is traded, for a cancelled or failed sign-in', async () => {
+    const ctx = setup({ '/auth/v1/token?grant_type=pkce': { status: 400, body: { error: 'bad' } } });
+    expect(await ctx.api.signInReturnTo()).toBeNull();
+    await ctx.api.signInWithGoogle('/r/abc');
+    expect(await ctx.api.signInReturnTo()).toBe('/r/abc');
+    await expect(ctx.api.completeSignIn('x')).rejects.toThrow(/sign-in 400/);
+    expect(await ctx.api.signInReturnTo()).toBeNull();
+  });
+
   it('is signed out with nothing stored, and sign-out clears the session', async () => {
     expect(await setup().api.getUser()).toBeNull();
     const ctx = await signedIn();

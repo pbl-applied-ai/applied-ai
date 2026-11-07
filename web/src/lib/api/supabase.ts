@@ -196,6 +196,7 @@ export function createSupabaseApi(base: RecipeApi, options: SupabaseOptions): Re
     getUser: () => auth.user(),
     signInWithGoogle: (returnTo) => auth.signIn(returnTo),
     completeSignIn: (code) => auth.complete(code),
+    signInReturnTo: () => auth.returnTo(),
     signOut: () => auth.signOut(),
 
     async listMyJobs() {

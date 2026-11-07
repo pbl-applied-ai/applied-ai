@@ -196,6 +196,10 @@ export function createMockApi(options: MockOptions = {}): RecipeApi {
       return '/book';
     },
 
+    async signInReturnTo() {
+      return null;
+    },
+
     async signOut() {
       await wait();
       save({ ...load(), user: null });

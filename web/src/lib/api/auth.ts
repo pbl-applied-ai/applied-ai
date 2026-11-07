@@ -123,6 +123,9 @@ export function createAuth(options: AuthOptions) {
       (options.navigate ?? ((to: string) => globalThis.location?.assign(to)))(`${url}/auth/v1/authorize?${params}`);
     },
 
+    // 진행 중인 로그인이 돌아갈 주소. complete가 지우기 전에 읽어 둔다.
+    returnTo: async () => read<{ next: string }>(PENDING_KEY)?.next ?? null,
+
     // 구글에서 돌아온 코드를 세션으로 바꾸고 돌아갈 주소를 돌려준다.
     async complete(code: string): Promise<string> {
       const pending = read<{ verifier: string; next: string }>(PENDING_KEY);
