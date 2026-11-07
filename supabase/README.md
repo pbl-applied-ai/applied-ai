@@ -24,10 +24,11 @@ npx supabase@2.118.0 stop
 
 코드는 `NEXT_PUBLIC_RECIPE_BOOK_ENABLED`로 꺼 두었다. 켜는 순서:
 
-1. 배포 DB에 `20261106120000_recipe_save.sql` 적용
+1. 배포 DB에 밀린 마이그레이션을 순서대로 적용. 마지막이 `20261106120000_recipe_save.sql`이고, 그 앞에 아직 안 들어간 `20261031120000_upload_path.sql`도 있다
 2. Google Cloud에서 OAuth 클라이언트(웹) 만들기. 승인된 리디렉션 URI는 `https://<프로젝트>.supabase.co/auth/v1/callback`
 3. Supabase 대시보드 Authentication → Providers → Google에 클라이언트 ID·비밀번호 넣기
 4. Authentication → URL Configuration의 Site URL과 Redirect URLs에 `https://<사이트>/auth/callback` 넣기 (로컬은 `http://localhost:3000/auth/callback`)
 5. Vercel에 `NEXT_PUBLIC_RECIPE_BOOK_ENABLED=true`를 넣고 다시 배포
+6. 실제 구글 계정으로 로그인부터 저장까지 끝까지 확인. Vercel 미리보기 주소는 Redirect URLs에 없어서 로그인이 안 된다
 
 클라이언트 비밀번호는 레포·`.env`에 넣지 않는다.

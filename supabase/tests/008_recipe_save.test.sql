@@ -1,7 +1,7 @@
 -- 레시피 저장·수정·상세(KAN-23): 서버가 상태를 다시 정하는지, 남의 레시피를 건드릴 수 없는지 본다.
 begin;
 create extension if not exists pgtap with schema extensions;
-select plan(22);
+select plan(25);
 
 create function pg_temp.login_as(uid uuid) returns void language plpgsql as $$
 begin
@@ -77,6 +77,18 @@ select throws_ok(
   $$ select public.save_recipe('aaaaaaaa-0000-0000-0000-000000000001', '제목', null,
        '[{"id": "ing-1", "name": "a"}, {"id": "ing-1", "name": "b"}]', '[{"id": "step-1", "text": "썬다"}]') $$,
   '22023', 'invalid ingredient id', '같은 항목 ID를 두 번 쓸 수 없다');
+select throws_ok(
+  $$ select public.save_recipe('aaaaaaaa-0000-0000-0000-000000000001', '제목', null,
+       '[{"id": "ing-0", "name": "소금", "amount_raw": null}]', '[{"id": "step-1", "text": "썬다"}]') $$,
+  '22023', 'invalid ingredient id', 'ing-0은 마지막 재료와 비교되므로 받지 않는다');
+select throws_ok(
+  $$ select public.save_recipe('aaaaaaaa-0000-0000-0000-000000000001', '제목', null,
+       '[{"id": "ing-01", "name": "고추장", "amount_raw": "2큰술"}]', '[{"id": "step-1", "text": "썬다"}]') $$,
+  '22023', 'invalid ingredient id', 'ing-01은 ing-1과 같은 항목이므로 받지 않는다');
+select throws_ok(
+  $$ select public.save_recipe('aaaaaaaa-0000-0000-0000-000000000001', '제목', null,
+       '[{"id": "ing-1", "name": "고추장", "amount_raw": "2큰술"}]', '[{"id": "step-0", "text": "볶는다"}]') $$,
+  '22023', 'invalid step id', 'step-0도 받지 않는다');
 select throws_ok(
   $$ select public.save_recipe('aaaaaaaa-0000-0000-0000-00000000ffff', '제목', null, '[]', '[]') $$,
   'P0002', 'run not found', '없는 결과는 저장할 수 없다');

@@ -3,6 +3,7 @@
 --
 -- 클라이언트가 보낸 amount_status·edited·user_entered는 믿지 않는다. 항목 ID(ing-N은 추출 결과의 N번째)로
 -- run.recipe와 비교해 서버가 다시 정한다. 분량이 원본과 같고 원본이 confirmed일 때만 confirmed다.
+-- 항목 ID 번호는 1부터다. ing-0은 인덱스 -1이라 마지막 재료와 비교되고, ing-01은 ing-1과 같은 항목이어서 받지 않는다.
 -- 항목 ID 형식·user_entered는 KAN-9(스키마 v0.2) 합의 전 임시안이다.
 
 -- ── 입력 검사·상태 계산 (RPC 안에서만 쓴다) ───────────────
@@ -25,7 +26,7 @@ begin
   end if;
   for v_item in select value from jsonb_array_elements(p_items) loop
     v_id := v_item ->> 'id';
-    if v_id is null or v_id !~ '^ing-(user-)?[0-9]{1,4}$' or v_id = any (v_seen) then
+    if v_id is null or v_id !~ '^ing-(user-)?[1-9][0-9]{0,3}$' or v_id = any (v_seen) then
       raise exception 'invalid ingredient id' using errcode = '22023';
     end if;
     v_seen := v_seen || v_id;
@@ -71,7 +72,7 @@ begin
   from jsonb_array_elements(coalesce(p_recipe -> 'steps', '[]')) s;
   for v_item in select value from jsonb_array_elements(p_items) loop
     v_id := v_item ->> 'id';
-    if v_id is null or v_id !~ '^step-(user-)?[0-9]{1,4}$' or v_id = any (v_seen) then
+    if v_id is null or v_id !~ '^step-(user-)?[1-9][0-9]{0,3}$' or v_id = any (v_seen) then
       raise exception 'invalid step id' using errcode = '22023';
     end if;
     v_seen := v_seen || v_id;
