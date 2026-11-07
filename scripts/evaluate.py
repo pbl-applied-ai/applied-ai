@@ -164,12 +164,9 @@ def amount_in_evidence(item: dict, segs: dict[str, dict]) -> bool:
 
 # ---------- 스키마 ----------
 
-def schema_check(recipe: dict, bundle: dict, partial: bool) -> list[str]:
-    """validate.py와 같은 스키마·교차 규칙. partial이면 ingredients·steps의 minItems만 면제(worker-interface 4번)."""
-    errors = [
-        e for e in recipe_validator().iter_errors(recipe)
-        if not (partial and e.validator == "minItems" and list(e.absolute_path) in (["ingredients"], ["steps"]))
-    ]
+def schema_check(recipe: dict, bundle: dict) -> list[str]:
+    """validate.py와 같은 스키마·교차 규칙. partial run은 스키마 v0.2의 partial: true로 통과한다(worker-interface 4번)."""
+    errors = list(recipe_validator().iter_errors(recipe))
     if errors:
         return [f"{'/'.join(map(str, e.absolute_path)) or '(root)'}: {e.message}" for e in errors]
     return recipe_rules(recipe, bundle, "recipe.json")
@@ -282,7 +279,7 @@ def evaluate_case(gold: dict, pred: dict, synonyms: dict[str, str]) -> dict:
     c["steps_diff"] = len(p_steps) - len(g_steps)
 
     # 스키마
-    errors = ["결과 없음"] if p_recipe is None else schema_check(p_recipe, p_bundle, partial)
+    errors = ["결과 없음"] if p_recipe is None else schema_check(p_recipe, p_bundle)
     c["schema_pass"] = int(not errors)
 
     return {

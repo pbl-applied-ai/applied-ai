@@ -179,7 +179,7 @@ node src/worker.mjs --once     # 대기 job이 없으면 끝냄
 - **클라우드 서버에서 돌리지 않는다.** 데이터센터 IP는 YouTube가 `LOGIN_REQUIRED`(봇 확인)로 막는다(KAN-38). 데모는 노트북 워커. 학교·회사 와이파이는 YouTube 제한 모드로 일부 영상이 막힐 수 있어 휴대폰 핫스팟을 쓴다.
 - `runJob({ source_url }, { onStage })`은 예외를 던지지 않고 `succeeded` 또는 `failed` 결과 하나를 돌려준다. 실패는 `error_code`(화면 안내 종류)·`reason`(세부 원인)·`retry`(자동 재시도 대상)로 나눈다.
 - 자막 트랙이 없는 영상은 설명란만으로 진행한다. 이때 성공 결과에 `description_only: true`가 붙고, 설명란에도 레시피가 없으면 `unavailable`·`no_captions_no_description`이다.
-- 재료나 단계 한쪽만 있으면 `insufficient`·`partial_recipe`로 실패하고 `partial`에 찾은 만큼의 결과를 담는다. 이 `recipe`만 팀 스키마 `minItems` 검사에서 빠진다.
+- 재료나 단계 한쪽만 있으면 `insufficient`·`partial_recipe`로 실패하고 `partial`에 찾은 만큼의 결과를 담는다. 이 `recipe`에는 `partial: true`가 붙고, 팀 스키마(v0.2)는 이때만 한쪽이 0개여도 받는다.
 
 워커가 부르는 RPC (모두 `service_role` 전용):
 

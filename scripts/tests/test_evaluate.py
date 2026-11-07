@@ -205,6 +205,10 @@ class SchemaTest(unittest.TestCase):
         p = pred_case("x-kimch")
         c = evaluate.evaluate_case(case("Smpl0Kimch2"), p, SYN)
         self.assertEqual((c["partial"], c["schema_pass"]), (1, 1))
+        del p["recipe"]["partial"]  # v0.2: 한쪽만 있는 결과는 partial: true가 있어야 통과
+        c = evaluate.evaluate_case(case("Smpl0Kimch2"), p, SYN)
+        self.assertEqual((c["partial"], c["schema_pass"]), (1, 0))
+        p["recipe"]["partial"] = True
         p["recipe"]["ingredients"][0]["evidence"] = []  # confirmed인데 근거 없음 → 그대로 실패
         c = evaluate.evaluate_case(case("Smpl0Kimch2"), p, SYN)
         self.assertEqual((c["partial"], c["schema_pass"]), (1, 0))

@@ -670,6 +670,17 @@ test('team schema export matches the committed example (examples/example-002-pip
   assert.deepEqual(toTeamRecipe(result), example('recipe.json'));
 });
 
+test('team recipe item IDs skip group headers and start at 1 (schema v0.2)', async () => {
+  const result = await sampleRun();
+  const plain = toTeamRecipe(result);
+  result.recipe.ingredients.unshift({ ...result.recipe.ingredients[0], name: '양념', is_group_header: true });
+  result.recipe.steps.unshift({ ...result.recipe.steps[0], text: '양념 만들기', is_group_header: true });
+  const team = toTeamRecipe(result);
+  assert.deepEqual(team.ingredients.map((i) => [i.id, i.name]), plain.ingredients.map((i, n) => [`ing-${n + 1}`, i.name]));
+  assert.deepEqual(team.steps.map((s) => [s.id, s.order]), plain.steps.map((_, n) => [`step-${n + 1}`, n + 1]));
+  assert.equal(team.partial, undefined);
+});
+
 test('team IDs number speech and description segments separately', () => {
   const map = teamIdMap([
     { id: 'S01', kind: 'speech' },

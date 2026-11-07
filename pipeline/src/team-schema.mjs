@@ -1,4 +1,4 @@
-export const TEAM_SCHEMA_VERSION = '0.1';
+export const TEAM_SCHEMA_VERSION = '0.2';
 
 // Internal evidence IDs (S01, D01, C01) become team IDs (asr-0, desc-0, comment-0). Platform captions
 // map to "asr" because the team schema has no separate caption type yet.
@@ -72,8 +72,10 @@ export function toEvidenceBundle(result, { runId, createdAt } = {}) {
 // Only amounts the pipeline confirmed keep their text; needs_review, conflict and not_in_video
 // all become unconfirmed with an empty amount. A confirmed ingredient adds only the evidence of its
 // confirmed amounts, not of amounts left needing review.
-// With partial, a recipe missing all ingredients or all steps is still exported: a partial run
-// (docs/worker-interface.md section 4) is the one case allowed to break the schema's minItems.
+// Items get ing-N / step-N in output order, from 1, after group headers are dropped. The recipe book's
+// save RPC (KAN-23) matches a saved item to this result by that ID.
+// With partial, a recipe missing all ingredients or all steps is still exported with partial: true
+// (docs/worker-interface.md section 4): schema v0.2 accepts one empty side only then.
 export function toTeamRecipe(result, warnings = [], { partial = false } = {}) {
   const { recipe } = result;
   if (recipe.status !== 'ok') {
@@ -88,10 +90,11 @@ export function toTeamRecipe(result, warnings = [], { partial = false } = {}) {
   const map = teamIdMap(result.evidence);
   const ingredients = recipe.ingredients
     .filter((ing) => !ing.is_group_header)
-    .map((ing) => {
+    .map((ing, i) => {
       const confirmed = ing.amount_status === 'confirmed';
       const amountEvidence = confirmed ? ing.amounts.filter((a) => !a.needs_review).flatMap((a) => a.evidence) : [];
       return {
+        id: `ing-${i + 1}`,
         name: ing.name,
         amount_raw: confirmed ? ing.amount_text : null,
         amount_status: confirmed ? 'confirmed' : 'unconfirmed',
@@ -100,7 +103,7 @@ export function toTeamRecipe(result, warnings = [], { partial = false } = {}) {
     });
   const steps = recipe.steps
     .filter((s) => !s.is_group_header)
-    .map((s, i) => ({ order: i + 1, text: s.text, evidence: toTeamIds(s.evidence, map) }));
+    .map((s, i) => ({ id: `step-${i + 1}`, order: i + 1, text: s.text, evidence: toTeamIds(s.evidence, map) }));
   if (!partial && (!ingredients.length || !steps.length)) {
     warnings.push(`team recipe: ${ingredients.length} ingredients and ${steps.length} steps, the team schema needs at least one of each, recipe.json skipped`);
     return null;
@@ -110,6 +113,7 @@ export function toTeamRecipe(result, warnings = [], { partial = false } = {}) {
     video_id: result.source.videoId,
     title,
     servings_raw: recipe.servings_text,
+    ...(partial && (!ingredients.length || !steps.length) && { partial: true }),
     ingredients,
     steps,
   };
