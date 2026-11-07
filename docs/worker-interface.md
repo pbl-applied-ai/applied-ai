@@ -1,7 +1,8 @@
-# 워커 ↔ 파이프라인 호출 방식 v0.5
+# 워커 ↔ 파이프라인 호출 방식 v0.6
 
 작성: 전수빈 · 2026-10-24 · 선규 합의용
-수정일: 2026-11-05
+수정일: 2026-11-06
+변경(v0.6, KAN-53): Instagram 수집기(`collectInstagram`), `canonical_key` `instagram:<코드>`, 실패 `reason` 7개 추가(`vendor_transient`·`vendor_quota`·`vendor_config`·`ig_not_found`·`ig_blocked`·`ig_not_video`, `no_media_no_caption`). `APIFY_TOKEN`·`SCRAPECREATORS_API_KEY`가 둘 다 없으면 지금처럼 `not_youtube`로 끝난다. 일시 오류로 말소리를 못 읽은 결과는 캐시에서 다시 쓰지 않는다(`speech: "lost"`).
 변경(v0.5, KAN-50): `no_speech` 판단 보강. 음악만 있는 영상에서 whisper가 엉뚱한 언어로 짧은 글을 만드는 경우를 잡는다.
 변경(v0.4, KAN-49): 영상 파일 업로드 입력(`upload_path`)과 업로드용 음성 인식(`asr` 단계), 업로드 실패 `reason` 6개 추가(`upload_missing`·`upload_too_large`·`upload_unreadable`·`no_speech`·`asr_transient`·`asr_config`). 업로드 job은 [다시 시도] 대신 [다른 파일 올리기].
 변경(v0.3): #14 2차 리뷰 반영. #17·#18·#19 코드에서 정해진 것에 맞춤: 화면은 `reason`을 먼저 보고 안내를 고른다(`reason`도 화면 계약), 한쪽만 있는 결과는 partial run으로 저장하고 캐시에서 뺀다, 캐시는 워커에서 확인한다. 파이프라인 버전을 `pipeline/` 폴더 트리 해시로 바꾸고, 워커가 죽었을 때의 lease 규칙, 같은 영상 동시 요청, LLM 429 분류, watch·youtu.be 링크 처리를 정함. [개발 계획](dev-plan.md) jobs 표도 같이 고침.
@@ -62,7 +63,8 @@ jobs의 claim·complete·fail은 Supabase RPC로 한다. 동시 claim 방지는 
 
 ### 캐시
 
-- **확인 위치는 워커다.** job을 claim한 뒤, `runJob`을 부르기 전에 같은 `canonical_key` + 같은 `extractor_version`의 **성공 run**(`partial = false`)이 있으면 LLM을 부르지 않고 그 run으로 바로 complete한다.
+- **확인 위치는 워커다.** job을 claim한 뒤, `runJob`을 부르기 전에 같은 `canonical_key` + 같은 `extractor_version`의 **성공 run**(`partial = false`)이 있으면 LLM을 부르지 않고 그 run으로 바로 complete한다. 조회와 저장은 같은 버전 값을 쓴다(`jobVersion`).
+- **Instagram 말소리를 일시 오류로 못 읽은 결과**(음성·영상 다운로드 5xx·429·시간 초과, 영상 음성 인식 일시 오류)는 캡션 기반으로 보여 주되, `extractor_version`에 `speech: "lost"`를 붙여 저장해서 다시 쓰지 않는다. 같은 릴스를 다시 넣으면 새로 처리한다.
 - 그래서 이미 처리된 영상도 처리 중 화면(S3)이 잠깐(폴링 1~2번) 보였다가 결과로 넘어간다. MVP는 이것으로 충분하다.
 - API(`create_job`)에서 확인해 S3를 아예 건너뛰는 건 MVP 이후로 둔다. 그때는 워커가 시작할 때 현재 `extractor_version`을 설정 테이블에 써 두고 `create_job`이 그 값을 읽는다. API 서버가 워커 환경 변수를 따로 알 필요가 없게 하기 위해서다.
 - **같은 영상 동시 요청**: 두 사람이 거의 동시에 같은 영상을 넣으면 둘 다 캐시를 못 찾아 LLM이 두 번 돈다. MVP에서는 허용한다(비용 한 번 더). 줄여야 하면 claim할 때 같은 `canonical_key`의 `running` job이 있으면 `next_run_at`을 미뤄 기다리게 한다.
@@ -169,6 +171,12 @@ jobs의 claim·complete·fail은 Supabase RPC로 한다. 동시 claim 방지는 
 | 업로드 파일이 25MB 초과 | asr | `unavailable` | `upload_too_large` | ✕ | 파일이 너무 커요 → 다른 파일 올리기 / 다른 링크 |
 | 음성 인식이 파일을 못 읽음(HTTP 400: 깨진 파일·소리 없음) | asr | `unavailable` | `upload_unreadable` | ✕ | 영상 파일을 읽을 수 없어요 → 다른 파일 올리기 / 다른 링크 |
 | 음성 인식 결과에 말소리가 없음(글자 없음, whisper가 무음으로 본 구간뿐, 또는 한국어·영어가 아닌데 글자가 초당 2자 미만) | asr | `unavailable` | `no_speech` | ✕ | 영상에서 말소리를 찾지 못했어요 → 다른 파일 올리기 / 다른 링크 |
+| Instagram: Apify 5xx·429·시간 초과·네트워크 오류이고 ScrapeCreators도 실패, 또는 캡션이 없는데 음성·영상 다운로드가 일시 오류 | collect | `retryable` | `vendor_transient` | ○ | 잠시 문제가 생겼어요 → 다시 시도 / 다른 링크 |
+| Instagram: Apify 결과 없음 + ScrapeCreators 404 (삭제·비공개·없는 주소) | collect | `unavailable` | `ig_not_found` | ✕ | 이 영상은 열 수 없어요 → 파일 업로드 / 다른 링크 |
+| Instagram: ScrapeCreators 403 (접근 제한) | collect | `unavailable` | `ig_blocked` | ✕ | 이 영상은 열 수 없어요 → 파일 업로드 / 다른 링크 |
+| Instagram: 업체 크레딧 부족(402), 키 문제(그 밖의 4xx) | collect | `internal` | `vendor_quota` / `vendor_config` | ✕ | 서비스에 문제가 생겼어요 → 다시 시도 / 레시피북 |
+| Instagram: 영상이 없는 게시물(사진·슬라이드) | collect | `unsupported_source` | `ig_not_video` | ✕ | 릴스 영상만 가져올 수 있어요 → 다른 링크 / 파일 업로드 |
+| Instagram: 말소리도 캡션도 없음, 또는 캡션에 레시피 없고 말소리 없음 | asr / finalize | `unavailable` | `no_media_no_caption` | ✕ | 이 영상에서 레시피를 읽을 수 없어요 → 다른 링크 / 파일 업로드 |
 | 음성 인식 HTTP 429·5xx, 네트워크 오류, 시간 초과 | asr | `retryable` | `asr_transient` | ○ | 잠시 문제가 생겼어요 → 다른 파일 올리기 / 다른 링크 |
 | 음성 인식 키 없음, 429를 뺀 그 밖의 4xx | asr | `internal` | `asr_config` | ✕ | 서비스에 문제가 생겼어요 → 다른 파일 올리기 / 레시피북 |
 | 모델이 요리 영상이 아니라고 판단 | finalize | `not_a_recipe` | `model_not_a_recipe` | ✕ | 요리 영상이 아닌 것 같아요 → 다른 링크 |

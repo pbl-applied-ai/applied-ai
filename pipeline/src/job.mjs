@@ -1,6 +1,7 @@
 import { readFileSync } from 'node:fs';
 import { ASR_MODEL } from './asr.mjs';
 import { PipelineError } from './errors.mjs';
+import { parseReelCode } from './instagram.mjs';
 import { resolveProvider } from './llm.mjs';
 import { runPipeline } from './pipeline.mjs';
 import { PROMPT_VERSION } from './schema.mjs';
@@ -21,7 +22,10 @@ export function uploadId(sourceUrl) {
 export function canonicalKey(sourceUrl) {
   const upload = uploadId(sourceUrl);
   if (upload) return `upload:${upload}`;
-  const videoId = typeof sourceUrl === 'string' ? parseVideoId(sourceUrl.trim()) : null;
+  if (typeof sourceUrl !== 'string') return null;
+  const reel = parseReelCode(sourceUrl.trim());
+  if (reel) return `instagram:${reel}`;
+  const videoId = parseVideoId(sourceUrl.trim());
   return videoId ? `youtube:${videoId}` : null;
 }
 
@@ -57,13 +61,24 @@ function exportRun(result, warnings, { partial = false } = {}) {
   return { bundle: toEvidenceBundle(result), recipe, internal: result };
 }
 
+// The version a run of this link is saved under. The worker looks up the cache with the same value,
+// and find_cached_run compares it exactly, so the two must not be worked out separately.
+export function jobVersion(sourceUrl, env = process.env) {
+  const key = canonicalKey(sourceUrl);
+  return {
+    ...extractorVersion(env),
+    ...(key?.startsWith('upload:') && { collector: `upload+${ASR_MODEL}` }),
+    ...(key?.startsWith('instagram:') && { collector: `instagram+${ASR_MODEL}` }),
+  };
+}
+
 // Runs one job and always resolves to a result object, never throws (docs/worker-interface.md v0.3).
 // onStage gets { stage, state, reason?, ms? } as each stage starts and ends.
 // For an upload job the worker passes the file as input.upload ({ bytes, filename, mime }).
 export async function runJob(input, { onStage = () => {}, env = process.env, fetchImpl = fetch, transcriptFile, llmOutput } = {}) {
   const key = canonicalKey(input.source_url);
   const upload = uploadId(input.source_url);
-  const version = { ...extractorVersion(env), ...(upload && { collector: `upload+${ASR_MODEL}` }) };
+  const version = jobVersion(input.source_url, env);
   const stages = [];
   let current = null;
   let startedAt = 0;
@@ -113,7 +128,8 @@ export async function runJob(input, { onStage = () => {}, env = process.env, fet
     const warnings = [...result.recipe.warnings];
     // Without captions only the description was read, so "no recipe" means we could not read the video.
     if (descriptionOnly && (status !== 'ok' || (!hasIngredients && !hasSteps))) {
-      throw finalizeError('No captions, and the description has no recipe', 'unavailable', 'no_captions_no_description');
+      const reason = result.source.platform === 'instagram' ? 'no_media_no_caption' : 'no_captions_no_description';
+      throw finalizeError('No captions, and the description has no recipe', 'unavailable', reason);
     }
     if (status === 'not_a_recipe') throw finalizeError('The model judged this is not a recipe video', 'not_a_recipe', 'model_not_a_recipe');
     if (status === 'insufficient') throw finalizeError('No ingredients and no steps were found', 'insufficient', 'empty_recipe');
@@ -126,7 +142,8 @@ export async function runJob(input, { onStage = () => {}, env = process.env, fet
     return {
       status: 'succeeded',
       canonical_key: key,
-      extractor_version: version,
+      // No lookup asks for this value, so a result missing speech only because of a passing failure is not reused.
+      extractor_version: result.meta.speech_lost ? { ...version, speech: 'lost' } : version,
       ...run,
       description_only: descriptionOnly,
       metrics: { stages, usage },

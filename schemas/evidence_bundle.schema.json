@@ -18,7 +18,7 @@
       "required": ["kind"],
       "additionalProperties": false,
       "properties": {
-        "kind": { "enum": ["youtube_shorts", "upload"] },
+        "kind": { "enum": ["youtube_shorts", "upload", "instagram_reel"] },
         "url": { "type": "string", "format": "uri" },
         "title": { "type": "string" },
         "channel": { "type": "string" },
