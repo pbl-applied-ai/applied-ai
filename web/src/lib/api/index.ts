@@ -1,6 +1,6 @@
 // 화면은 여기서만 import한다: import { api, STAGE_LABEL, toEditable } from '@/lib/api';
-// Supabase 주소·anon 키가 있으면 로그인 없이 쓰는 3개(createJob·getJob·getRun)만 실제 API로 부른다(데모용 최소 연결).
-// 없으면 전부 목. 나머지 함수는 KAN-22~24에서 Supabase로 옮긴다. 화면 코드는 그대로 둔다.
+// Supabase 주소·anon 키가 없으면 전부 목. 있으면 링크 넣기·처리 중·결과는 실제 API로 부른다.
+// 로그인·저장·레시피북은 NEXT_PUBLIC_RECIPE_BOOK_ENABLED=true일 때만 실제로 부른다(KAN-23·24). 화면 코드는 그대로 둔다.
 import { createMockApi } from './mock';
 import { createSupabaseApi } from './supabase';
 import type { RecipeApi } from './types';
@@ -15,7 +15,12 @@ export const UPLOAD_ENABLED = !(SUPABASE_URL && SUPABASE_ANON_KEY) || process.en
 
 export const api: RecipeApi =
   SUPABASE_URL && SUPABASE_ANON_KEY
-    ? createSupabaseApi(createMockApi(), { url: SUPABASE_URL, anonKey: SUPABASE_ANON_KEY })
+    ? createSupabaseApi(createMockApi(), {
+        url: SUPABASE_URL,
+        anonKey: SUPABASE_ANON_KEY,
+        // 배포 DB에 저장 RPC가 들어가고 구글 로그인을 설정하기 전에는 끈다. 꺼져 있으면 지금처럼 목 레시피북이다.
+        recipeBook: process.env.NEXT_PUBLIC_RECIPE_BOOK_ENABLED === 'true',
+      })
     : createMockApi();
 
 export * from './types';

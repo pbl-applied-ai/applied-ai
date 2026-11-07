@@ -20,7 +20,8 @@ import { checkShortsUrl } from '@/lib/shorts';
 |---|---|
 | `types.ts` | `RecipeApi`(함수 목록), Job·Run·UserRecipe 등 타입 |
 | `mock.ts` | 목 구현. 링크별 시나리오(`MOCK_LINKS`) |
-| `supabase.ts` | 데모용 최소 연결. `NEXT_PUBLIC_SUPABASE_URL`·`NEXT_PUBLIC_SUPABASE_ANON_KEY`가 있으면 `createJob`·`getJob`·`getRun`(RPC `create_job`·`get_job`·`get_run`)과 `createUploadJob`(Storage `uploads` 버킷에 `incoming/<uuid>.<확장자>`로 올린 뒤 RPC `create_upload_job`)만 Supabase로 부르고 나머지는 목. 없으면 `index.ts`가 전부 목을 쓴다 |
+| `auth.ts` | 구글 로그인(PKCE)과 세션 저장·갱신. `NEXT_PUBLIC_RECIPE_BOOK_ENABLED=true`일 때 쓴다 |
+| `supabase.ts` | `NEXT_PUBLIC_RECIPE_BOOK_ENABLED=true`면 로그인·저장·레시피북도 실제로 부른다(RPC `save_recipe`·`update_recipe`·`get_recipe`, 표 `user_recipes`·`jobs`). 그 밖에는 데모용 최소 연결. `NEXT_PUBLIC_SUPABASE_URL`·`NEXT_PUBLIC_SUPABASE_ANON_KEY`가 있으면 `createJob`·`getJob`·`getRun`(RPC `create_job`·`get_job`·`get_run`)과 `createUploadJob`(Storage `uploads` 버킷에 `incoming/<uuid>.<확장자>`로 올린 뒤 RPC `create_upload_job`)만 Supabase로 부르고 나머지는 목. 없으면 `index.ts`가 전부 목을 쓴다 |
 | `labels.ts` | 처리 단계 문구, 실패 안내 7종(Figma 문구표 수정안 13-111), `failGuide(job)` |
 | `editable.ts` | 확인·수정 화면 편집 함수(수정·추가·삭제·되돌리기·저장 가능 여부) |
 | `fixtures.ts` | 목 레시피(직접 만든 가짜 fixture의 출력) |

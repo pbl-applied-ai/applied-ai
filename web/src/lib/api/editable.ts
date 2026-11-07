@@ -122,7 +122,7 @@ export function canSave(draft: EditableRecipe): boolean {
   );
 }
 
-export function unconfirmedCount(draft: EditableRecipe): number {
+export function unconfirmedCount(draft: Pick<EditableRecipe, 'ingredients'>): number {
   return draft.ingredients.filter((ing) => !ing.amount_raw).length;
 }
 
