@@ -2,8 +2,9 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
-import { canonicalKey, runJob } from '../src/job.mjs';
+import { canonicalKey, jobVersion, runJob } from '../src/job.mjs';
 import { parseReelCode } from '../src/instagram.mjs';
+import { processJob } from '../src/worker.mjs';
 
 const fixture = (name) => new URL(`./fixtures/${name}`, import.meta.url);
 const llmFixture = JSON.parse(readFileSync(fixture('sample-gochujang-bowl.llm.json'), 'utf8'));
@@ -97,6 +98,79 @@ test('a video stuck in speech recognition falls back to the caption, with no cap
   assert.equal(out.description_only, true);
   const bare = await reelJob(net({ apify: () => json(201, [{ ...noAudio, caption: '' }]), asr: stuck }));
   assert.deepEqual(failure(bare), { stage: 'asr', error_code: 'retryable', reason: 'asr_transient', retry: true });
+});
+
+test('speech lost to a passing failure is marked so the result is not reused; a lasting one is not marked', async () => {
+  const lost = [
+    net({ audio: () => file(503), video: () => file(503) }),
+    net({ audio: () => { throw new TypeError('fetch failed'); }, video: () => file(403) }),
+    net({ apify: () => json(201, [{ ...apifyItem, audioUrl: null }]), asr: () => json(500, {}) }),
+  ];
+  for (const n of lost) {
+    const out = await reelJob(n);
+    assert.equal(out.status, 'succeeded', out.message);
+    assert.equal(out.description_only, true);
+    assert.equal(out.extractor_version.speech, 'lost');
+  }
+  const lasting = [
+    net({ audio: () => file(403), video: () => file(404) }),
+    net({ asr: () => json(400, { error: { message: 'Invalid file format.' } }) }),
+  ];
+  for (const n of lasting) {
+    const out = await reelJob(n);
+    assert.equal(out.status, 'succeeded', out.message);
+    assert.equal(out.description_only, true);
+    assert.deepEqual(out.extractor_version, jobVersion(SOURCE, ENV));
+  }
+  assert.deepEqual((await reelJob(net())).extractor_version, jobVersion(SOURCE, ENV));
+});
+
+test('media that cannot be read for now, with no caption, retries instead of blaming the reel', async () => {
+  const bare = () => json(201, [{ ...apifyItem, caption: '' }]);
+  const retry = { stage: 'collect', error_code: 'retryable', reason: 'vendor_transient', retry: true };
+  assert.deepEqual(failure(await reelJob(net({ apify: bare, audio: () => file(503), video: () => file(503) }))), retry);
+  assert.deepEqual(failure(await reelJob(net({ apify: bare, audio: () => file(403), video: () => { throw new TypeError('fetch failed'); } }))), retry);
+  const gone = await reelJob(net({ apify: bare, audio: () => file(403), video: () => file(404) }));
+  assert.deepEqual(failure(gone), { stage: 'asr', error_code: 'unavailable', reason: 'no_media_no_caption', retry: false });
+});
+
+// The worker on a store that compares versions exactly, like find_cached_run.
+const cacheDb = () => {
+  const runs = [];
+  const same = (a, b) => JSON.stringify(a) === JSON.stringify(b);
+  return {
+    runs,
+    findCachedRun: async (key, version) => runs.find((r) => r.key === key && same(r.version, version))?.id ?? null,
+    setStage: async () => true,
+    completeFromCache: async () => true,
+    complete: async (job, out) => {
+      runs.push({ id: `run-${runs.length + 1}`, key: out.canonical_key, version: out.extractor_version });
+      return runs.at(-1).id;
+    },
+    fail: async () => 'failed',
+  };
+};
+const workerRun = (input, opts) => runJob(input, { ...opts, llmOutput: llmFixture });
+const reelTask = { id: 'job-1', source_url: SOURCE, attempts: 1 };
+
+test('the second request for a reel is served from the cache', async () => {
+  const db = cacheDb();
+  const env = { ...ENV, PIPELINE_TREE: 'abc1234' };
+  assert.equal((await processJob(reelTask, { db, env, fetchImpl: net().fetchImpl, run: workerRun, log: () => {} })).outcome, 'succeeded');
+  const again = await processJob(reelTask, { db, env, fetchImpl: () => assert.fail('fetched'), run: workerRun, log: () => {} });
+  assert.deepEqual(again, { outcome: 'cached', run_id: 'run-1' });
+});
+
+test('a result missing speech for now is not served from the cache', async () => {
+  const db = cacheDb();
+  const env = { ...ENV, PIPELINE_TREE: 'abc1234' };
+  const flaky = net({ audio: () => file(503), video: () => file(503) });
+  await processJob(reelTask, { db, env, fetchImpl: flaky.fetchImpl, run: workerRun, log: () => {} });
+  assert.equal(db.runs.length, 1);
+  const fresh = net();
+  assert.equal((await processJob(reelTask, { db, env, fetchImpl: fresh.fetchImpl, run: workerRun, log: () => {} })).outcome, 'succeeded');
+  assert.ok(fresh.seen.includes('https://cdn/a'), 'the reel is read again');
+  assert.equal(db.runs.length, 2);
 });
 
 test('Apify failing or finding nothing goes to ScrapeCreators, and its video is transcribed', async () => {

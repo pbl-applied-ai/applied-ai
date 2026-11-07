@@ -10,7 +10,7 @@
 // An upload job (KAN-49) also reads its file from the private "uploads" bucket and deletes it once
 // the job is finished, as the upload screen promises.
 import { pathToFileURL } from 'node:url';
-import { canonicalKey, extractorVersion, isDevVersion, runJob } from './job.mjs';
+import { canonicalKey, extractorVersion, isDevVersion, jobVersion, runJob } from './job.mjs';
 
 const POLL_MS = 2000;
 const LEASE = '10 minutes';
@@ -84,7 +84,7 @@ export function supabaseRpc({ url, key, fetchImpl = fetch }) {
 // Processes one claimed job. Returns what happened, for logs and tests.
 export async function processJob(job, { db, env = process.env, fetchImpl = fetch, log = console.log, run = runJob } = {}) {
   const key = canonicalKey(job.source_url);
-  const version = extractorVersion(env);
+  const version = jobVersion(job.source_url, env);
 
   // An upload is never in the cache (its key is the upload ID), so it skips the lookup.
   if (key && !job.upload_path && !isDevVersion(version)) {

@@ -115,27 +115,33 @@ export async function fetchReel(code, { env = process.env, fetchImpl = fetch } =
   return reel;
 }
 
-// Bytes of a media link, or null when it cannot be read or is over the speech recognition limit.
+// { bytes } of a media link. Without bytes, transient says whether trying again later could work:
+// a 5xx, 429 or dropped connection could, a dead link or a file over the speech recognition limit would not.
 async function download(url, fetchImpl) {
   try {
     const res = await fetchImpl(url, { signal: AbortSignal.timeout(MEDIA_TIMEOUT_MS) });
-    if (!res.ok || Number(res.headers?.get?.('content-length')) > MAX_UPLOAD_BYTES) return null;
+    if (!res.ok) return { transient: isTransientStatus(res.status) || res.status === 408 };
+    if (Number(res.headers?.get?.('content-length')) > MAX_UPLOAD_BYTES) return { transient: false };
     const bytes = new Uint8Array(await res.arrayBuffer());
-    return bytes.byteLength && bytes.byteLength <= MAX_UPLOAD_BYTES ? bytes : null;
+    return bytes.byteLength && bytes.byteLength <= MAX_UPLOAD_BYTES ? { bytes } : { transient: false };
   } catch {
-    return null;
+    return { transient: true };
   }
 }
 
-// The file to send to speech recognition, or null. The audio file is far smaller, so the video is the fallback.
+// { media, transient }: the file to send to speech recognition, or null and whether that could change later.
+// The audio file is far smaller, so the video is the fallback.
 export async function reelMedia(reel, { fetchImpl = fetch } = {}) {
   const sources = [
     { url: reel.audioUrl, filename: 'audio.mp4', mime: 'audio/mp4' },
     { url: reel.videoUrl, filename: 'video.mp4', mime: 'video/mp4' },
   ];
+  let transient = false;
   for (const { url, filename, mime } of sources) {
-    const bytes = url ? await download(url, fetchImpl) : null;
-    if (bytes) return { bytes, filename, mime };
+    if (!url) continue;
+    const out = await download(url, fetchImpl);
+    if (out.bytes) return { media: { bytes: out.bytes, filename, mime }, transient: false };
+    transient ||= out.transient;
   }
-  return null;
+  return { media: null, transient };
 }

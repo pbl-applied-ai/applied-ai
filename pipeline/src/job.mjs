@@ -61,17 +61,24 @@ function exportRun(result, warnings, { partial = false } = {}) {
   return { bundle: toEvidenceBundle(result), recipe, internal: result };
 }
 
+// The version a run of this link is saved under. The worker looks up the cache with the same value,
+// and find_cached_run compares it exactly, so the two must not be worked out separately.
+export function jobVersion(sourceUrl, env = process.env) {
+  const key = canonicalKey(sourceUrl);
+  return {
+    ...extractorVersion(env),
+    ...(key?.startsWith('upload:') && { collector: `upload+${ASR_MODEL}` }),
+    ...(key?.startsWith('instagram:') && { collector: `instagram+${ASR_MODEL}` }),
+  };
+}
+
 // Runs one job and always resolves to a result object, never throws (docs/worker-interface.md v0.3).
 // onStage gets { stage, state, reason?, ms? } as each stage starts and ends.
 // For an upload job the worker passes the file as input.upload ({ bytes, filename, mime }).
 export async function runJob(input, { onStage = () => {}, env = process.env, fetchImpl = fetch, transcriptFile, llmOutput } = {}) {
   const key = canonicalKey(input.source_url);
   const upload = uploadId(input.source_url);
-  const version = {
-    ...extractorVersion(env),
-    ...(upload && { collector: `upload+${ASR_MODEL}` }),
-    ...(key?.startsWith('instagram:') && { collector: `instagram+${ASR_MODEL}` }),
-  };
+  const version = jobVersion(input.source_url, env);
   const stages = [];
   let current = null;
   let startedAt = 0;
@@ -135,7 +142,8 @@ export async function runJob(input, { onStage = () => {}, env = process.env, fet
     return {
       status: 'succeeded',
       canonical_key: key,
-      extractor_version: version,
+      // No lookup asks for this value, so a result missing speech only because of a passing failure is not reused.
+      extractor_version: result.meta.speech_lost ? { ...version, speech: 'lost' } : version,
       ...run,
       description_only: descriptionOnly,
       metrics: { stages, usage },
