@@ -83,6 +83,18 @@ class MatchTest(unittest.TestCase):
         self.assertEqual(evaluate.match_ingredients([ing("밥", id="ing-1")], [ing("밥", id="ing-2")], SYN), [(0, 0)])
 
 
+    def test_amount_estimate_ignored(self):
+        # AI 추정값(KAN-52)은 정답 비교에 쓰지 않는다. 붙어 있어도 점수가 같아야 한다.
+        gold = {"bundle": {"segments": [{"id": "asr-0", "type": "asr", "start_ms": 0, "end_ms": 1, "text": "간장 1큰술"}]},
+                "recipe": {"ingredients": [ing("간장", "1큰술", ["asr-0"]), ing("소금")], "steps": []}}
+        plain = {"bundle": None, "recipe": {"ingredients": [ing("간장", "1큰술", ["asr-0"]), ing("소금")], "steps": []}}
+        guessed = json.loads(json.dumps(plain))
+        guessed["recipe"]["ingredients"][1]["amount_estimate"] = {"text": "1/2작은술", "basis": "2인분 기준"}
+        a, b = evaluate.evaluate_case(gold, plain, SYN), evaluate.evaluate_case(gold, guessed, SYN)
+        self.assertEqual(a, b)
+        self.assertEqual(b["fabricated"], 0)
+
+
 class CaseScoreTest(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
