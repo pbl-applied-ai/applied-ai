@@ -68,7 +68,11 @@ test('a full recipe succeeds with team bundle, recipe, internal result and stage
   const out = await sampleJob(undefined, { onStage: (e) => events.push(`${e.stage}:${e.state}`) });
   assert.equal(out.status, 'succeeded');
   assert.equal(out.canonical_key, 'youtube:Smpl0Gochu1');
-  assert.equal(out.bundle.schema_version, '0.1');
+  assert.equal(out.bundle.schema_version, '0.2');
+  assert.equal(out.recipe.schema_version, '0.2');
+  assert.deepEqual(out.recipe.ingredients.map((i) => i.id), out.recipe.ingredients.map((_, n) => `ing-${n + 1}`));
+  assert.deepEqual(out.recipe.steps.map((s) => s.id), out.recipe.steps.map((s) => `step-${s.order}`));
+  assert.equal('partial' in out.recipe, false, 'a full recipe has no partial key');
   assert.equal(out.recipe.title, '고추장 목살덮밥');
   assert.equal(out.internal.recipe.status, 'ok');
   assert.equal(out.description_only, false);
@@ -133,11 +137,13 @@ test('model verdicts map to not_a_recipe, empty_recipe and partial_recipe', asyn
   assert.equal(empty.metrics.stages.at(-1).state, 'failed');
 });
 
-test('a partial recipe fails but carries the part that was found, outside minItems', async () => {
+test('a partial recipe fails but carries the part that was found, marked partial', async () => {
   const out = await sampleJob((l) => ({ ...l, steps: [] }));
   assert.deepEqual(failure(out), { stage: 'finalize', error_code: 'insufficient', reason: 'partial_recipe', retry: false });
   assert.equal(out.partial.recipe.steps.length, 0);
   assert.ok(out.partial.recipe.ingredients.length > 0);
+  assert.equal(out.partial.recipe.partial, true);
+  assert.equal(out.partial.recipe.ingredients[0].id, 'ing-1');
   assert.equal(out.partial.bundle.video_id, 'Smpl0Gochu1');
   assert.equal(out.partial.internal.recipe.steps.length, 0);
 });

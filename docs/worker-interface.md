@@ -134,7 +134,7 @@ jobs의 claim·complete·fail은 Supabase RPC로 한다. 동시 claim 방지는 
 
 - 워커는 `partial`을 **run으로 저장**하고(`runs.partial = true`), 실패 job의 `run_id`가 그 run을 가리킨다. `internal`은 성공 run처럼 `run_internals`에 둔다.
 - 화면은 `get_job`의 `run_id`로 "찾은 만큼 보기"를 열고, 확인·수정 화면(S4)은 `get_run`으로 이 run의 `recipe`를 읽는다. 사용자가 빠진 쪽(재료 또는 단계)을 1개 이상 직접 추가해야 저장된다.
-- partial run의 `recipe`는 재료나 단계 한쪽이 비어 있어 팀 스키마의 `minItems`를 못 지킨다. **partial run만 이 검사에서 예외**이고, 나머지 규칙(필드·타입·근거)은 그대로 검사한다.
+- partial run의 `recipe`는 재료나 단계 한쪽이 비어 있다. 여기에는 `partial: true`가 붙고, 팀 스키마(v0.2)는 이때만 한쪽이 0개여도 받는다. 나머지 규칙(필드·타입·근거)은 그대로 검사한다.
 - **캐시 조회는 `partial = false`인 run만 본다.** 안 그러면 partial run이 성공 run처럼 재사용된다.
 - **[후속]** #18: `runs.partial` 컬럼, `runs_cache_idx`를 `where partial = false` 부분 인덱스로, `jobs_failed_has_error` 제약은 그대로 두고 실패 job의 `run_id`는 `partial_recipe`일 때만 채운다.
 
@@ -201,7 +201,7 @@ jobs의 claim·complete·fail은 Supabase RPC로 한다. 동시 claim 방지는 
 - `fetchTranscript`가 실패 원인을 구분하게 한다. 지금은 재생 불가(`LOGIN_REQUIRED`), 자막 없음, 자막 HTTP 403, 플레이어 HTTP 503이 모두 같은 `No usable captions` 오류로 끝나고, 네트워크 오류는 `TypeError: fetch failed`로 그대로 올라온다(2026-10-24 가짜 응답으로 확인).
 - 자막이 없어도 설명란을 반환하게 수집 경계를 나눈다. 지금은 자막이 없으면 설명란을 반환하기 전에 실패한다.
 - YouTube 요청에 시간 제한을 넣는다. 지금은 LLM 호출(120초)에만 있다.
-- `partial_recipe`일 때 `partial`에 `bundle`·`recipe`·`internal`을 채운다. `recipe` 검증은 빈 쪽의 `minItems`만 건너뛴다.
+- `partial_recipe`일 때 `partial`에 `bundle`·`recipe`·`internal`을 채운다. `recipe`에는 `partial: true`를 붙인다(스키마 v0.2).
 - `extractorVersion()`이 `PIPELINE_TREE`(없으면 `dev`)를 쓰게 한다.
 - `runJob`, `canonicalKey`, `extractorVersion`을 내보내고, 6번 표의 경우마다 네트워크 없는 테스트를 둔다.
 
