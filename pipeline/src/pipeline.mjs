@@ -1,6 +1,6 @@
 import { readFile } from 'node:fs/promises';
 import { PipelineError } from './errors.mjs';
-import { ASR_MODEL, transcribeUpload } from './asr.mjs';
+import { ASR_MODEL, hangulLanguage, transcribeUpload } from './asr.mjs';
 import { fetchReel, instagramEnabled, parseReelCode, reelMedia } from './instagram.mjs';
 import { fetchTranscript, parseVideoId, watchUrl } from './youtube.mjs';
 import { fetchPinnedComment } from './comments.mjs';
@@ -91,7 +91,9 @@ async function collectInstagram(code, { env, fetchImpl, onStage }) {
   if (media) {
     await inStage(onStage, 'asr', async () => {
       try {
-        const asr = await transcribeUpload(media, { env, fetchImpl });
+        // Whisper guesses the language from the first seconds and often gets Korean wrong over music,
+        // which garbles the whole transcript. A Korean caption tells us the language instead.
+        const asr = await transcribeUpload(media, { env, fetchImpl, language: hangulLanguage(reel.caption) ?? undefined });
         source.segments = asr.segments;
         source.caption.language = asr.language;
         source.video.durationMs ??= asr.durationMs;
