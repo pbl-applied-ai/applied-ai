@@ -29,6 +29,7 @@ npx supabase@2.118.0 stop
 3. Supabase 대시보드 Authentication → Providers → Google에 클라이언트 ID·비밀번호 넣기
 4. Authentication → URL Configuration의 Site URL과 Redirect URLs에 `https://<사이트>/auth/callback` 넣기 (로컬은 `http://localhost:3000/auth/callback`)
 5. Vercel에 `NEXT_PUBLIC_RECIPE_BOOK_ENABLED=true`를 넣고 다시 배포
-6. 실제 구글 계정으로 로그인부터 저장까지 끝까지 확인. Vercel 미리보기 주소는 Redirect URLs에 없어서 로그인이 안 된다
+6. 노트북 워커를 새 코드로 다시 켠 뒤 Vercel에 `NEXT_PUBLIC_UPLOAD_ENABLED=true`. 옛 워커가 업로드 job을 잡으면 `not_youtube`로 실패해서 이 순서로 한다(#32 리뷰). 업로드는 로그인한 사람만 되니 5번이 먼저다
+7. 실제 구글 계정으로 로그인부터 저장까지 끝까지 확인. Vercel 미리보기 주소는 Redirect URLs에 없어서 로그인이 안 된다
 
 클라이언트 비밀번호는 레포·`.env`에 넣지 않는다.

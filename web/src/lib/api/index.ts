@@ -9,9 +9,13 @@ import type { RecipeApi } from './types';
 const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL;
 const SUPABASE_ANON_KEY = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
 
+// 업로드는 로그인한 사람만 된다(20261109 마이그레이션). 그래서 로그인(레시피북)이 켜져 있어야 켤 수 있다.
+const RECIPE_BOOK_ENABLED = process.env.NEXT_PUBLIC_RECIPE_BOOK_ENABLED === 'true';
+
 // 영상 파일 업로드(KAN-49). 배포 DB에 uploads 버킷·create_upload_job이 들어가기 전에는 끈다(#32 리뷰).
-// 목 모드는 항상 켜고, Supabase를 쓰면 NEXT_PUBLIC_UPLOAD_ENABLED=true일 때만 켠다.
-export const UPLOAD_ENABLED = !(SUPABASE_URL && SUPABASE_ANON_KEY) || process.env.NEXT_PUBLIC_UPLOAD_ENABLED === 'true';
+// 목 모드는 항상 켜고, Supabase를 쓰면 NEXT_PUBLIC_UPLOAD_ENABLED=true이고 로그인이 켜져 있을 때만 켠다.
+export const UPLOAD_ENABLED =
+  !(SUPABASE_URL && SUPABASE_ANON_KEY) || (process.env.NEXT_PUBLIC_UPLOAD_ENABLED === 'true' && RECIPE_BOOK_ENABLED);
 
 export const api: RecipeApi =
   SUPABASE_URL && SUPABASE_ANON_KEY
@@ -19,7 +23,7 @@ export const api: RecipeApi =
         url: SUPABASE_URL,
         anonKey: SUPABASE_ANON_KEY,
         // 배포 DB에 저장 RPC가 들어가고 구글 로그인을 설정하기 전에는 끈다. 꺼져 있으면 지금처럼 목 레시피북이다.
-        recipeBook: process.env.NEXT_PUBLIC_RECIPE_BOOK_ENABLED === 'true',
+        recipeBook: RECIPE_BOOK_ENABLED,
       })
     : createMockApi();
 

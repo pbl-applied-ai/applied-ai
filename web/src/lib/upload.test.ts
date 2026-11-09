@@ -1,11 +1,20 @@
 import { describe, expect, it } from 'vitest';
 import { createMockApi } from './api/mock';
 import { createSupabaseApi } from './api/supabase';
+import { NotSignedInError } from './api/types';
 import { failureView } from './job-display';
 import { MAX_UPLOAD_BYTES, checkUploadFile } from './upload';
 
 const JOB_ID = '22222222-2222-4222-8222-222222222222';
 const file = (name: string, type: string, size = 1000) => new File([new Uint8Array(size)], name, { type });
+
+// 로그인한 세션이 들어 있는 저장소. 업로드는 로그인한 사람만 된다.
+function signedInStorage() {
+  const data: Record<string, string> = {
+    'supabase-session-v1': JSON.stringify({ accessToken: 'user-token', refreshToken: 'r', expiresAt: Date.now() + 3_600_000, user: { id: 'u1', email: null } }),
+  };
+  return { getItem: (k: string) => data[k] ?? null, setItem: (k: string, v: string) => void (data[k] = v), removeItem: (k: string) => void delete data[k] };
+}
 
 describe('checkUploadFile', () => {
   it('영상 형식은 형식이나 확장자로 알아본다', () => {
@@ -25,16 +34,17 @@ describe('checkUploadFile', () => {
 
 describe('createSupabaseApi 업로드', () => {
   function setup(replies: { storage?: number; rpc?: unknown; run?: unknown }) {
-    const sent: { url: string; method: string; type: string | null; apikey: string | null; body: unknown }[] = [];
+    const sent: { url: string; method: string; type: string | null; apikey: string | null; authorization: string | null; body: unknown }[] = [];
     const fetchImpl = (async (url: string | URL | Request, init?: RequestInit) => {
       const headers = new Headers(init?.headers);
-      sent.push({ url: String(url), method: init?.method ?? 'GET', type: headers.get('content-type'), apikey: headers.get('apikey'), body: init?.body });
+      sent.push({ url: String(url), method: init?.method ?? 'GET', type: headers.get('content-type'), apikey: headers.get('apikey'), authorization: headers.get('authorization'), body: init?.body });
       if (String(url).includes('/storage/')) return new Response('{}', { status: replies.storage ?? 200 });
       if (String(url).endsWith('/get_run')) return new Response(JSON.stringify(replies.run));
       return new Response(JSON.stringify(replies.rpc));
     }) as typeof fetch;
     const base = createMockApi({ latencyMs: 0, storage: null, navigate: () => {} });
-    return { api: createSupabaseApi(base, { url: 'https://demo.supabase.co/', anonKey: 'anon-key', fetchImpl, storage: null }), sent };
+    const api = createSupabaseApi(base, { url: 'https://demo.supabase.co/', anonKey: 'anon-key', fetchImpl, storage: signedInStorage(), recipeBook: true });
+    return { api, sent };
   }
 
   it('비공개 버킷 incoming/<uuid>에 올린 뒤 그 경로로 job을 만든다', async () => {
@@ -48,6 +58,25 @@ describe('createSupabaseApi 업로드', () => {
     const path = put.url.split('/uploads/')[1];
     expect(rpc.url).toBe('https://demo.supabase.co/rest/v1/rpc/create_upload_job');
     expect(JSON.parse(String(rpc.body))).toEqual({ p_upload_path: path });
+  });
+
+  it('로그인 토큰으로 올리고, 로그인 안 했으면 아무것도 보내지 않는다', async () => {
+    const { api, sent } = setup({ rpc: JOB_ID });
+    await api.createUploadJob(file('a.mp4', 'video/mp4'));
+    expect(sent.map((s) => s.authorization)).toEqual(['Bearer user-token', 'Bearer user-token']);
+
+    const anonSent: unknown[] = [];
+    const anon = createSupabaseApi(createMockApi({ latencyMs: 0, storage: null, navigate: () => {} }), {
+      url: 'https://demo.supabase.co/', anonKey: 'anon-key', storage: null, recipeBook: true,
+      fetchImpl: (async () => { anonSent.push(1); return new Response('{}'); }) as typeof fetch,
+    });
+    await expect(anon.createUploadJob(file('a.mp4', 'video/mp4'))).rejects.toBeInstanceOf(NotSignedInError);
+    expect(anonSent).toEqual([]);
+  });
+
+  it('버킷이 로그인을 거부하면 로그인 필요로 알린다', async () => {
+    const { api } = setup({ storage: 403 });
+    await expect(api.createUploadJob(file('a.mp4', 'video/mp4'))).rejects.toBeInstanceOf(NotSignedInError);
   });
 
   it('올리기가 실패하면 job을 만들지 않는다', async () => {

@@ -2,7 +2,7 @@
 
 import { useRouter } from "next/navigation";
 import { useRef, useState } from "react";
-import { UPLOAD_ENABLED, api } from "@/lib/api";
+import { NotSignedInError, UPLOAD_ENABLED, api } from "@/lib/api";
 import { fileSource, rememberJobSource } from "@/lib/job-source";
 import { SHORTS_ERROR_TEXT, checkShortsUrl } from "@/lib/shorts";
 import { UPLOAD_ACCEPT, UPLOAD_ERROR_TEXT, checkUploadFile } from "@/lib/upload";
@@ -70,9 +70,14 @@ export function LinkInputForm() {
       rememberJobSource(jobId, fileSource(file.name));
       router.push(`/jobs/${encodeURIComponent(jobId)}`);
       setUploading(false);
-    } catch {
-      setUploadError("파일을 올리지 못했어요. 다시 시도해 주세요.");
+    } catch (err) {
       setUploading(false);
+      // 업로드는 로그인한 사람만 된다. 로그인하고 이 화면으로 돌아와서 다시 고르게 한다.
+      if (err instanceof NotSignedInError) {
+        router.push(`/login?next=${encodeURIComponent("/")}`);
+        return;
+      }
+      setUploadError("파일을 올리지 못했어요. 다시 시도해 주세요.");
     }
   }
 
@@ -150,7 +155,7 @@ export function LinkInputForm() {
             </p>
           )}
           <p className="mt-2 text-[13px] leading-relaxed text-muted">
-            직접 찍었거나 사용 권한이 있는 영상만 올려 주세요. 올린 영상은 레시피를 만든 뒤 지워져요. (25MB까지)
+            로그인하면 올릴 수 있어요. 직접 찍었거나 사용 권한이 있는 영상만 올려 주세요. 올린 영상은 레시피를 만든 뒤 지워져요. (25MB까지)
           </p>
         </>
       ) : (
