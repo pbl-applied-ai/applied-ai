@@ -63,6 +63,16 @@
         },
         "name": { "type": "string", "minLength": 1, "description": "라벨링 가이드의 재료 이름 규칙을 따른 이름" },
         "name_raw": { "type": "string", "description": "영상 표기가 name과 다를 때만" },
+        "amount_estimate": {
+          "type": "object",
+          "required": ["text"],
+          "additionalProperties": false,
+          "description": "영상에 없는 분량의 AI 추정값(KAN-52). 화면은 \"추정\"으로 따로 보여 준다. amount_status가 unconfirmed일 때만 붙고 amount_raw는 그대로 null. 정답·평가셋에는 쓰지 않고, 평가는 이 칸을 지어낸 분량으로 세지 않는다",
+          "properties": {
+            "text": { "type": "string", "minLength": 1, "maxLength": 30, "description": "예: \"1큰술\"" },
+            "basis": { "type": "string", "minLength": 1, "maxLength": 60, "description": "무엇을 기준으로 추정했는지. 예: \"2인분 찌개 기준\"" }
+          }
+        },
         "amount_raw": {
           "type": ["string", "null"],
           "description": "영상에 나온 분량 원문(예: \"2큰술\", \"한 줌\"). 미확인이면 null"
@@ -77,7 +87,8 @@
           "then": {
             "properties": {
               "amount_raw": { "type": "string", "minLength": 1 },
-              "evidence": { "minItems": 1 }
+              "evidence": { "minItems": 1 },
+              "amount_estimate": false
             }
           }
         },

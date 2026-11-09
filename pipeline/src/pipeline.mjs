@@ -6,6 +6,7 @@ import { fetchTranscript, parseVideoId, watchUrl } from './youtube.mjs';
 import { fetchPinnedComment } from './comments.mjs';
 import { commentSegments, descriptionSegments, normalizeSegments, renderForPrompt } from './segments.mjs';
 import { buildUserPrompt, PROMPT_VERSION } from './schema.mjs';
+import { estimateAmounts, estimateEnabled, ESTIMATE_PROMPT_VERSION } from './estimate.mjs';
 import { extractRecipe, resolveProvider } from './llm.mjs';
 import { resolveRecipe } from './resolve.mjs';
 
@@ -113,7 +114,8 @@ async function collectInstagram(code, { env, fetchImpl, onStage }) {
 }
 
 // upload: { id, bytes, filename, mime } for an uploaded video file, instead of url.
-export async function runPipeline({ url, upload, transcriptFile, languages, env = process.env, fetchImpl = fetch, llmOutput, onStage = () => {}, comments = true }) {
+// estimateOutput replays a saved amount-estimate reply. With llmOutput alone the estimate is skipped, so replays make no call.
+export async function runPipeline({ url, upload, transcriptFile, languages, env = process.env, fetchImpl = fetch, llmOutput, estimateOutput, onStage = () => {}, comments = true }) {
   let source;
   let evidence;
   const reelCode = url && !transcriptFile ? parseReelCode(url) : null;
@@ -161,6 +163,9 @@ export async function runPipeline({ url, upload, transcriptFile, languages, env 
   // Left open on purpose: runJob closes finalize after checking the result (CLI callers ignore stages).
   onStage({ stage: 'finalize', state: 'started' });
   const recipe = resolveRecipe(llm, evidence);
+  const estimate = estimateEnabled(env) && (!llmOutput || estimateOutput)
+    ? await estimateAmounts(recipe, { env, fetchImpl, estimateOutput })
+    : null;
   // An upload is not kept after the recipe is made, so there is nothing to link to.
   const videoId = source.video.platform === 'youtube' ? source.video.videoId : null;
   for (const item of [...recipe.steps, ...recipe.ingredients, ...recipe.tips]) {
@@ -179,6 +184,7 @@ export async function runPipeline({ url, upload, transcriptFile, languages, env 
       generated_at: new Date().toISOString(),
       ...(source.commentNote && { comment_note: source.commentNote }),
       ...(source.speechLost && { speech_lost: true }),
+      ...(estimate && { estimate: { prompt_version: ESTIMATE_PROMPT_VERSION, applied: estimate.applied, usage: estimate.usage } }),
     },
   };
 }
