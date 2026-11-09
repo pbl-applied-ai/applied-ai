@@ -3,6 +3,7 @@ import { ASR_MODEL } from './asr.mjs';
 import { PipelineError } from './errors.mjs';
 import { estimateEnabled, ESTIMATE_PROMPT_VERSION } from './estimate.mjs';
 import { parseReelCode } from './instagram.mjs';
+import { OCR_VERSION, ocrEnabled } from './ocr.mjs';
 import { resolveProvider } from './llm.mjs';
 import { runPipeline } from './pipeline.mjs';
 import { PROMPT_VERSION } from './schema.mjs';
@@ -72,6 +73,8 @@ export function jobVersion(sourceUrl, env = process.env) {
     ...extractorVersion(env),
     ...(key?.startsWith('upload:') && { collector: `upload+${ASR_MODEL}` }),
     ...(key?.startsWith('instagram:') && { collector: `instagram+${ASR_MODEL}` }),
+    // Uploads and reels are the only videos with frames to read; a run made without them must not be reused.
+    ...((key?.startsWith('upload:') || key?.startsWith('instagram:')) && ocrEnabled(env) && { ocr: OCR_VERSION }),
   };
 }
 

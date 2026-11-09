@@ -34,6 +34,9 @@ node scripts/repeat-model.mjs <transcript.json> gpt-4.1 3
 - `OPENAI_API_KEY` 또는 `ANTHROPIC_API_KEY`
 - `LLM_PROVIDER` (`openai` | `anthropic`, 기본: 설정된 키 쪽)
 - `LLM_MODEL` (기본 모델 대신 쓸 모델)
+- `AMOUNT_ESTIMATE` (`off`면 추정 분량 제안을 부르지 않음. 기본은 켜짐, KAN-52)
+- `OCR` (`on`이면 업로드·Instagram 영상의 화면 글자를 읽음. ffmpeg와 `OPENAI_API_KEY`가 있어야 함, KAN-51)
+- `FFMPEG_PATH` (PATH에 ffmpeg가 없을 때 위치), `OCR_MODEL` (기본 `gpt-4.1`)
 
 `compare/`, `dev-candidates/`, `out/`, `*.transcript.json`(테스트 fixture 제외)은 `.gitignore` 대상이다. 실제 영상의 자막·실행 결과는 레포에 올리지 않는다.
 

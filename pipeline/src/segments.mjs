@@ -42,10 +42,17 @@ export const descriptionSegments = (description, { maxLines = 80 } = {}) => line
 // The creator's pinned comment, which some Shorts use instead of the description for the recipe.
 export const commentSegments = (comment, { maxLines = 80 } = {}) => lineSegments(comment, 'C', 'comment', maxLines);
 
+// On-screen text read from frames (KAN-51): one segment per run of the same text, with its time.
+export const ocrSegments = (raw) =>
+  raw.map((s, i) => ({ id: `O${pad(i + 1, raw.length)}`, kind: 'ocr', startMs: s.startMs, endMs: s.startMs + s.durMs, text: s.text }));
+
 const UNTIMED_LABEL = { description: '설명', comment: '고정 댓글' };
 
 export function renderForPrompt(segments) {
   return segments
-    .map((s) => (UNTIMED_LABEL[s.kind] ? `[${s.id} ${UNTIMED_LABEL[s.kind]}] ${s.text}` : `[${s.id} ${formatClock(s.startMs)}] ${s.text}`))
+    .map((s) => {
+      if (UNTIMED_LABEL[s.kind]) return `[${s.id} ${UNTIMED_LABEL[s.kind]}] ${s.text}`;
+      return `[${s.id} ${formatClock(s.startMs)}${s.kind === 'ocr' ? ' 화면' : ''}] ${s.text}`;
+    })
     .join('\n');
 }

@@ -129,6 +129,11 @@ async function download(url, fetchImpl) {
   }
 }
 
+// The reel's video file for on-screen text, or null.
+export async function reelVideo(reel, { fetchImpl = fetch } = {}) {
+  return reel.videoUrl ? (await download(reel.videoUrl, fetchImpl)).bytes ?? null : null;
+}
+
 // { media, transient }: the file to send to speech recognition, or null and whether that could change later.
 // The audio file is far smaller, so the video is the fallback.
 export async function reelMedia(reel, { fetchImpl = fetch } = {}) {

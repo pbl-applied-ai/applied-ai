@@ -1,4 +1,7 @@
 export const PROMPT_VERSION = 'recipe-extract-v7';
+// v7 plus the on-screen text format, used only when a video has on-screen text (KAN-51). v7 itself is unchanged,
+// so the YouTube baseline score keeps its prompt.
+export const OCR_PROMPT_VERSION = 'recipe-extract-v7-ocr';
 
 const evidence = {
   type: 'array',
@@ -134,3 +137,7 @@ steps: {text:"밥 한 공기에 계란 노른자를 올린다.", evidence:["S01"
 export function buildUserPrompt(video, evidenceText) {
   return `Video title: ${video.title ?? '(unknown)'}\nChannel: ${video.author ?? '(unknown)'}\n\nEvidence:\n${evidenceText}`;
 }
+
+const OCR_FORMAT = `- "[O04 00:12 화면] text" is text shown on screen from that time, read from video frames. It can be mis-read like speech. Treat its amounts like amounts from speech: copy them exactly and cite the O segment.`;
+
+export const SYSTEM_PROMPT_OCR = SYSTEM_PROMPT.replace('\n\n## Rules', `\n${OCR_FORMAT}\n\n## Rules`);

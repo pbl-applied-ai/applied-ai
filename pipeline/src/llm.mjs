@@ -112,6 +112,7 @@ export async function callStructured(config, task, { fetchImpl = fetch, timeoutM
   return call(config, task, fetchImpl, timeoutMs);
 }
 
-export function extractRecipe(config, userPrompt, options) {
-  return callStructured(config, { name: 'save_recipe', system: SYSTEM_PROMPT, schema: RECIPE_SCHEMA, user: userPrompt }, options);
+// system replaces the extraction prompt (the on-screen text variant); options as for callStructured.
+export function extractRecipe(config, userPrompt, { system = SYSTEM_PROMPT, ...options } = {}) {
+  return callStructured(config, { name: 'save_recipe', system, schema: RECIPE_SCHEMA, user: userPrompt }, options);
 }
