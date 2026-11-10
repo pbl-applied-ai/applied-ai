@@ -1,7 +1,8 @@
-# 워커 ↔ 파이프라인 호출 방식 v0.6
+# 워커 ↔ 파이프라인 호출 방식 v0.7
 
 작성: 전수빈 · 2026-10-24 · 선규 합의용
-수정일: 2026-11-06
+수정일: 2026-11-09
+변경(v0.7): 영상 파일 업로드는 로그인한 사람만(`create_upload_job` anon 권한 회수, `uploads` 올리기 정책 authenticated만). 업로드는 캐시를 안 써서 건마다 비용이 나가기 때문(#32 배포 조건).
 변경(v0.6, KAN-53): Instagram 수집기(`collectInstagram`), `canonical_key` `instagram:<코드>`, 실패 `reason` 7개 추가(`vendor_transient`·`vendor_quota`·`vendor_config`·`ig_not_found`·`ig_blocked`·`ig_not_video`, `no_media_no_caption`). `APIFY_TOKEN`·`SCRAPECREATORS_API_KEY`가 둘 다 없으면 지금처럼 `not_youtube`로 끝난다. 일시 오류로 말소리를 못 읽은 결과는 캐시에서 다시 쓰지 않는다(`speech: "lost"`).
 변경(v0.5, KAN-50): `no_speech` 판단 보강. 음악만 있는 영상에서 whisper가 엉뚱한 언어로 짧은 글을 만드는 경우를 잡는다.
 변경(v0.4, KAN-49): 영상 파일 업로드 입력(`upload_path`)과 업로드용 음성 인식(`asr` 단계), 업로드 실패 `reason` 6개 추가(`upload_missing`·`upload_too_large`·`upload_unreadable`·`no_speech`·`asr_transient`·`asr_config`). 업로드 job은 [다시 시도] 대신 [다른 파일 올리기].
@@ -49,12 +50,12 @@ jobs의 claim·complete·fail은 Supabase RPC로 한다. 동시 claim 방지는 
 
 ### 업로드 입력 (KAN-49)
 
-- 화면이 비공개 버킷 `uploads`에 `incoming/<uuid>.<mp4|mov|webm|m4v>`로 파일을 올리고 `create_upload_job(경로)`를 부른다. 로그인 없이 올리기만 되고 읽기·지우기는 안 된다. 25MB까지(음성 인식 API 한도).
+- 화면이 비공개 버킷 `uploads`에 `incoming/<uuid>.<mp4|mov|webm|m4v>`로 파일을 올리고 `create_upload_job(경로)`를 부른다. **로그인한 사람만** 올리고 job을 만든다(업로드는 캐시를 안 써서 건마다 비용이 나가기 때문, 11/9). 올리기만 되고 읽기·지우기는 안 된다. 25MB까지(음성 인식 API 한도).
 - job의 `source_url`은 `upload:<uuid>`, 파일 위치는 `jobs.upload_path`(화면에는 열지 않음). `canonical_key`도 `upload:<uuid>`라 캐시를 쓰지 않는다.
 - 워커는 claim한 job에 `upload_path`가 있으면 service_role로 파일을 읽어 `runJob`의 `input.upload`(`{ bytes, filename, mime }`)로 넘긴다. job이 끝나면(성공·최종 실패) 파일을 지운다. 자동 재시도로 다시 큐에 들어가면 남겨 둔다. 파일을 읽다가 Storage 오류(키·요청 오류의 400 포함)가 나면 `collect_network`(자동 재시도)로 실패시키고, 이때는 최종 실패여도 파일을 지우지 않는다.
 - 음성 인식 API는 파일 이름으로 형식을 보고 mov·m4v를 받지 않는다. 워커는 mov·m4v를 `upload.mp4`로 이름 붙여 보낸다(같은 ISO-BMFF 계열).
 - 업로드는 자막·설명란이 없어서 음성 인식(`whisper-1`, 시각 있는 구간)이 유일한 근거다. 링크 영상의 직접 음성 인식·자막과의 비교는 KAN-50에서 정한다.
-- **[후속]** job을 만들지 않고 남은 파일과 `worker_lost`로 끝난 job의 파일 정리, 익명 업로드 횟수 제한.
+- **[후속]** job을 만들지 않고 남은 파일과 `worker_lost`로 끝난 job의 파일 정리, 로그인 사용자 하루 업로드 상한.
 
 ### 링크 범위
 
