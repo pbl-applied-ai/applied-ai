@@ -32,8 +32,9 @@ export function LinkInputForm() {
     };
   }, []);
 
+  // 로그인한 사람은 / 에서 레시피북으로 넘어가니(HomeRedirect) 링크 입력이 그대로 보이는 /?new=1로 돌아온다.
   function goLogin() {
-    router.push(`/login?next=${encodeURIComponent("/")}`);
+    router.push(`/login?next=${encodeURIComponent("/?new=1")}`);
   }
 
   // 로그인 안 했으면 파일 창을 열지 않고 바로 로그인으로 보낸다. 고른 파일이 사라지지 않게.
