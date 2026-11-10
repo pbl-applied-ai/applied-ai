@@ -33,12 +33,12 @@ describe('checkUploadFile', () => {
 });
 
 describe('createSupabaseApi 업로드', () => {
-  function setup(replies: { storage?: number; rpc?: unknown; run?: unknown }) {
+  function setup(replies: { storage?: number; storageBody?: string; rpc?: unknown; run?: unknown }) {
     const sent: { url: string; method: string; type: string | null; apikey: string | null; authorization: string | null; body: unknown }[] = [];
     const fetchImpl = (async (url: string | URL | Request, init?: RequestInit) => {
       const headers = new Headers(init?.headers);
       sent.push({ url: String(url), method: init?.method ?? 'GET', type: headers.get('content-type'), apikey: headers.get('apikey'), authorization: headers.get('authorization'), body: init?.body });
-      if (String(url).includes('/storage/')) return new Response('{}', { status: replies.storage ?? 200 });
+      if (String(url).includes('/storage/')) return new Response(replies.storageBody ?? '{}', { status: replies.storage ?? 200 });
       if (String(url).endsWith('/get_run')) return new Response(JSON.stringify(replies.run));
       return new Response(JSON.stringify(replies.rpc));
     }) as typeof fetch;
@@ -77,6 +77,11 @@ describe('createSupabaseApi 업로드', () => {
   it('버킷이 로그인을 거부하면 로그인 필요로 알린다', async () => {
     const { api } = setup({ storage: 403 });
     await expect(api.createUploadJob(file('a.mp4', 'video/mp4'))).rejects.toBeInstanceOf(NotSignedInError);
+    // 실제 Storage는 정책에 막히면 400에 본문 statusCode로 준다
+    const rls = setup({ storage: 400, storageBody: '{"statusCode":"403","error":"Unauthorized","message":"new row violates row-level security policy"}' });
+    await expect(rls.api.createUploadJob(file('a.mp4', 'video/mp4'))).rejects.toBeInstanceOf(NotSignedInError);
+    const other = setup({ storage: 400, storageBody: '{"statusCode":"400","error":"InvalidKey"}' });
+    await expect(other.api.createUploadJob(file('a.mp4', 'video/mp4'))).rejects.toThrow('upload 400');
   });
 
   it('올리기가 실패하면 job을 만들지 않는다', async () => {

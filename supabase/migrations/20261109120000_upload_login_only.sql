@@ -26,7 +26,9 @@ begin
   if v_upload_id is null then
     raise exception 'invalid upload_path' using errcode = '22023';
   end if;
-  if not exists (select 1 from storage.objects o where o.bucket_id = 'uploads' and o.name = p_upload_path) then
+  -- 올린 사람 본인 파일로만 job을 만든다(Storage가 owner_id에 올린 사람을 적는다).
+  if not exists (select 1 from storage.objects o
+                 where o.bucket_id = 'uploads' and o.name = p_upload_path and o.owner_id = auth.uid()::text) then
     raise exception 'upload not found' using errcode = 'P0002';
   end if;
 

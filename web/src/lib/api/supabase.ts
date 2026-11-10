@@ -58,6 +58,17 @@ interface RecipeListRow {
   created_at: string;
 }
 
+// Storage는 정책(RLS)에 막히면 HTTP 400을 주고 실제 상태는 본문 statusCode에 넣는다(예: {"statusCode":"403"}).
+// 토큰이 끝났거나 로그인하지 않은 경우라서 로그인 안내로 보낸다.
+function storageDenied(status: number, text: string): boolean {
+  if (status === 401 || status === 403) return true;
+  try {
+    return ['401', '403'].includes(String((JSON.parse(text) as { statusCode?: unknown }).statusCode));
+  } catch {
+    return false;
+  }
+}
+
 // 업로드로 만든 결과는 원본을 지워서 열 링크가 없다(source_url은 upload:<uuid>)
 const publicSource = (sourceUrl: string) => (sourceUrl.startsWith('upload:') ? '' : sourceUrl);
 
@@ -151,8 +162,11 @@ export function createSupabaseApi(base: RecipeApi, options: SupabaseOptions): Re
         headers: { apikey: options.anonKey, authorization: `Bearer ${await bearer(true)}`, 'content-type': check.mime, 'x-upsert': 'false' },
         body: file,
       });
-      if (res.status === 401 || res.status === 403) throw new NotSignedInError();
-      if (!res.ok) throw new Error(`upload ${res.status}: ${(await res.text()).slice(0, 200)}`);
+      if (!res.ok) {
+        const text = await res.text();
+        if (storageDenied(res.status, text)) throw new NotSignedInError();
+        throw new Error(`upload ${res.status}: ${text.slice(0, 200)}`);
+      }
       const id = await rpc<string>('create_upload_job', { p_upload_path: path }, true);
       if (!id) throw new Error('create_upload_job returned no id');
       return { jobId: id };

@@ -1,7 +1,7 @@
 -- 영상 파일 업로드(KAN-49): 버킷 정책, create_upload_job 입력 검사, 워커가 받는 열.
 begin;
 create extension if not exists pgtap with schema extensions;
-select plan(15);
+select plan(16);
 
 create function pg_temp.login_as(uid uuid) returns void language plpgsql as $$
 begin
@@ -13,8 +13,9 @@ insert into auth.users (id, email) values ('11111111-1111-1111-1111-111111111111
 select is((select public from storage.buckets where id = 'uploads'), false, 'uploads 버킷은 비공개다');
 
 -- 화면이 올린 파일 대신 행을 직접 넣는다(Storage 서비스 없이 DB만 검사)
-insert into storage.objects (bucket_id, name)
-values ('uploads', 'incoming/0b6f1c2e-3d4a-4b5c-8d9e-0f1a2b3c4d5e.mp4');
+insert into storage.objects (bucket_id, name, owner_id) values
+  ('uploads', 'incoming/0b6f1c2e-3d4a-4b5c-8d9e-0f1a2b3c4d5e.mp4', '11111111-1111-1111-1111-111111111111'),
+  ('uploads', 'incoming/22222222-3333-4444-8555-666666666666.mp4', '99999999-9999-9999-9999-999999999999');
 
 -- 익명은 올리지도, job을 만들지도 못한다
 set local role anon;
@@ -41,6 +42,9 @@ select throws_ok($$ select public.create_upload_job('incoming/0b6f1c2e-3d4a-4b5c
 select throws_ok($$ select public.create_upload_job(null) $$, '22023', 'invalid upload_path', 'null은 거부');
 select throws_ok($$ select public.create_upload_job('incoming/11111111-2222-4333-8444-555555555555.mp4') $$, 'P0002',
                  'upload not found', '올라가지 않은 파일로는 job을 못 만든다');
+
+select throws_ok($$ select public.create_upload_job('incoming/22222222-3333-4444-8555-666666666666.mp4') $$, 'P0002',
+                 'upload not found', '남이 올린 파일로는 job을 못 만든다');
 
 select set_config('test.upload_job',
   public.create_upload_job('incoming/0b6f1c2e-3d4a-4b5c-8d9e-0f1a2b3c4d5e.mp4')::text, true);
