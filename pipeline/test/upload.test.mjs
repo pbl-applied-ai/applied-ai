@@ -2,7 +2,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
-import { readTranscript, toSegments } from '../src/asr.mjs';
+import { hangulLanguage, isFiller, readTranscript, toSegments } from '../src/asr.mjs';
 import { canonicalKey, runJob, uploadId } from '../src/job.mjs';
 import { processJob, supabaseRpc } from '../src/worker.mjs';
 
@@ -65,6 +65,28 @@ test('a few words in an unexpected language count as no speech, real speech does
   assert.equal(readTranscript(body('korean', '짧은 글')).segments.length, 1, 'an expected language keeps short speech');
   assert.equal(readTranscript(body('japanese', 'あ'.repeat(200))).segments.length, 1, 'long speech in another language stays');
   assert.equal(readTranscript({ language: 'khmer', segments: [{ start: 0, end: 2, text: '짧은 글' }] }).segments.length, 1, 'no duration, no rate to judge');
+});
+
+test('lines Whisper writes over music are dropped, a recipe line that mentions them is not', () => {
+  for (const t of [' 시청해주셔서 감사합니다', '구독, 좋아요, 알림설정 부탁드립니다.', 'Thanks for watching the video', '맛있게 잘 먹겠습니다.']) {
+    assert.equal(isFiller(t), true, t);
+  }
+  assert.equal(isFiller('구독하고 고추장 2큰술 넣어 주세요'), false);
+  const body = { segments: [{ start: 0, end: 2, text: '고추장 두 스푼' }, { start: 2, end: 4, text: '시청해주셔서 감사합니다' }] };
+  assert.deepEqual(toSegments(body).map((s) => s.text), ['고추장 두 스푼']);
+});
+
+test('a Korean caption gives the language, and Hangul text counts as Korean whatever Whisper named it', () => {
+  assert.equal(hangulLanguage('고추장 2큰술, 설탕 1큰술 넣고 볶아요 #레시피'), 'ko');
+  assert.equal(hangulLanguage('Cucumber kimchi with gochugaru'), null);
+  const javanese = { language: 'javanese', duration: 40, segments: [{ start: 0, end: 2, text: '올리브오일 마늘', avg_logprob: -1.7 }] };
+  assert.equal(readTranscript(javanese).segments.length, 1, 'real Korean speech named Javanese is kept');
+});
+
+test('a sparse run of syllables Whisper was very unsure of counts as no speech', () => {
+  const body = (avg_logprob) => ({ language: 'korean', duration: 30, segments: [{ start: 0, end: 1, text: '으', avg_logprob }, { start: 5, end: 6, text: '차', avg_logprob }] });
+  assert.deepEqual(readTranscript(body(-4.2)).segments, []);
+  assert.equal(readTranscript(body(-0.5)).segments.length, 2, 'confident short speech stays');
 });
 
 test('an uploaded file is transcribed and makes a recipe with an upload bundle and no video links', async () => {
