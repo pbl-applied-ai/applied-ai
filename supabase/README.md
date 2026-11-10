@@ -24,7 +24,7 @@ npx supabase@2.118.0 stop
 
 코드는 `NEXT_PUBLIC_RECIPE_BOOK_ENABLED`로 꺼 두었다. 켜는 순서:
 
-1. 배포 DB에 밀린 마이그레이션을 순서대로 적용. 마지막이 `20261106120000_recipe_save.sql`이고, 그 앞에 아직 안 들어간 `20261031120000_upload_path.sql`도 있다
+1. 배포 DB에 밀린 마이그레이션을 순서대로 적용. 마지막이 `20261106120000_recipe_save.sql`이고, 그 앞에 아직 안 들어간 `20261031120000_upload_path.sql`도 있다 추정 분량(KAN-52)이 들어가면 `20261109130000_hide_estimates_public.sql`(로그인 전 공개 링크에서 추정값 빼기)도 이어서 적용한다
 2. Google Cloud에서 OAuth 클라이언트(웹) 만들기. 승인된 리디렉션 URI는 `https://<프로젝트>.supabase.co/auth/v1/callback`
 3. Supabase 대시보드 Authentication → Providers → Google에 클라이언트 ID·비밀번호 넣기
 4. Authentication → URL Configuration의 Site URL과 Redirect URLs에 `https://<사이트>/auth/callback` 넣기 (로컬은 `http://localhost:3000/auth/callback`)
