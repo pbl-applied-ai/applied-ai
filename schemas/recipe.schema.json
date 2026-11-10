@@ -2,29 +2,48 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "recipe.schema.json",
   "title": "Recipe",
-  "description": "5~6단계 출력(RecipeDraft)과 정답 레시피가 같은 형식을 쓴다. 평가는 두 파일을 그대로 비교한다.",
+  "description": "5~6단계 출력(RecipeDraft)과 정답 레시피가 같은 형식을 쓴다. 평가는 두 파일을 그대로 비교한다. 사용자가 고친 레시피는 user_recipe.schema.json.",
   "type": "object",
   "required": ["schema_version", "video_id", "title", "ingredients", "steps"],
   "additionalProperties": false,
   "properties": {
-    "schema_version": { "const": "0.1" },
+    "schema_version": { "const": "0.2" },
     "video_id": { "type": "string", "pattern": "^[A-Za-z0-9_-]+$" },
     "title": { "type": "string", "minLength": 1 },
     "servings_raw": {
       "type": ["string", "null"],
       "description": "영상에 나온 그대로(예: \"2인분\"). 없으면 null"
     },
+    "partial": {
+      "type": "boolean",
+      "description": "파이프라인이 재료나 단계 한쪽만 찾은 결과(partial run, docs/worker-interface.md 4번)일 때만 true. 정답·사용자 레시피에는 쓰지 않는다"
+    },
     "ingredients": {
       "type": "array",
-      "minItems": 1,
       "items": { "$ref": "#/$defs/ingredient" }
     },
     "steps": {
       "type": "array",
-      "minItems": 1,
       "items": { "$ref": "#/$defs/step" }
     }
   },
+  "allOf": [
+    {
+      "if": { "required": ["partial"], "properties": { "partial": { "const": true } } },
+      "then": {
+        "anyOf": [
+          { "properties": { "ingredients": { "minItems": 1 } } },
+          { "properties": { "steps": { "minItems": 1 } } }
+        ]
+      },
+      "else": {
+        "properties": {
+          "ingredients": { "minItems": 1 },
+          "steps": { "minItems": 1 }
+        }
+      }
+    }
+  ],
   "$defs": {
     "evidence": {
       "type": "array",
@@ -34,9 +53,14 @@
     },
     "ingredient": {
       "type": "object",
-      "required": ["name", "amount_raw", "amount_status", "evidence"],
+      "required": ["id", "name", "amount_raw", "amount_status", "evidence"],
       "additionalProperties": false,
       "properties": {
+        "id": {
+          "type": "string",
+          "pattern": "^ing-[1-9][0-9]*$",
+          "description": "레시피 안에서 겹치지 않는 항목 ID(중복은 validate.py가 검사). 추출 결과는 배열 순서대로 ing-1부터 붙인다"
+        },
         "name": { "type": "string", "minLength": 1, "description": "라벨링 가이드의 재료 이름 규칙을 따른 이름" },
         "name_raw": { "type": "string", "description": "영상 표기가 name과 다를 때만" },
         "amount_raw": {
@@ -65,9 +89,14 @@
     },
     "step": {
       "type": "object",
-      "required": ["order", "text", "evidence"],
+      "required": ["id", "order", "text", "evidence"],
       "additionalProperties": false,
       "properties": {
+        "id": {
+          "type": "string",
+          "pattern": "^step-[1-9][0-9]*$",
+          "description": "레시피 안에서 겹치지 않는 항목 ID. 추출 결과는 order 순서대로 step-1부터 붙인다"
+        },
         "order": { "type": "integer", "minimum": 1 },
         "text": { "type": "string", "minLength": 1 },
         "evidence": { "$ref": "#/$defs/evidence" }

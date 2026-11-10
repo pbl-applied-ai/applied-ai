@@ -149,16 +149,17 @@ export function createMockApi(options: MockOptions = {}): RecipeApi {
       return { jobId: job.id };
     },
 
-    // 업로드는 항상 성공 예시 레시피가 나온다. 원본을 지우는 것처럼 링크는 비워 둔다.
+    // 업로드는 실제와 같이 로그인해야 되고, 항상 성공 예시 레시피가 나온다. 원본을 지우는 것처럼 링크는 비워 둔다.
     async createUploadJob(file) {
       await wait();
       if (!checkUploadFile(file).ok) throw new Error('invalid upload');
       const state = load();
+      const user = requireUser(state);
       const job: StoredJob = {
         id: crypto.randomUUID(),
         sourceUrl: '',
         videoId: 'Smpl0Gochu1',
-        requestedBy: state.user?.id ?? null,
+        requestedBy: user.id,
         createdAt: now(),
       };
       save({ ...state, jobs: { ...state.jobs, [job.id]: job } });

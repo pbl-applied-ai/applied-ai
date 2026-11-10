@@ -1,0 +1,79 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "user_recipe.schema.json",
+  "title": "UserRecipe",
+  "description": "사용자가 레시피북에 저장한 레시피(DB user_recipes). 추출 결과(run.recipe, recipe.schema.json)를 복사해 고친 사본이다. 항목 ID로 추출 결과와 맞춘다. 스키마로는 볼 수 없는 규칙은 저장 RPC(save_recipe·update_recipe, KAN-23)가 검사한다: (1) 추출 결과의 같은 ID 항목과 분량이 같고 그 항목이 confirmed일 때만 confirmed (2) 재료 이름이 바뀌면 분량이 같아도 unconfirmed (3) edited·user_entered는 클라이언트 값을 쓰지 않고 서버가 다시 정한다.",
+  "type": "object",
+  "required": ["schema_version", "run_id", "video_id", "title", "ingredients", "steps"],
+  "additionalProperties": false,
+  "properties": {
+    "schema_version": { "const": "0.2" },
+    "run_id": { "type": "string", "format": "uuid", "description": "복사해 온 추출 결과(runs.id)" },
+    "video_id": { "type": "string", "pattern": "^[A-Za-z0-9_-]+$" },
+    "title": { "type": "string", "minLength": 1, "maxLength": 200 },
+    "servings_raw": { "type": ["string", "null"] },
+    "ingredients": {
+      "type": "array",
+      "minItems": 1,
+      "items": { "$ref": "#/$defs/ingredient" }
+    },
+    "steps": {
+      "type": "array",
+      "minItems": 1,
+      "description": "배열 순서가 조리 순서다(order·evidence 없음)",
+      "items": { "$ref": "#/$defs/step" }
+    }
+  },
+  "$defs": {
+    "ingredient": {
+      "type": "object",
+      "required": ["id", "name", "amount_raw", "amount_status", "edited", "user_entered"],
+      "additionalProperties": false,
+      "properties": {
+        "id": {
+          "type": "string",
+          "pattern": "^ing-(user-)?[1-9][0-9]*$",
+          "description": "ing-N은 추출 결과의 같은 ID 항목, ing-user-N은 사용자가 추가한 항목. 레시피 안에서 겹치지 않는다(validate.py가 검사)"
+        },
+        "name": { "type": "string", "minLength": 1 },
+        "name_raw": { "type": "string" },
+        "amount_raw": { "type": ["string", "null"] },
+        "amount_status": { "enum": ["confirmed", "unconfirmed"] },
+        "optional": { "type": "boolean", "default": false },
+        "edited": { "type": "boolean", "description": "추출 결과와 이름·분량·optional 중 하나라도 다르거나, 사용자가 추가한 항목" },
+        "user_entered": { "type": "boolean", "description": "분량을 사용자가 적었거나, 사용자가 추가한 항목" }
+      },
+      "allOf": [
+        {
+          "if": { "properties": { "amount_status": { "const": "confirmed" } } },
+          "then": { "properties": { "amount_raw": { "type": "string", "minLength": 1 } } }
+        },
+        {
+          "description": "분량이 있으면 영상에서 확인된 것(confirmed)이거나 사용자가 적은 것(user_entered)이다",
+          "if": { "properties": { "amount_raw": { "type": "string" } } },
+          "then": {
+            "anyOf": [
+              { "properties": { "amount_status": { "const": "confirmed" } } },
+              { "properties": { "user_entered": { "const": true } } }
+            ]
+          }
+        }
+      ]
+    },
+    "step": {
+      "type": "object",
+      "required": ["id", "text", "edited", "user_entered"],
+      "additionalProperties": false,
+      "properties": {
+        "id": {
+          "type": "string",
+          "pattern": "^step-(user-)?[1-9][0-9]*$",
+          "description": "step-N은 추출 결과의 같은 ID 단계, step-user-N은 사용자가 추가한 단계"
+        },
+        "text": { "type": "string", "minLength": 1 },
+        "edited": { "type": "boolean" },
+        "user_entered": { "type": "boolean" }
+      }
+    }
+  }
+}

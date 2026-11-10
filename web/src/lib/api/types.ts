@@ -125,7 +125,7 @@ export class NotSignedInError extends Error {
 export interface RecipeApi {
   // 로그인 없이
   createJob(sourceUrl: string): Promise<{ jobId: string }>;
-  createUploadJob(file: File): Promise<{ jobId: string }>; // 영상 파일을 올리고 job을 만든다(KAN-49). 원본은 처리 뒤 지운다
+  createUploadJob(file: File): Promise<{ jobId: string }>; // 로그인 필요(안 했으면 NotSignedInError). 영상 파일을 올리고 job을 만든다(KAN-49). 원본은 처리 뒤 지운다
   getJob(jobId: string): Promise<Job | null>; // 처리 중 화면이 1~2초마다 부른다
   getRun(runId: string): Promise<Run | null>;
 

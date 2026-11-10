@@ -1,0 +1,16 @@
+{
+  "schema_version": "0.2",
+  "run_id": "aaaaaaaa-0000-4000-8000-000000000001",
+  "video_id": "Smpl0Gochu1",
+  "title": "내 고추장 덮밥",
+  "servings_raw": "1인분",
+  "ingredients": [
+    { "id": "ing-1", "name": "고추장", "amount_raw": "2큰술", "amount_status": "confirmed", "edited": false, "user_entered": false },
+    { "id": "ing-2", "name": "소금", "amount_raw": "1꼬집", "amount_status": "unconfirmed", "edited": true, "user_entered": true },
+    { "id": "ing-user-1", "name": "참기름", "amount_raw": null, "amount_status": "unconfirmed", "edited": true, "user_entered": true }
+  ],
+  "steps": [
+    { "id": "step-1", "text": "고추장을 넣는다.", "edited": false, "user_entered": false },
+    { "id": "step-user-1", "text": "참기름을 두른다.", "edited": true, "user_entered": true }
+  ]
+}

@@ -51,8 +51,8 @@ select set_eq(
   $$ select p.proname::text from pg_catalog.pg_proc p
        join pg_catalog.pg_namespace n on n.oid = p.pronamespace
       where n.nspname = 'public' and has_function_privilege('anon', p.oid, 'execute') $$,
-  array['create_job', 'create_upload_job', 'get_job', 'get_run'],
-  'anon이 실행할 수 있는 public 함수 목록'
+  array['create_job', 'get_job', 'get_run'],
+  'anon이 실행할 수 있는 public 함수 목록(업로드는 로그인 필요)'
 );
 
 select set_eq(
