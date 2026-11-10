@@ -1,7 +1,7 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { NotSignedInError, UPLOAD_ENABLED, api } from "@/lib/api";
 import { fileSource, rememberJobSource } from "@/lib/job-source";
 import { SHORTS_ERROR_TEXT, checkShortsUrl } from "@/lib/shorts";
@@ -17,6 +17,34 @@ export function LinkInputForm() {
   const fileInput = useRef<HTMLInputElement>(null);
   const [uploading, setUploading] = useState(false);
   const [uploadError, setUploadError] = useState<string | null>(null);
+  // 업로드는 로그인한 사람만 된다. 파일을 고르기 전에 로그인으로 보내려고 미리 알아 둔다(null = 아직 모름).
+  const [signedIn, setSignedIn] = useState<boolean | null>(null);
+
+  useEffect(() => {
+    if (!UPLOAD_ENABLED) return;
+    let alive = true;
+    api.getUser().then(
+      (user) => alive && setSignedIn(user != null),
+      () => alive && setSignedIn(null),
+    );
+    return () => {
+      alive = false;
+    };
+  }, []);
+
+  function goLogin() {
+    router.push(`/login?next=${encodeURIComponent("/")}`);
+  }
+
+  // 로그인 안 했으면 파일 창을 열지 않고 바로 로그인으로 보낸다. 고른 파일이 사라지지 않게.
+  // 아직 모르면 파일 창을 연다(파일 창은 누른 순간에만 열 수 있어서 기다리지 않는다). 서버가 거절하면 아래 upload가 로그인으로 보낸다.
+  function pickFile() {
+    if (signedIn === false) {
+      goLogin();
+      return;
+    }
+    fileInput.current?.click();
+  }
 
   const check = checkShortsUrl(url);
   const fieldError =
@@ -72,9 +100,9 @@ export function LinkInputForm() {
       setUploading(false);
     } catch (err) {
       setUploading(false);
-      // 업로드는 로그인한 사람만 된다. 로그인하고 이 화면으로 돌아와서 다시 고르게 한다.
+      // 고르는 사이 로그인이 끊긴 경우. 로그인하고 이 화면으로 돌아와서 다시 고르게 한다.
       if (err instanceof NotSignedInError) {
-        router.push(`/login?next=${encodeURIComponent("/")}`);
+        goLogin();
         return;
       }
       setUploadError("파일을 올리지 못했어요. 다시 시도해 주세요.");
@@ -143,7 +171,7 @@ export function LinkInputForm() {
           <input ref={fileInput} type="file" accept={UPLOAD_ACCEPT} onChange={upload} hidden />
           <button
             type="button"
-            onClick={() => fileInput.current?.click()}
+            onClick={pickFile}
             disabled={uploading}
             className="mt-5 h-13 rounded-xl border-[1.5px] border-foreground text-base font-medium disabled:border-line-strong disabled:text-muted"
           >
