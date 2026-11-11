@@ -52,8 +52,19 @@ export function toTrainingExample(bundle, gold) {
     const evidence = ids(ing.evidence, label);
     let amounts = [];
     if (ing.amount_status === 'confirmed' && ing.amount_raw) {
-      // The amount cites the lines that contain it; fall back to all of the ingredient's lines.
-      const where = (ing.evidence ?? []).filter((r) => map.has(r) && squash(text.get(r) ?? '').includes(squash(ing.amount_raw)));
+      // The amount cites the lines that contain it. Speech captions often split an amount ("소금 반" + "스푼 정도"),
+      // so two cited lines in a row that hold it together are cited as a pair.
+      const amt = squash(ing.amount_raw);
+      const cited = (ing.evidence ?? []).filter((r) => map.has(r));
+      let where = cited.filter((r) => squash(text.get(r) ?? '').includes(amt));
+      if (!where.length) {
+        const order = bundle.segments.map((s) => s.id);
+        const sorted = [...cited].sort((a, b) => order.indexOf(a) - order.indexOf(b));
+        const pair = sorted.findIndex(
+          (r, i) => i + 1 < sorted.length && order.indexOf(sorted[i + 1]) === order.indexOf(r) + 1 && squash(`${text.get(r)}${text.get(sorted[i + 1])}`).includes(amt),
+        );
+        if (pair !== -1) where = [sorted[pair], sorted[pair + 1]];
+      }
       if (!where.length) problems.push(`${label}: amount "${ing.amount_raw}" is not in its evidence text`);
       amounts = [{ text: ing.amount_raw, evidence: where.length ? where.map((r) => map.get(r)) : evidence }];
     }

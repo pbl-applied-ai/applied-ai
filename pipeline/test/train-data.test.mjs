@@ -55,6 +55,16 @@ test('a gold recipe becomes a chat example in the model output schema', () => {
   assert.deepEqual(answer.steps.map((s) => s.text), ['Boil the eggs for 7 minutes.', 'Add soy sauce.']);
 });
 
+test('an amount split across two captions in a row cites both', () => {
+  const split = structuredClone(bundle);
+  split.segments.splice(2, 1, { id: 'asr-1', type: 'asr', start_ms: 65000, end_ms: 66000, text: 'then 2' }, { id: 'asr-2', type: 'asr', start_ms: 66000, end_ms: 67000, text: 'tbsp soy sauce' });
+  const g = structuredClone(gold);
+  g.ingredients[1].evidence = ['asr-2', 'asr-1'];
+  const { example, problems } = toTrainingExample(split, g);
+  assert.deepEqual(problems, []);
+  assert.deepEqual(JSON.parse(example.messages[2].content).ingredients[1].amounts, [{ text: '2 tbsp', evidence: ['S02', 'S03'] }]);
+});
+
 test('problems are reported instead of producing a wrong example', () => {
   const bad = structuredClone(gold);
   bad.ingredients[0].amount_raw = '4 large';
