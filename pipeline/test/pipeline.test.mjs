@@ -768,3 +768,14 @@ test('team bundle keeps caption settings and leaves the model out', async () => 
   assert.deepEqual(Object.keys(bundle.run.stages), ['captions']);
   assert.deepEqual(Object.keys(bundle.run.stages.captions.config), ['language', 'auto_generated']);
 });
+
+test('an English amount followed by the ingredient name is confirmed; one cut inside a word is not', () => {
+  const check = (text, amt, name) => {
+    const segs = [{ id: 'D01', kind: 'description', startMs: null, endMs: null, text }];
+    const ing = { name, preparation: null, is_group_header: false, amounts: [{ text: amt, evidence: ['D01'] }], evidence: ['D01'] };
+    return resolveRecipe({ not_a_recipe: false, title: 't', servings: null, servings_evidence: [], ingredients: [ing], steps: [], tips: [] }, segs).ingredients[0].amount_status;
+  };
+  assert.equal(check('-2 tbsp butter', '2 tbsp', 'butter'), 'confirmed');
+  assert.equal(check('1/2 cup mozzarella', '1/2 cup', 'mozzarella'), 'confirmed');
+  assert.equal(check('2 cups flour', '2 c', 'flour'), 'needs_review');
+});

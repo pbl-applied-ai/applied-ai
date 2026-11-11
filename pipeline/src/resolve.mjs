@@ -112,7 +112,8 @@ function amountMatches(hay, amt, from = 0, starts) {
     if (/^\d/.test(amt) && DIGIT_BEFORE.test(before)) continue;
     if (/^[가-힣]/.test(amt) && continuesKoreanNumber(before, amt, starts)) continue;
     if (/\d$/.test(amt) && DIGIT_AFTER.test(after)) continue;
-    if (/[a-z]$/.test(amt) && /^[a-z]/.test(after)) continue;
+    // "2 c" is not in "2 cups", but "2 tbsp" is in "2 tbsp butter": a word break after the amount ends it.
+    if (/[a-z]$/.test(amt) && /^[a-z]/.test(after) && !starts?.has(p + amt.length)) continue;
     if (!/반$/.test(amt) && /^의?반/.test(after)) continue; // "2스푼 반", "2스푼의 반"
     found.push({ start: p, end: p + amt.length });
   }

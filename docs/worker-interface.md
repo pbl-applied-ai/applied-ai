@@ -1,7 +1,8 @@
-# 워커 ↔ 파이프라인 호출 방식 v0.8
+# 워커 ↔ 파이프라인 호출 방식 v0.9
 
 작성: 전수빈 · 2026-10-24 · 선규 합의용
-수정일: 2026-11-10
+수정일: 2026-11-11
+변경(v0.9, KAN-51): `ocr` 단계 구현. `OCR=on`이면 영상(YouTube·릴스·업로드)에서 1초마다 프레임을 뽑아 화면 글자를 읽고 `ocr` 근거로 넣는다. 실패해도 job은 계속하고 `skipped`에 이유를 남긴다(`ocr_off`·`no_video`·`video_too_large`·`ocr_tool_missing`·`ocr_unreadable`·`ocr_transient`·`ocr_config`). 일시 오류로 못 읽은 결과는 캐시에서 다시 쓰지 않는다(`ocr: "lost"`). 켜면 `extractor_version`에 `ocr`(모델 이름)가 붙는다. 다른 근거가 없어도 화면 글자가 있으면 진행한다.
 변경(v0.8, KAN-50): 개발용 릴스 12편 실측으로 `no_speech` 판단을 고침. Instagram은 캡션이 한국어면 음성 인식 언어를 한국어로 지정, 흔한 헛인식 문구 구간 제거, 한글이 대부분이면 다른 언어로 잡혀도 말소리로 봄, 확신이 매우 낮은 짧은 글자뿐이면 말소리 없음.
 변경(v0.7): 영상 파일 업로드는 로그인한 사람만(`create_upload_job` anon 권한 회수, `uploads` 올리기 정책 authenticated만). 업로드는 캐시를 안 써서 건마다 비용이 나가기 때문(#32 배포 조건).
 변경(v0.6, KAN-53): Instagram 수집기(`collectInstagram`), `canonical_key` `instagram:<코드>`, 실패 `reason` 7개 추가(`vendor_transient`·`vendor_quota`·`vendor_config`·`ig_not_found`·`ig_blocked`·`ig_not_video`, `no_media_no_caption`). `APIFY_TOKEN`·`SCRAPECREATORS_API_KEY`가 둘 다 없으면 지금처럼 `not_youtube`로 끝난다. 일시 오류로 말소리를 못 읽은 결과는 캐시에서 다시 쓰지 않는다(`speech: "lost"`).
@@ -92,7 +93,7 @@ jobs의 claim·complete·fail은 Supabase RPC로 한다. 동시 claim 방지는 
     "stages": [
       { "stage": "collect", "state": "done", "ms": 320 },
       { "stage": "asr", "state": "skipped", "reason": "timed_captions_available" },
-      { "stage": "ocr", "state": "skipped", "reason": "not_implemented" },
+      { "stage": "ocr", "state": "done", "ms": 9100 },
       { "stage": "structure", "state": "done", "ms": 3700 },
       { "stage": "finalize", "state": "done", "ms": 4 }
     ],
@@ -146,7 +147,7 @@ jobs의 claim·complete·fail은 Supabase RPC로 한다. 동시 claim 방지는 
 |---|---|---|
 | `collect` | 영상 정보 가져오는 중 | YouTube 자막·설명·제목 수집 |
 | `asr` | 음성 듣는 중 | 업로드만 실행(음성 인식). 링크는 `skipped`(`timed_captions_available` / `not_implemented`) |
-| `ocr` | 화면 글자 읽는 중 | 미구현. `skipped`(`not_implemented`) |
+| `ocr` | 화면 글자 읽는 중 | `OCR=on`일 때 영상 프레임 → 비전 모델(`gpt-4.1-mini`). 꺼져 있으면 `skipped`(`ocr_off`), 영상을 못 받으면 `skipped`(`no_video`), 실패해도 `skipped`(이유)로 넘어간다 |
 | `structure` | 레시피 정리 중 | LLM 구조화 |
 | `finalize` | (표시 안 함, 앞 단계 문구 유지) | 근거 검증·분량 상태·팀 스키마 변환 |
 

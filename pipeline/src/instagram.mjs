@@ -117,13 +117,13 @@ export async function fetchReel(code, { env = process.env, fetchImpl = fetch } =
 
 // { bytes } of a media link. Without bytes, transient says whether trying again later could work:
 // a 5xx, 429 or dropped connection could, a dead link or a file over the speech recognition limit would not.
-async function download(url, fetchImpl) {
+async function download(url, fetchImpl, maxBytes = MAX_UPLOAD_BYTES) {
   try {
     const res = await fetchImpl(url, { signal: AbortSignal.timeout(MEDIA_TIMEOUT_MS) });
     if (!res.ok) return { transient: isTransientStatus(res.status) || res.status === 408 };
-    if (Number(res.headers?.get?.('content-length')) > MAX_UPLOAD_BYTES) return { transient: false };
+    if (Number(res.headers?.get?.('content-length')) > maxBytes) return { transient: false };
     const bytes = new Uint8Array(await res.arrayBuffer());
-    return bytes.byteLength && bytes.byteLength <= MAX_UPLOAD_BYTES ? { bytes } : { transient: false };
+    return bytes.byteLength && bytes.byteLength <= maxBytes ? { bytes } : { transient: false };
   } catch {
     return { transient: true };
   }
@@ -144,4 +144,15 @@ export async function reelMedia(reel, { fetchImpl = fetch } = {}) {
     transient ||= out.transient;
   }
   return { media: null, transient };
+}
+
+// The reel's video for reading on-screen text (KAN-51). Speech recognition prefers the audio file, so the
+// video is read separately; when speech already fell back to the video, that file is reused.
+export const MAX_REEL_VIDEO_BYTES = 60 * 1024 * 1024;
+
+export async function reelVideo(reel, { media = null, fetchImpl = fetch } = {}) {
+  if (media?.filename === 'video.mp4') return { video: media };
+  if (!reel.videoUrl) return { video: null, reason: 'no_video' };
+  const out = await download(reel.videoUrl, fetchImpl, MAX_REEL_VIDEO_BYTES);
+  return out.bytes ? { video: { bytes: out.bytes, filename: 'video.mp4', mime: 'video/mp4' } } : { video: null, reason: 'no_video' };
 }
