@@ -60,8 +60,14 @@ const UNIT_FAMILY = {
   큰술: 'spoon', 숟가락: 'spoon', 스푼: 'spoon', tablespoon: 'spoon', tablespoons: 'spoon', tbsp: 'spoon',
   작은술: 'teaspoon', 티스푼: 'teaspoon', teaspoon: 'teaspoon', teaspoons: 'teaspoon', tsp: 'teaspoon',
   컵: 'cup', cup: 'cup', cups: 'cup', g: 'g', 그램: 'g', gram: 'g', grams: 'g', ml: 'ml', 밀리리터: 'ml',
+  tbsps: 'spoon', tbs: 'spoon', tsps: 'teaspoon', kg: 'kg', kilogram: 'kg', kilograms: 'kg', 킬로그램: 'kg',
+  milliliter: 'ml', milliliters: 'ml', millilitre: 'ml', millilitres: 'ml', l: 'l', liter: 'l', liters: 'l', litre: 'l',
+  litres: 'l', 리터: 'l', oz: 'oz', ounce: 'oz', ounces: 'oz', 'fl oz': 'floz', 'fluid ounce': 'floz',
+  'fluid ounces': 'floz', lb: 'lb', lbs: 'lb', pound: 'lb', pounds: 'lb', pinch: 'pinch', pinches: 'pinch', 꼬집: 'pinch',
+  clove: 'clove', cloves: 'clove', 쪽: 'clove',
 };
 const unitFamily = (u) => (u ? UNIT_FAMILY[u.toLowerCase()] ?? u.toLowerCase() : null);
+const ENGLISH_BEFORE = /(?:twenty|thirty|forty|fifty|sixty|seventy|eighty|ninety|hundred|half|and|-)$/;
 const NUMBER_ONLY = /^[\d.,/\s~\-–½⅓⅔¼¾]+$/;
 
 const fold = (s) => squash(s).toLowerCase();
@@ -112,7 +118,9 @@ function amountMatches(hay, amt, from = 0, starts) {
     if (/^\d/.test(amt) && DIGIT_BEFORE.test(before)) continue;
     if (/^[가-힣]/.test(amt) && continuesKoreanNumber(before, amt, starts)) continue;
     if (/\d$/.test(amt) && DIGIT_AFTER.test(after)) continue;
-    if (/[a-z]$/.test(amt) && /^[a-z]/.test(after)) continue;
+    if (/[a-z]$/.test(amt) && /^[a-z]/.test(after) && !starts?.has(p + amt.length)) continue; // "2 cups" in "2 cupsful", not in "2 cups and"
+    if (/^[a-z]/.test(amt) && (starts ? !starts.has(p) : /[a-z]$/.test(before))) continue; // "two" inside "network"
+    if (/^[a-z]/.test(amt) && ENGLISH_BEFORE.test(before)) continue; // "two cups" in "twenty two cups", "a cup" in "half a cup"
     if (!/반$/.test(amt) && /^의?반/.test(after)) continue; // "2스푼 반", "2스푼의 반"
     found.push({ start: p, end: p + amt.length });
   }
@@ -159,6 +167,12 @@ function closest(cands) {
 
 const LINK_GAP_BEFORE = 6; // "계란 프라이를 딱 하나만": name, a few words, then the amount
 const LINK_GAP_AFTER = 1; // "2스푼의 간장"
+// English puts the amount before the name: "2 cups of flour", "1 tbsp soy sauce, 2 tbsp sugar", "3 large eggs".
+// Between them may stand "of", "of the" or one describing word, but not a word that starts something new.
+const ENGLISH_GAP = /^(?:of(?:the)?|[a-z]{1,10})?$/;
+const ENGLISH_BREAK = /and|then|with|plus|into|add|the|in$|to$/;
+const englishGap = (g) => ENGLISH_GAP.test(g) && (!g || /^of(the)?$/.test(g) || !ENGLISH_BREAK.test(g));
+const isEnglish = (text) => /[a-z]/i.test(text) && !/[가-힣]/.test(text);
 const CAPTION_BREAK = '\n'; // keeps "…1" + "2스푼" from reading as "12스푼"; not counted in gaps
 
 // Mentions found across the break as if it were not there ("다진" + "마늘" is still "다진 마늘"),
@@ -191,6 +205,7 @@ function linkedTo(seg, prev, next, amt, owner, names) {
     if (hay.slice(m.end) === '의') return !!nextHead && nextHead.owner === owner;
     const after = closest(found.filter((n) => n.start >= m.end).sort((a, b) => a.start - b.start));
     if (after && gap(m.end, after.start) === '의') return after.owner === owner;
+    if (after && isEnglish(seg.text) && englishGap(gap(m.end, after.start))) return after.owner === owner;
     const before = closest(found.filter((n) => n.end <= m.start).sort((a, b) => b.end - a.end || a.start - b.start));
     if (before && gap(before.end, m.start).length <= LINK_GAP_BEFORE && !/\d/.test(gap(before.end, m.start))) return before.owner === owner;
     return !!after && gap(m.end, after.start).length <= LINK_GAP_AFTER && after.owner === owner;
