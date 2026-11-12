@@ -4,6 +4,7 @@
 import { useState } from "react";
 import type { EditableIngredient, EditableStep } from "@/lib/api";
 import { amountView, isUserAdded } from "@/lib/review";
+import { metricHint } from "@/lib/units";
 
 const input = "h-11 min-w-0 rounded-[10px] border-[1.5px] border-link px-3 text-[15px] outline-none";
 const primary = "h-11 shrink-0 rounded-[10px] bg-foreground px-4 text-sm font-bold text-background disabled:bg-disabled disabled:text-muted";
@@ -54,6 +55,8 @@ export function IngredientRow({
   const [name, setName] = useState(item.name);
   const [amount, setAmount] = useState(item.amount_raw ?? "");
   const view = amountView(item);
+  // 추정값은 영상 값이 아니라서 ml/g 참고값을 붙이지 않는다
+  const hint = view.kind === "missing" || view.kind === "estimate" ? null : metricHint(view.text, item.name);
   const userAdded = isUserAdded(item.id);
   // 되돌리기 뒤에 다시 고칠 때도 지금 값에서 시작하도록 편집을 열 때마다 입력칸을 채운다
   const startEdit = () => {
@@ -153,6 +156,7 @@ export function IngredientRow({
         )}
       </div>
       {view.kind === "estimate" && view.basis && <p className="mt-1 text-right text-[11px] text-muted">{view.basis}</p>}
+      {hint && <p className="-mt-1.5 text-right text-[11px] text-muted">{hint}</p>}
       {(item.edited || item.user_entered) && (
         <div className="-mt-1 flex justify-end">
           <EditedMark onRevert={onRevert} onRemove={onRemove} userAdded={userAdded} />
