@@ -1,7 +1,7 @@
 // 미국식 단위(컵·온스·파운드 등)로 적힌 분량을 ml·g로 바꾼 참고값. 원문 분량은 그대로 보여 주고 옆에 덧붙인다.
 // 큰술·작은술(tbsp·tsp)은 나라마다 거의 같아 바꾸지 않는다. 한국어 "컵"(200ml 기준)도 바꾸지 않는다.
 
-type Conversion = { to: "ml" | "g"; factor: number };
+type Conversion = { to: "ml" | "g"; factor: number; onlyFor?: RegExp };
 
 const CONVERSIONS: [RegExp, Conversion][] = [
   [/^(?:fl\.?\s*oz|fluid\s+ounces?)$/, { to: "ml", factor: 29.57 }],
@@ -11,7 +11,8 @@ const CONVERSIONS: [RegExp, Conversion][] = [
   [/^(?:gallons?|gal)$/, { to: "ml", factor: 3785 }],
   [/^(?:oz|ounces?)$/, { to: "g", factor: 28.35 }],
   [/^(?:lbs?|pounds?)$/, { to: "g", factor: 453.6 }],
-  [/^sticks?$/, { to: "g", factor: 113 }], // 버터 1스틱
+  // 버터 1스틱. 시나몬 스틱·셀러리 1 stick도 있어서 재료 이름이 버터일 때만 바꾼다.
+  [/^sticks?$/, { to: "g", factor: 113, onlyFor: /butter|버터/i }],
 ];
 
 const WORDS: Record<string, number> = {
@@ -49,13 +50,23 @@ function round(value: number): number {
   return Math.round(value / 10) * 10;
 }
 
+function big(value: number): string {
+  return (Math.round(value / 100) / 10).toString();
+}
+
 function format(value: number, to: "ml" | "g"): string {
-  if (value >= 1000) return `${(Math.round(value / 100) / 10).toString()}${to === "ml" ? "L" : "kg"}`;
+  if (value >= 1000) return `${big(value)}${to === "ml" ? "L" : "kg"}`;
   return `${round(value)}${to}`;
 }
 
-/** "1 cup" → "약 240ml", "8 oz" → "약 230g", "2-3 cups" → "약 480~720ml". 바꿀 단위가 아니면 null. */
-export function metricHint(amount: string | null | undefined): string | null {
+// 범위는 앞뒤를 같은 단위로 맞춘다. 뒤쪽이 1000 이상이면 둘 다 L·kg("약 0.7~1.2L").
+function formatRange(low: number, high: number, to: "ml" | "g"): string {
+  if (high >= 1000) return `${big(low)}~${big(high)}${to === "ml" ? "L" : "kg"}`;
+  return `${round(low)}~${round(high)}${to}`;
+}
+
+/** "1 cup" → "약 240ml", "8 oz" → "약 230g", "2-3 cups" → "약 480~720ml". 바꿀 단위가 아니면 null. name은 재료 이름(스틱 판단용). */
+export function metricHint(amount: string | null | undefined, name?: string | null): string | null {
   if (!amount) return null;
   const text = amount.trim();
   // 이미 미터법 값이 같이 적혀 있으면("1 cup (240ml)") 덧붙이지 않는다.
@@ -64,6 +75,7 @@ export function metricHint(amount: string | null | undefined): string | null {
   if (!m) return null;
   const conv = CONVERSIONS.find(([re]) => re.test(m[4].toLowerCase().replace(/\s+/g, " ")))?.[1];
   if (!conv) return null;
+  if (conv.onlyFor && !conv.onlyFor.test(name ?? "")) return null;
   let a = toNumber(m[1]);
   let b = toNumber(m[2]);
   if (a == null) return null;
@@ -71,7 +83,6 @@ export function metricHint(amount: string | null | undefined): string | null {
     if (b != null) b += 0.5;
     else a += 0.5;
   }
-  const low = format(a * conv.factor, conv.to);
-  if (b == null) return `약 ${low}`;
-  return `약 ${low.replace(/(ml|g|L|kg)$/, "")}~${format(b * conv.factor, conv.to)}`;
+  if (b == null) return `약 ${format(a * conv.factor, conv.to)}`;
+  return `약 ${formatRange(a * conv.factor, b * conv.factor, conv.to)}`;
 }

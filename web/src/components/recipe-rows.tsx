@@ -50,7 +50,7 @@ export function IngredientRow({
   const [name, setName] = useState(item.name);
   const [amount, setAmount] = useState(item.amount_raw ?? "");
   const view = amountView(item);
-  const hint = view.kind === "missing" ? null : metricHint(view.text);
+  const hint = view.kind === "missing" ? null : metricHint(view.text, item.name);
   const userAdded = isUserAdded(item.id);
   // 되돌리기 뒤에 다시 고칠 때도 지금 값에서 시작하도록 편집을 열 때마다 입력칸을 채운다
   const startEdit = () => {

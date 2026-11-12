@@ -13,7 +13,7 @@ export function RecipeView({ recipe }: { recipe: Pick<EditableRecipe, "ingredien
         {recipe.ingredients.length === 0 && <p className="border-t border-[#ecece8] py-3.5 text-sm text-muted">영상에서 찾은 재료가 없어요.</p>}
         {recipe.ingredients.map((ing) => {
           const view = amountView(ing);
-          const hint = view.kind === "missing" ? null : metricHint(view.text);
+          const hint = view.kind === "missing" ? null : metricHint(view.text, ing.name);
           return (
             <div key={ing.id} className="flex min-h-12 items-center justify-between gap-3 border-t border-[#ecece8]">
               <span className="text-base font-medium">{ing.name}</span>
