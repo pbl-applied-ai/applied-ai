@@ -1,6 +1,7 @@
-# 정답 레시피 라벨링 가이드 v0.2
+# 정답 레시피 라벨링 가이드 v0.3
 
-수정일: 2026-11-09
+수정일: 2026-11-10
+변경(v0.3): 영어 영상 정답 규칙 추가(7번, 영어 평가셋 v1.0-en용). 11/12: "some" 확정, 크기 표현은 분량 대신 name_raw, 같은 재료는 부분마다 따로.
 변경(v0.2, KAN-52): 정답에 쓰지 않는 필드에 `amount_estimate` 추가(6번).
 변경(v0.2): 분량 출처 우선순위를 고정 댓글 > 음성 > 설명으로 정함, 화면 글자는 순위에서 빼고 메모에 남김(#3 G). 화면 글자에만 분량이 있으면 `unconfirmed`. 분량이 나오는 출처에 고정 댓글 추가.
 변경(v0.2, KAN-9): 스키마 v0.2에 맞춤. 재료·단계에 항목 id(아래 6번), 고정 댓글 근거 `comment-N`. v0.1로 만든 정답은 `python scripts/migrate_v01_v02.py <폴더...>`로 바꾼 뒤 `validate.py`로 검사한다.
@@ -62,3 +63,15 @@
 - 재료는 `ing-1`, `ing-2`…, 단계는 `step-1`, `step-2`… 순서대로 붙인다. 한 레시피 안에서 겹치면 안 된다.
 - 고정 댓글 근거는 `comment-0`처럼 적는다. 댓글에는 시각이 없다.
 - 정답에는 `partial`, `edited`, `user_entered`, `amount_estimate`를 쓰지 않는다. `partial`은 파이프라인이 한쪽만 찾은 결과에만 붙고, `edited`·`user_entered`는 사용자 레시피(`schemas/user_recipe.schema.json`) 전용이다. `amount_estimate`는 파이프라인이 영상에 없는 분량에 붙이는 AI 추정값(KAN-52)이라 정답에 넣지 않고, 평가도 이 칸을 보지 않는다.
+
+## 7. 영어 영상 (영어 평가셋 v1.0-en)
+
+- **번역하지 않는다.** 재료 이름·분량·단계 모두 영상 언어(영어)로 적는다. 파이프라인도 영상 언어로 레시피를 쓴다.
+- 분량은 1번처럼 나온 그대로: "2 tbsp" → "2 tbsp", "a cup of" → "a cup", "half a teaspoon" → "half a teaspoon", "1/2 cup" → "1/2 cup". 단위·숫자를 바꾸지 않는다. 지금 평가 스크립트(`scripts/evaluate.py`)는 단위를 정규화하지 않고 글자로 비교하므로, 원문과 한 글자라도 다르면 틀린 것으로 센다.
+- "a pinch", "to taste", "a splash", "a handful", "some", "a little"은 한국어의 "적당히"·"조금"처럼 원문 그대로 `confirmed`(11/12 수빈 결정). "some oil and butter"처럼 두 재료에 걸리면 둘 다 "some".
+- **크기 표현은 분량에 넣지 않는다**(11/12 수빈 결정): "1 large garlic clove" → `amount_raw: "1"`, `name: "garlic"`, `name_raw: "large garlic clove"`. "2 mini cucumbers"도 `"2"`. 단위("2 cups", "3 cloves")는 분량에 남긴다.
+- `name`은 흔히 쓰는 영어 이름(소문자): "EVOO" → `olive oil`(`name_raw: "EVOO"`).
+- **같은 재료가 부분마다 나오면 따로 적는다**(11/12 수빈 결정): 양념·소스·드레싱처럼 나뉜 레시피의 "black pepper 1 tsp"(양념)·"black pepper 2 tsp"(드레싱)은 두 줄로 둔다. 합치지 않는다. 평가 스크립트가 같은 이름 여러 줄을 짝짓는지는 선규가 확인한다.
+- 미국·영국 표기가 섞이면(cilantro / coriander) 영상 표기를 따른다.
+- 단계 문장은 짧은 명령형: "Boil the pasta for 8 minutes."
+- 2번 브랜드·하나로 쓰인 재료 규칙은 같다: "Kewpie mayo" → `mayonnaise`, "minced garlic"은 쪼개지 않는다.
