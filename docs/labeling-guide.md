@@ -1,7 +1,7 @@
 # 정답 레시피 라벨링 가이드 v0.3
 
 수정일: 2026-11-10
-변경(v0.3): 영어 영상 정답 규칙 추가(7번, 영어 평가셋 v1.0-en용).
+변경(v0.3): 영어 영상 정답 규칙 추가(7번, 영어 평가셋 v1.0-en용). 11/12: "some" 확정, 크기 표현은 분량 대신 name_raw.
 변경(v0.2, KAN-52): 정답에 쓰지 않는 필드에 `amount_estimate` 추가(6번).
 변경(v0.2): 분량 출처 우선순위를 고정 댓글 > 음성 > 설명으로 정함, 화면 글자는 순위에서 빼고 메모에 남김(#3 G). 화면 글자에만 분량이 있으면 `unconfirmed`. 분량이 나오는 출처에 고정 댓글 추가.
 변경(v0.2, KAN-9): 스키마 v0.2에 맞춤. 재료·단계에 항목 id(아래 6번), 고정 댓글 근거 `comment-N`. v0.1로 만든 정답은 `python scripts/migrate_v01_v02.py <폴더...>`로 바꾼 뒤 `validate.py`로 검사한다.
@@ -68,7 +68,8 @@
 
 - **번역하지 않는다.** 재료 이름·분량·단계 모두 영상 언어(영어)로 적는다. 파이프라인도 영상 언어로 레시피를 쓴다.
 - 분량은 1번처럼 나온 그대로: "2 tbsp" → "2 tbsp", "a cup of" → "a cup", "half a teaspoon" → "half a teaspoon", "1/2 cup" → "1/2 cup". 단위·숫자를 바꾸지 않는다. 지금 평가 스크립트(`scripts/evaluate.py`)는 단위를 정규화하지 않고 글자로 비교하므로, 원문과 한 글자라도 다르면 틀린 것으로 센다.
-- "a pinch", "to taste", "a splash", "a handful"은 한국어의 "적당히"처럼 원문 그대로 `confirmed`.
+- "a pinch", "to taste", "a splash", "a handful", "some", "a little"은 한국어의 "적당히"·"조금"처럼 원문 그대로 `confirmed`(11/12 수빈 결정). "some oil and butter"처럼 두 재료에 걸리면 둘 다 "some".
+- **크기 표현은 분량에 넣지 않는다**(11/12 수빈 결정): "1 large garlic clove" → `amount_raw: "1"`, `name: "garlic"`, `name_raw: "large garlic clove"`. "2 mini cucumbers"도 `"2"`. 단위("2 cups", "3 cloves")는 분량에 남긴다.
 - `name`은 흔히 쓰는 영어 이름(소문자): "EVOO" → `olive oil`(`name_raw: "EVOO"`).
 - 미국·영국 표기가 섞이면(cilantro / coriander) 영상 표기를 따른다.
 - 단계 문장은 짧은 명령형: "Boil the pasta for 8 minutes."
