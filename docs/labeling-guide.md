@@ -66,7 +66,7 @@
 ## 7. 영어 영상 (영어 평가셋 v1.0-en)
 
 - **번역하지 않는다.** 재료 이름·분량·단계 모두 영상 언어(영어)로 적는다. 파이프라인도 영상 언어로 레시피를 쓴다.
-- 분량은 1번처럼 나온 그대로: "2 tbsp" → "2 tbsp", "a cup of" → "a cup", "half a teaspoon" → "half a teaspoon", "1/2 cup" → "1/2 cup". 단위·숫자를 바꾸지 않는다(정규화는 6단계 코드가 한다).
+- 분량은 1번처럼 나온 그대로: "2 tbsp" → "2 tbsp", "a cup of" → "a cup", "half a teaspoon" → "half a teaspoon", "1/2 cup" → "1/2 cup". 단위·숫자를 바꾸지 않는다. 지금 평가 스크립트(`scripts/evaluate.py`)는 단위를 정규화하지 않고 글자로 비교하므로, 원문과 한 글자라도 다르면 틀린 것으로 센다.
 - "a pinch", "to taste", "a splash", "a handful"은 한국어의 "적당히"처럼 원문 그대로 `confirmed`.
 - `name`은 흔히 쓰는 영어 이름(소문자): "EVOO" → `olive oil`(`name_raw: "EVOO"`).
 - 미국·영국 표기가 섞이면(cilantro / coriander) 영상 표기를 따른다.
