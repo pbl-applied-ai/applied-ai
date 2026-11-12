@@ -88,6 +88,76 @@ test('parseAmount reads verbatim amounts without converting units', () => {
   assert.deepEqual(parseAmount(null), p(null, null, null));
 });
 
+test('parseAmount reads English amounts', () => {
+  const p = (q, q2, unit, qualitative = false) => ({ quantity: q, quantity2: q2, unit, qualitative });
+  assert.deepEqual(parseAmount('2 cups'), p(2, null, 'cups'));
+  assert.deepEqual(parseAmount('two cloves'), p(2, null, 'cloves'));
+  assert.deepEqual(parseAmount('a pinch'), p(1, null, 'pinch'));
+  assert.deepEqual(parseAmount('half a teaspoon'), p(0.5, null, null));
+  assert.deepEqual(parseAmount('1/2 cup'), p(0.5, null, 'cup'));
+  assert.deepEqual(parseAmount('1 1/2 cups'), p(1.5, null, 'cups'));
+  assert.deepEqual(parseAmount('1½ tbsp'), p(1.5, null, 'tbsp'));
+  assert.deepEqual(parseAmount('one and a half cups'), p(1.5, null, 'cups'));
+  assert.deepEqual(parseAmount('2 to 3 tbsp'), p(2, 3, 'tbsp'));
+  assert.deepEqual(parseAmount('8 oz'), p(8, null, 'oz'));
+  assert.deepEqual(parseAmount('4 fl oz'), p(4, null, 'fl oz'));
+  assert.deepEqual(parseAmount('about 2 lbs'), p(2, null, 'lbs'));
+  assert.deepEqual(parseAmount('약 2큰술'), p(2, null, '큰술'));
+  assert.deepEqual(parseAmount('2 large eggs'), p(2, null, null));
+  assert.deepEqual(parseAmount('to taste'), p(null, null, null, true));
+  assert.deepEqual(parseAmount('as needed'), p(null, null, null, true));
+  assert.deepEqual(parseAmount('about'), p(null, null, null));
+});
+
+test('English amounts are tied to the name after them', () => {
+  const segs = normalizeSegments([
+    { startMs: 0, durMs: 1000, text: 'Mix 1 tbsp soy sauce, 2 tbsp sugar' },
+    { startMs: 5000, durMs: 1000, text: 'then add two cups of flour and 3 large eggs' },
+  ]);
+  const r = resolveRecipe(
+    draft({
+      ingredients: [
+        ing('soy sauce', '1 tbsp', ['S01']),
+        ing('sugar', '2 tbsp', ['S01']),
+        ing('flour', 'two cups', ['S02']),
+        ing('eggs', '3', ['S02']),
+      ],
+    }),
+    segs,
+  );
+  assert.deepEqual(r.ingredients.map((i) => [i.name, i.amount_status]), [
+    ['soy sauce', 'confirmed'],
+    ['sugar', 'confirmed'],
+    ['flour', 'confirmed'],
+    ['eggs', 'needs_review'], // a bare number always needs review
+  ]);
+});
+
+test('an English amount is not tied across "and" to the next ingredient', () => {
+  const segs = normalizeSegments([{ startMs: 0, durMs: 1000, text: 'garlic, about 3 cloves and the onion' }]);
+  const r = resolveRecipe(draft({ ingredients: [ing('garlic', '3 cloves', ['S01']), ing('onion', '3 cloves', ['S01'])] }), segs);
+  assert.deepEqual(r.ingredients.map((i) => [i.name, i.amount_status]), [
+    ['garlic', 'confirmed'],
+    ['onion', 'needs_review'],
+  ]);
+});
+
+test('a word that only contains "and" or "in" does not cut an English amount from its name', () => {
+  const segs = normalizeSegments([{ startMs: 0, durMs: 1000, text: 'add 1 cup candied pecans and 2 slices thin bacon' }]);
+  const r = resolveRecipe(draft({ ingredients: [ing('pecans', '1 cup', ['S01']), ing('bacon', '2 slices', ['S01'])] }), segs);
+  assert.deepEqual(r.ingredients.map((i) => [i.name, i.amount_status]), [
+    ['pecans', 'confirmed'],
+    ['bacon', 'confirmed'],
+  ]);
+});
+
+test('an English number word is not found inside a larger number', () => {
+  const segs = normalizeSegments([{ startMs: 0, durMs: 1000, text: 'twenty two cups of rice' }]);
+  const r = resolveRecipe(draft({ ingredients: [ing('rice', 'two cups', ['S01'])] }), segs);
+  assert.equal(r.ingredients[0].amounts[0].verbatim, false);
+  assert.equal(r.ingredients[0].amount_status, 'needs_review');
+});
+
 test('reference output resolves to the expected times, amounts and summary', async () => {
   const result = await runPipeline({ transcriptFile: fixture('sample-gochujang-bowl.transcript.json'), llmOutput: llmFixture, url: 'https://www.youtube.com/shorts/Smpl0Gochu1' });
   const r = result.recipe;
