@@ -15,7 +15,7 @@ import {
   removeStep,
   revertItem,
 } from "@/lib/api";
-import { isDescriptionOnly, missingParts, saveBlocker } from "@/lib/review";
+import { descriptionNotice, missingParts, saveBlocker } from "@/lib/review";
 import { AddIngredientForm, AddStepForm, IngredientRow, StepRow } from "./recipe-rows";
 
 export function RecipeEditor({
@@ -37,6 +37,7 @@ export function RecipeEditor({
 }) {
   const [editing, setEditing] = useState<string | null>(null);
   const missing = missingParts(run);
+  const notice = descriptionNotice(run);
   const blocker = saveBlocker(draft);
   const done = (next: EditableRecipe) => {
     onChange(next);
@@ -55,7 +56,7 @@ export function RecipeEditor({
           onChange={(e) => onChange({ ...draft, title: e.target.value })}
           className="border-b-[1.5px] border-line pt-1 pb-2 text-2xl font-bold outline-link"
         />
-        {isDescriptionOnly(run) && <p className="mt-1 text-[13px] text-muted">ⓘ 영상 설명란·고정 댓글만 보고 만든 레시피예요.</p>}
+        {notice && <p className="mt-1 text-[13px] text-muted">ⓘ {notice}</p>}
         {(missing.steps || missing.ingredients) && (
           <p className="mt-2 rounded-xl bg-subtle px-3.5 py-3 text-[13px] leading-relaxed">
             ⓘ 영상에서 {missing.steps ? "조리 순서" : "재료"}를 찾지 못했어요.

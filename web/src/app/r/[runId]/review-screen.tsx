@@ -7,7 +7,7 @@ import { RecipeEditor } from "@/components/recipe-editor";
 import { RecipeView } from "@/components/recipe-view";
 import { type EditableRecipe, type Run, type User, api, canSave, toEditable } from "@/lib/api";
 import { rememberSavedRun } from "@/lib/book-hidden";
-import { isDescriptionOnly, missingParts } from "@/lib/review";
+import { descriptionNotice, missingParts } from "@/lib/review";
 import { useUnsavedWarning } from "@/lib/use-unsaved-warning";
 
 type Load = { kind: "loading" } | { kind: "missing" } | { kind: "ready"; run: Run; user: User | null };
@@ -66,11 +66,12 @@ export function ReviewScreen() {
 
   if (!user) {
     const missing = missingParts(run);
+    const notice = descriptionNotice(run);
     return (
       <div className="flex flex-1 flex-col">
         <section className="flex flex-col gap-1.5 px-5 pt-3">
           <h2 className="text-2xl font-bold">{draft.title}</h2>
-          {isDescriptionOnly(run) && <p className="mt-1 text-[13px] text-muted">ⓘ 영상 설명란만 보고 만든 레시피예요.</p>}
+          {notice && <p className="mt-1 text-[13px] text-muted">ⓘ {notice}</p>}
           {(missing.steps || missing.ingredients) && (
             <p className="mt-2 rounded-xl bg-subtle px-3.5 py-3 text-[13px] leading-relaxed">
               ⓘ 영상에서 {missing.steps ? "조리 순서" : "재료"}를 찾지 못했어요.

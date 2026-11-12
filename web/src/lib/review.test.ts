@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { addIngredient, addStep, canSave, editIngredient, editStep, revertItem, toEditable, type Run } from "@/lib/api";
 import { PARTIAL_RECIPE, SAMPLE_RECIPE } from "@/lib/api/fixtures";
-import { amountView, isDescriptionOnly, isUserAdded, missingParts, saveBlocker } from "./review";
+import { amountView, descriptionNotice, isDescriptionOnly, isUserAdded, missingParts, saveBlocker } from "./review";
 
 const run: Run = { id: "run-1", sourceUrl: "https://www.youtube.com/shorts/Smpl0Gochu1", recipe: SAMPLE_RECIPE, createdAt: "" };
 const partial: Run = { ...run, id: "run-2", recipe: PARTIAL_RECIPE };
@@ -77,5 +77,26 @@ describe("설명 기반 안내", () => {
     expect(isDescriptionOnly(withComment)).toBe(true);
     const withSpeech: Run = { ...descOnly, recipe: { ...descOnly.recipe, steps: [{ order: 1, text: "볶는다.", evidence: ["comment-0", "asr-3"] }] } };
     expect(isDescriptionOnly(withSpeech)).toBe(false);
+  });
+
+  it("안내 문구는 출처에 맞게 하나만", () => {
+    expect(descriptionNotice(run)).toBeNull();
+    const descOnly: Run = {
+      ...run,
+      recipe: {
+        ...SAMPLE_RECIPE,
+        ingredients: [{ name: "밥", amount_raw: "1공기", amount_status: "confirmed", evidence: ["desc-0"] }],
+        steps: [{ order: 1, text: "볶는다.", evidence: ["title-0", "desc-1"] }],
+      },
+    };
+    expect(descriptionNotice(descOnly)).toBe("영상 설명란만 보고 만든 레시피예요.");
+    const withComment: Run = { ...descOnly, recipe: { ...descOnly.recipe, steps: [{ order: 1, text: "볶는다.", evidence: ["comment-0"] }] } };
+    expect(descriptionNotice(withComment)).toBe("영상 설명란·고정 댓글만 보고 만든 레시피예요.");
+    // Instagram은 캡션이 desc 구간으로 들어온다. 말소리를 못 받았거나 말소리가 없던 결과다.
+    const reel: Run = { ...descOnly, sourceUrl: "https://www.instagram.com/reel/AbC123dEf45/" };
+    expect(descriptionNotice(reel)).toBe("캡션만 보고 만든 레시피예요.");
+    const reelWithSpeech: Run = { ...reel, recipe: { ...reel.recipe, steps: [{ order: 1, text: "볶는다.", evidence: ["asr-0"] }] } };
+    expect(descriptionNotice(reelWithSpeech)).toBeNull();
+    expect(descriptionNotice({ ...descOnly, sourceUrl: "" })).toBe("영상 설명란만 보고 만든 레시피예요.");
   });
 });

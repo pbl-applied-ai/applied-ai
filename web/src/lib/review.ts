@@ -7,6 +7,28 @@ export function isDescriptionOnly(run: Run): boolean {
   return ids.length > 0 && ids.every((id) => id.startsWith("desc-") || id.startsWith("title-") || id.startsWith("comment-"));
 }
 
+function isInstagram(sourceUrl: string): boolean {
+  try {
+    const host = new URL(sourceUrl).hostname;
+    return host === "instagram.com" || host.endsWith(".instagram.com");
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * 요리명 아래 한 줄 "설명 기반" 안내(docs/ux-flow.md S4). 결과 전체에 한 번만 쓴다.
+ * Instagram은 말소리·영상을 못 받았거나 말소리가 없어 캡션만 읽은 결과라 "캡션만"으로 부른다.
+ */
+export function descriptionNotice(run: Run): string | null {
+  if (!isDescriptionOnly(run)) return null;
+  if (isInstagram(run.sourceUrl)) return "캡션만 보고 만든 레시피예요.";
+  const ids = [...run.recipe.ingredients, ...run.recipe.steps].flatMap((item) => item.evidence);
+  return ids.some((id) => id.startsWith("comment-"))
+    ? "영상 설명란·고정 댓글만 보고 만든 레시피예요."
+    : "영상 설명란만 보고 만든 레시피예요.";
+}
+
 /** 추출 결과에서 비어 있던 쪽. 부분 결과(partial_recipe) 안내에 쓴다. */
 export function missingParts(run: Run): { ingredients: boolean; steps: boolean } {
   return { ingredients: run.recipe.ingredients.length === 0, steps: run.recipe.steps.length === 0 };
