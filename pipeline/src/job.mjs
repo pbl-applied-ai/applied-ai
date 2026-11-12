@@ -1,6 +1,7 @@
 import { readFileSync } from 'node:fs';
 import { ASR_MODEL } from './asr.mjs';
 import { PipelineError } from './errors.mjs';
+import { estimateEnabled, ESTIMATE_PROMPT_VERSION } from './estimate.mjs';
 import { parseReelCode } from './instagram.mjs';
 import { resolveProvider } from './llm.mjs';
 import { runPipeline } from './pipeline.mjs';
@@ -46,6 +47,8 @@ export function extractorVersion(env = process.env) {
     collector: 'youtube-timedtext',
     prompt: PROMPT_VERSION,
     model,
+    // A run without suggestions must not be reused once they are on, and the other way round.
+    ...(estimateEnabled(env) && { estimate: ESTIMATE_PROMPT_VERSION }),
   };
 }
 
@@ -75,7 +78,7 @@ export function jobVersion(sourceUrl, env = process.env) {
 // Runs one job and always resolves to a result object, never throws (docs/worker-interface.md v0.3).
 // onStage gets { stage, state, reason?, ms? } as each stage starts and ends.
 // For an upload job the worker passes the file as input.upload ({ bytes, filename, mime }).
-export async function runJob(input, { onStage = () => {}, env = process.env, fetchImpl = fetch, transcriptFile, llmOutput } = {}) {
+export async function runJob(input, { onStage = () => {}, env = process.env, fetchImpl = fetch, transcriptFile, llmOutput, estimateOutput } = {}) {
   const key = canonicalKey(input.source_url);
   const upload = uploadId(input.source_url);
   const version = jobVersion(input.source_url, env);
@@ -116,6 +119,7 @@ export async function runJob(input, { onStage = () => {}, env = process.env, fet
       env,
       fetchImpl,
       llmOutput,
+      estimateOutput,
       onStage: report,
     });
     usage = result.meta.usage;
