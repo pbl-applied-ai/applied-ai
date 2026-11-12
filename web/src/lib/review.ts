@@ -36,12 +36,17 @@ export function missingParts(run: Run): { ingredients: boolean; steps: boolean }
 
 export type AmountView =
   | { kind: "confirmed"; text: string }
+  | { kind: "estimate"; text: string; basis: string | null }
   | { kind: "missing" }
   | { kind: "user"; text: string };
 
-/** 분량 표시 3가지(UX v0.4): 영상에서 확인한 원문 / 영상에서 확인 안 됨 / 직접 입력 */
+/** 분량 표시 4가지: 영상에서 확인한 원문 / AI 추정(KAN-66) / 영상에서 확인 안 됨 / 직접 입력 */
 export function amountView(ing: EditableIngredient): AmountView {
-  if (!ing.amount_raw) return { kind: "missing" };
+  if (!ing.amount_raw) {
+    // 추정값은 영상 값이 아니라서 따로 "추정"으로 보여 준다. 쓰기 전까지는 분량이 빈 상태다.
+    if (ing.amount_estimate?.text) return { kind: "estimate", text: ing.amount_estimate.text, basis: ing.amount_estimate.basis?.trim() || null };
+    return { kind: "missing" };
+  }
   // 사용자가 채웠거나 고친 분량은 영상에서 확인한 값이 아니다(editIngredient가 user_entered를 붙인다).
   // 이름만 고친 재료의 분량은 그대로 영상에서 확인한 값이다.
   if (ing.user_entered) return { kind: "user", text: ing.amount_raw };

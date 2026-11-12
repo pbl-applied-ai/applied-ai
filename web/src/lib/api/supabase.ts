@@ -3,7 +3,7 @@
 // supabase-js 없이 PostgREST를 fetch로 부른다. anon 키는 공개해도 되는 키다(권한은 RLS·RPC grant가 막는다).
 import { checkUploadFile } from '../upload';
 import { createAuth } from './auth';
-import { unconfirmedCount } from './editable';
+import { unconfirmedCount, withoutEstimates } from './editable';
 import { NotSignedInError } from './types';
 import type { EditableIngredient, EditableRecipe, EditableStep, Job, RecipeApi, RecipeSummary, Run, TeamRecipe, UserRecipe } from './types';
 
@@ -139,7 +139,7 @@ export function createSupabaseApi(base: RecipeApi, options: SupabaseOptions): Re
   const recipeArgs = (draft: EditableRecipe) => ({
     p_title: draft.title,
     p_servings_raw: draft.servingsRaw,
-    p_ingredients: draft.ingredients,
+    p_ingredients: withoutEstimates(draft).ingredients,
     p_steps: draft.steps,
   });
 

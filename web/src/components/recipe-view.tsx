@@ -16,7 +16,8 @@ export function RecipeView({ recipe }: { recipe: Pick<EditableRecipe, "ingredien
             <div key={ing.id} className="flex min-h-12 items-center justify-between gap-3 border-t border-[#ecece8]">
               <span className="text-base font-medium">{ing.name}</span>
               {view.kind === "confirmed" && <span className="text-[15px]">{view.text}</span>}
-              {view.kind === "missing" && <span className="text-[13px] text-muted">영상에서 확인 안 됨</span>}
+              {/* 읽기 전용 화면에는 추정값이 오지 않지만(저장할 때 빼고, 로그인 전에는 서버가 뺀다) 와도 빈칸으로 둔다 */}
+              {(view.kind === "missing" || view.kind === "estimate") && <span className="text-[13px] text-muted">영상에서 확인 안 됨</span>}
               {view.kind === "user" && (
                 <span className="flex flex-col items-end">
                   <span className="text-[15px]">{view.text}</span>

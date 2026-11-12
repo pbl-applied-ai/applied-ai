@@ -29,6 +29,11 @@ function EditedMark({ onRevert, onRemove, userAdded }: { onRevert: () => void; o
   );
 }
 
+/** 영상 값이 아닌 AI 추정값 표시(KAN-66). 영상에서 확인한 값과 섞이지 않게 칩으로 구분한다. */
+export function EstimateChip() {
+  return <span className="rounded-full bg-[#fdf1dc] px-1.5 py-0.5 text-[11px] font-bold text-[#7a4b00]">추정</span>;
+}
+
 export function IngredientRow({
   item,
   editing,
@@ -53,7 +58,8 @@ export function IngredientRow({
   // 되돌리기 뒤에 다시 고칠 때도 지금 값에서 시작하도록 편집을 열 때마다 입력칸을 채운다
   const startEdit = () => {
     setName(item.name);
-    setAmount(item.amount_raw ?? "");
+    // 추정값이 있으면 입력칸에 미리 채운다. [확인]을 누르면 그 값을 쓴 것("직접 입력")이 된다.
+    setAmount(item.amount_raw ?? item.amount_estimate?.text ?? "");
     onStartEdit();
   };
 
@@ -113,6 +119,20 @@ export function IngredientRow({
             {view.text}
           </button>
         )}
+        {view.kind === "estimate" && (
+          <button
+            type="button"
+            onClick={startEdit}
+            aria-label={`${item.name} 분량 추정 ${view.text}, 쓰거나 고치기`}
+            className="flex min-h-11 items-center gap-1.5 rounded-[10px] border border-dashed border-line-strong bg-[#fafaf8] px-2.5 text-[15px] whitespace-nowrap text-muted"
+          >
+            <EstimateChip />
+            {view.text}
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true">
+              <path d="M4 20h4L19 9l-4-4L4 16v4z" />
+            </svg>
+          </button>
+        )}
         {view.kind === "missing" && (
           <button
             type="button"
@@ -132,6 +152,7 @@ export function IngredientRow({
           </button>
         )}
       </div>
+      {view.kind === "estimate" && view.basis && <p className="mt-1 text-right text-[11px] text-muted">{view.basis}</p>}
       {(item.edited || item.user_entered) && (
         <div className="-mt-1 flex justify-end">
           <EditedMark onRevert={onRevert} onRemove={onRemove} userAdded={userAdded} />

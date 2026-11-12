@@ -2,6 +2,15 @@
 // 실제 영상이 아니다. #13의 examples/example-002-pipeline-output/recipe.json과 같은 내용.
 import type { TeamRecipe } from './types';
 
+// 목에서만 쓰는 가짜 추정값(KAN-52 amount_estimate 모양). 위 파이프라인 출력에는 없다.
+// 로그인했을 때만 붙인다. 로그인 전 공개 링크에서는 서버가 추정값을 빼는 것과 맞춘다(#45).
+export const SAMPLE_ESTIMATES: Record<string, { text: string; basis?: string }> = {
+  마늘: { text: '4~5쪽', basis: '1인분 덮밥 기준' },
+  목살: { text: '200g', basis: '1인분 기준' },
+  고추장: { text: '1큰술' },
+  설탕: { text: '1/2큰술', basis: '고추장 양에 맞춤' },
+};
+
 export const SAMPLE_RECIPE: TeamRecipe = {
   schema_version: '0.1',
   video_id: 'Smpl0Gochu1',

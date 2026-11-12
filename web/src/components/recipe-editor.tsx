@@ -5,11 +5,13 @@ import { useState } from "react";
 import {
   type EditableRecipe,
   type Run,
+  acceptAllEstimates,
   addIngredient,
   addStep,
   canSave,
   editIngredient,
   editStep,
+  estimateCount,
   moveStep,
   removeIngredient,
   removeStep,
@@ -39,6 +41,7 @@ export function RecipeEditor({
   const missing = missingParts(run);
   const notice = descriptionNotice(run);
   const blocker = saveBlocker(draft);
+  const estimates = estimateCount(draft);
   const done = (next: EditableRecipe) => {
     onChange(next);
     setEditing(null);
@@ -68,9 +71,20 @@ export function RecipeEditor({
       </section>
 
       <section className="flex flex-col px-5 pt-6" aria-labelledby="ing-title">
-        <h2 id="ing-title" className="mb-2 text-lg font-bold">
-          재료 {draft.ingredients.length}
-        </h2>
+        <div className="mb-2 flex items-center justify-between gap-3">
+          <h2 id="ing-title" className="text-lg font-bold">
+            재료 {draft.ingredients.length}
+          </h2>
+          {estimates > 0 && (
+            <button
+              type="button"
+              onClick={() => done(acceptAllEstimates(draft))}
+              className="min-h-11 rounded-[10px] border border-line-strong px-3 text-[13px] font-medium"
+            >
+              추정 분량 {estimates}개 모두 쓰기
+            </button>
+          )}
+        </div>
         {draft.ingredients.length === 0 && (
           <p className="rounded-xl border-[1.5px] border-dashed border-line-strong bg-subtle px-4 py-5 text-center text-sm text-muted">
             영상에서 찾은 재료가 없어요.
