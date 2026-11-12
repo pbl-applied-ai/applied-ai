@@ -169,9 +169,15 @@ const LINK_GAP_BEFORE = 6; // "계란 프라이를 딱 하나만": name, a few w
 const LINK_GAP_AFTER = 1; // "2스푼의 간장"
 // English puts the amount before the name: "2 cups of flour", "1 tbsp soy sauce, 2 tbsp sugar", "3 large eggs".
 // Between them may stand "of", "of the" or one describing word, but not a word that starts something new.
-const ENGLISH_GAP = /^(?:of(?:the)?|[a-z]{1,10})?$/;
-const ENGLISH_BREAK = /and|then|with|plus|into|add|the|in$|to$/;
-const englishGap = (g) => ENGLISH_GAP.test(g) && (!g || /^of(the)?$/.test(g) || !ENGLISH_BREAK.test(g));
+// Words are told apart by the word starts of the original text, so "candied" is not "and" and "thin" is not "in".
+const ENGLISH_BREAK = new Set(['and', 'then', 'with', 'plus', 'into', 'add', 'the', 'in', 'to', 'or']);
+function englishGap(hay, from, to, starts) {
+  const cuts = [...starts].filter((p) => p > from && p < to).sort((a, b) => a - b);
+  const words = [from, ...cuts].map((p, i, all) => hay.slice(p, i + 1 < all.length ? all[i + 1] : to).replace(/[^a-z]/g, '')).filter(Boolean);
+  if (!words.length) return true;
+  if (words[0] === 'of') return words.length === 1 || (words.length === 2 && words[1] === 'the');
+  return words.length === 1 && words[0].length <= 10 && !ENGLISH_BREAK.has(words[0]);
+}
 const isEnglish = (text) => /[a-z]/i.test(text) && !/[가-힣]/.test(text);
 const CAPTION_BREAK = '\n'; // keeps "…1" + "2스푼" from reading as "12스푼"; not counted in gaps
 
@@ -205,7 +211,7 @@ function linkedTo(seg, prev, next, amt, owner, names) {
     if (hay.slice(m.end) === '의') return !!nextHead && nextHead.owner === owner;
     const after = closest(found.filter((n) => n.start >= m.end).sort((a, b) => a.start - b.start));
     if (after && gap(m.end, after.start) === '의') return after.owner === owner;
-    if (after && isEnglish(seg.text) && englishGap(gap(m.end, after.start))) return after.owner === owner;
+    if (after && isEnglish(seg.text) && englishGap(hay, m.end, after.start, starts)) return after.owner === owner;
     const before = closest(found.filter((n) => n.end <= m.start).sort((a, b) => b.end - a.end || a.start - b.start));
     if (before && gap(before.end, m.start).length <= LINK_GAP_BEFORE && !/\d/.test(gap(before.end, m.start))) return before.owner === owner;
     return !!after && gap(m.end, after.start).length <= LINK_GAP_AFTER && after.owner === owner;

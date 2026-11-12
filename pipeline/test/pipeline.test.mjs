@@ -142,6 +142,15 @@ test('an English amount is not tied across "and" to the next ingredient', () => 
   ]);
 });
 
+test('a word that only contains "and" or "in" does not cut an English amount from its name', () => {
+  const segs = normalizeSegments([{ startMs: 0, durMs: 1000, text: 'add 1 cup candied pecans and 2 slices thin bacon' }]);
+  const r = resolveRecipe(draft({ ingredients: [ing('pecans', '1 cup', ['S01']), ing('bacon', '2 slices', ['S01'])] }), segs);
+  assert.deepEqual(r.ingredients.map((i) => [i.name, i.amount_status]), [
+    ['pecans', 'confirmed'],
+    ['bacon', 'confirmed'],
+  ]);
+});
+
 test('an English number word is not found inside a larger number', () => {
   const segs = normalizeSegments([{ startMs: 0, durMs: 1000, text: 'twenty two cups of rice' }]);
   const r = resolveRecipe(draft({ ingredients: [ing('rice', 'two cups', ['S01'])] }), segs);

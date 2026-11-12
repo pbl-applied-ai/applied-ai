@@ -37,19 +37,30 @@ export function renderBundle(bundle, map = modelIdMap(bundle)) {
 
 const squash = (s) => s.replace(/\s+/g, '').toLowerCase();
 
+// The gold recipe follows the video; the training answer holds only what the model can see in the evidence.
+// So an ingredient or step with no citable evidence is left out of the answer, and an amount that is not in its
+// evidence text (fixed by watching the video, e.g. a misheard caption) becomes no amount. Each such change is listed
+// in notes; problems (a broken file) leave the whole case out.
 export function toTrainingExample(bundle, gold) {
   const problems = [];
+  const notes = [];
   if (bundle.video_id !== gold.video_id) problems.push(`video_id differs: bundle ${bundle.video_id}, gold ${gold.video_id}`);
   const map = modelIdMap(bundle);
   const text = new Map(bundle.segments.map((s) => [s.id, s.text]));
   const known = new Set(bundle.segments.map((s) => s.id));
+  const order = bundle.segments.map((s) => s.id);
   const ids = (refs, label) => {
     for (const r of refs ?? []) if (!known.has(r)) problems.push(`${label}: evidence ${r} is not in the bundle`);
     return [...new Set((refs ?? []).map((r) => map.get(r)).filter(Boolean))];
   };
-  const ingredients = gold.ingredients.map((ing, i) => {
+  const ingredients = [];
+  gold.ingredients.forEach((ing, i) => {
     const label = ing.id ?? `ingredient ${i + 1}`;
     const evidence = ids(ing.evidence, label);
+    if (!evidence.length) {
+      notes.push(`${label} ${ing.name}: no evidence the model can cite, left out of the answer`);
+      return;
+    }
     let amounts = [];
     if (ing.amount_status === 'confirmed' && ing.amount_raw) {
       // The amount cites the lines that contain it. Speech captions often split an amount ("소금 반" + "스푼 정도"),
@@ -58,22 +69,27 @@ export function toTrainingExample(bundle, gold) {
       const cited = (ing.evidence ?? []).filter((r) => map.has(r));
       let where = cited.filter((r) => squash(text.get(r) ?? '').includes(amt));
       if (!where.length) {
-        const order = bundle.segments.map((s) => s.id);
         const sorted = [...cited].sort((a, b) => order.indexOf(a) - order.indexOf(b));
         const pair = sorted.findIndex(
-          (r, i) => i + 1 < sorted.length && order.indexOf(sorted[i + 1]) === order.indexOf(r) + 1 && squash(`${text.get(r)}${text.get(sorted[i + 1])}`).includes(amt),
+          (r, j) => j + 1 < sorted.length && order.indexOf(sorted[j + 1]) === order.indexOf(r) + 1 && squash(`${text.get(r)}${text.get(sorted[j + 1])}`).includes(amt),
         );
         if (pair !== -1) where = [sorted[pair], sorted[pair + 1]];
       }
-      if (!where.length) problems.push(`${label}: amount "${ing.amount_raw}" is not in its evidence text`);
-      amounts = [{ text: ing.amount_raw, evidence: where.length ? where.map((r) => map.get(r)) : evidence }];
+      if (where.length) amounts = [{ text: ing.amount_raw, evidence: where.map((r) => map.get(r)) }];
+      else notes.push(`${label} ${ing.name}: amount "${ing.amount_raw}" is not in its evidence text, answer has no amount`);
     }
-    if (!evidence.length) problems.push(`${label}: no evidence the model can cite`);
-    return { name: ing.name, preparation: null, amounts, evidence, is_group_header: false };
+    ingredients.push({ name: ing.name, preparation: null, amounts, evidence, is_group_header: false });
   });
-  const steps = [...gold.steps]
+  const steps = [];
+  [...gold.steps]
     .sort((a, b) => (a.order ?? 0) - (b.order ?? 0))
-    .map((s, i) => ({ text: s.text, evidence: ids(s.evidence, s.id ?? `step ${i + 1}`), is_group_header: false }));
+    .forEach((s, i) => {
+      const label = s.id ?? `step ${i + 1}`;
+      const evidence = ids(s.evidence, label);
+      if (!evidence.length) notes.push(`${label}: no evidence the model can cite, left out of the answer`);
+      else steps.push({ text: s.text, evidence, is_group_header: false });
+    });
+  if (!ingredients.length || !steps.length) problems.push(`${ingredients.length} ingredients and ${steps.length} steps with evidence, nothing to learn from`);
   const answer = {
     not_a_recipe: false,
     title: gold.title,
@@ -92,7 +108,8 @@ export function toTrainingExample(bundle, gold) {
         { role: 'assistant', content: JSON.stringify(answer) },
       ],
     },
-    meta: { video_id: gold.video_id, prompt_version: PROMPT_VERSION, ingredients: ingredients.length, steps: steps.length },
+    meta: { video_id: gold.video_id, channel: bundle.source?.channel ?? null, prompt_version: PROMPT_VERSION, ingredients: ingredients.length, steps: steps.length },
     problems,
+    notes,
   };
 }

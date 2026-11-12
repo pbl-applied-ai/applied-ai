@@ -65,12 +65,27 @@ test('an amount split across two captions in a row cites both', () => {
   assert.deepEqual(JSON.parse(example.messages[2].content).ingredients[1].amounts, [{ text: '2 tbsp', evidence: ['S02', 'S03'] }]);
 });
 
-test('problems are reported instead of producing a wrong example', () => {
+test('what the model cannot see is left out of the answer and noted', () => {
+  const g = structuredClone(gold);
+  g.ingredients[0].amount_raw = '4 large'; // fixed by watching the video, not in the caption
+  g.ingredients.push({ id: 'ing-4', name: 'sesame', amount_raw: null, amount_status: 'unconfirmed', evidence: [] });
+  g.steps.push({ id: 'step-3', order: 3, text: 'Sprinkle sesame.', evidence: [] });
+  const { example, problems, notes } = toTrainingExample(bundle, g);
+  assert.deepEqual(problems, []);
+  const answer = JSON.parse(example.messages[2].content);
+  assert.deepEqual(answer.ingredients[0].amounts, []);
+  assert.deepEqual(answer.ingredients.map((i) => i.name), ['eggs', 'soy sauce', 'garlic']);
+  assert.equal(answer.steps.length, 2);
+  assert.equal(notes.length, 3);
+  assert.match(notes[0], /amount "4 large" is not in its evidence text/);
+  assert.match(notes[1], /ing-4 sesame: no evidence/);
+  assert.match(notes[2], /step-3: no evidence/);
+});
+
+test('evidence missing from the bundle is a problem that leaves the case out', () => {
   const bad = structuredClone(gold);
-  bad.ingredients[0].amount_raw = '4 large';
   bad.steps[0].evidence = ['asr-9'];
   const { problems } = toTrainingExample(bundle, bad);
-  assert.equal(problems.length, 2);
-  assert.match(problems[0], /amount "4 large" is not in its evidence text/);
-  assert.match(problems[1], /evidence asr-9 is not in the bundle/);
+  assert.equal(problems.length, 1);
+  assert.match(problems[0], /evidence asr-9 is not in the bundle/);
 });
