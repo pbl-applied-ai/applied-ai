@@ -98,6 +98,8 @@ export function toTeamRecipe(result, warnings = [], { partial = false } = {}) {
         name: ing.name,
         amount_raw: confirmed ? ing.amount_text : null,
         amount_status: confirmed ? 'confirmed' : 'unconfirmed',
+        // A suggestion, never a video amount: only on unconfirmed items, and amount_raw stays null (KAN-52).
+        ...(!confirmed && ing.amount_estimate && { amount_estimate: ing.amount_estimate.basis ? ing.amount_estimate : { text: ing.amount_estimate.text } }),
         evidence: toTeamIds([...ing.evidence, ...amountEvidence], map),
       };
     });

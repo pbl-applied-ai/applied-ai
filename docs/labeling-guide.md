@@ -2,6 +2,7 @@
 
 수정일: 2026-11-10
 변경(v0.3): 영어 영상 정답 규칙 추가(7번, 영어 평가셋 v1.0-en용).
+변경(v0.2, KAN-52): 정답에 쓰지 않는 필드에 `amount_estimate` 추가(6번).
 변경(v0.2): 분량 출처 우선순위를 고정 댓글 > 음성 > 설명으로 정함, 화면 글자는 순위에서 빼고 메모에 남김(#3 G). 화면 글자에만 분량이 있으면 `unconfirmed`. 분량이 나오는 출처에 고정 댓글 추가.
 변경(v0.2, KAN-9): 스키마 v0.2에 맞춤. 재료·단계에 항목 id(아래 6번), 고정 댓글 근거 `comment-N`. v0.1로 만든 정답은 `python scripts/migrate_v01_v02.py <폴더...>`로 바꾼 뒤 `validate.py`로 검사한다.
 
@@ -61,7 +62,7 @@
 
 - 재료는 `ing-1`, `ing-2`…, 단계는 `step-1`, `step-2`… 순서대로 붙인다. 한 레시피 안에서 겹치면 안 된다.
 - 고정 댓글 근거는 `comment-0`처럼 적는다. 댓글에는 시각이 없다.
-- 정답에는 `partial`, `edited`, `user_entered`를 쓰지 않는다. `partial`은 파이프라인이 한쪽만 찾은 결과에만 붙고, `edited`·`user_entered`는 사용자 레시피(`schemas/user_recipe.schema.json`) 전용이다.
+- 정답에는 `partial`, `edited`, `user_entered`, `amount_estimate`를 쓰지 않는다. `partial`은 파이프라인이 한쪽만 찾은 결과에만 붙고, `edited`·`user_entered`는 사용자 레시피(`schemas/user_recipe.schema.json`) 전용이다. `amount_estimate`는 파이프라인이 영상에 없는 분량에 붙이는 AI 추정값(KAN-52)이라 정답에 넣지 않고, 평가도 이 칸을 보지 않는다.
 
 ## 7. 영어 영상 (영어 평가셋 v1.0-en)
 

@@ -10,6 +10,7 @@ export interface TeamIngredient {
   name_raw?: string;
   amount_raw: string | null; // 미확인이면 null → 화면에서 빈칸
   amount_status: AmountStatus;
+  amount_estimate?: { text: string; basis?: string }; // AI 추정값(KAN-52). unconfirmed에만, 로그인 전 공개 링크에서는 서버가 뺀다
   optional?: boolean;
   evidence: string[]; // 화면에는 쓰지 않는다
 }
