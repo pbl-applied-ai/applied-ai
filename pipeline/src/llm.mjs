@@ -48,7 +48,8 @@ async function readJson(label, res) {
   }
 }
 
-async function callOpenAI({ apiKey, model }, userPrompt, fetchImpl, timeoutMs) {
+// task: { name, system, schema, user } — the same JSON-schema call for the recipe and for the amount estimate.
+async function callOpenAI({ apiKey, model }, task, fetchImpl, timeoutMs) {
   const request = (withTemperature) =>
     post('OpenAI', fetchImpl, 'https://api.openai.com/v1/chat/completions', {
       method: 'POST',
@@ -57,10 +58,10 @@ async function callOpenAI({ apiKey, model }, userPrompt, fetchImpl, timeoutMs) {
         model,
         ...(withTemperature ? { temperature: 0 } : {}),
         messages: [
-          { role: 'system', content: SYSTEM_PROMPT },
-          { role: 'user', content: userPrompt },
+          { role: 'system', content: task.system },
+          { role: 'user', content: task.user },
         ],
-        response_format: { type: 'json_schema', json_schema: { name: 'recipe', strict: true, schema: RECIPE_SCHEMA } },
+        response_format: { type: 'json_schema', json_schema: { name: task.name, strict: true, schema: task.schema } },
       }),
     }, timeoutMs);
   let res = await request(true);
@@ -84,7 +85,7 @@ async function callOpenAI({ apiKey, model }, userPrompt, fetchImpl, timeoutMs) {
   return { data, usage: body.usage };
 }
 
-async function callAnthropic({ apiKey, model }, userPrompt, fetchImpl, timeoutMs) {
+async function callAnthropic({ apiKey, model }, task, fetchImpl, timeoutMs) {
   const res = await post('Anthropic', fetchImpl, 'https://api.anthropic.com/v1/messages', {
     method: 'POST',
     headers: { 'content-type': 'application/json', 'x-api-key': apiKey, 'anthropic-version': '2023-06-01' },
@@ -92,10 +93,10 @@ async function callAnthropic({ apiKey, model }, userPrompt, fetchImpl, timeoutMs
       model,
       max_tokens: 4096,
       temperature: 0,
-      system: SYSTEM_PROMPT,
-      tools: [{ name: 'save_recipe', description: 'Save the extracted recipe.', input_schema: RECIPE_SCHEMA }],
-      tool_choice: { type: 'tool', name: 'save_recipe' },
-      messages: [{ role: 'user', content: userPrompt }],
+      system: task.system,
+      tools: [{ name: task.name, description: 'Return the result.', input_schema: task.schema }],
+      tool_choice: { type: 'tool', name: task.name },
+      messages: [{ role: 'user', content: task.user }],
     }),
   }, timeoutMs);
   const body = await readJson('Anthropic', res);
@@ -106,7 +107,11 @@ async function callAnthropic({ apiKey, model }, userPrompt, fetchImpl, timeoutMs
   return { data: tool.input, usage: body.usage };
 }
 
-export async function extractRecipe(config, userPrompt, { fetchImpl = fetch, timeoutMs = DEFAULT_TIMEOUT_MS } = {}) {
+export async function callStructured(config, task, { fetchImpl = fetch, timeoutMs = DEFAULT_TIMEOUT_MS } = {}) {
   const call = config.provider === 'openai' ? callOpenAI : callAnthropic;
-  return call(config, userPrompt, fetchImpl, timeoutMs);
+  return call(config, task, fetchImpl, timeoutMs);
+}
+
+export function extractRecipe(config, userPrompt, options) {
+  return callStructured(config, { name: 'save_recipe', system: SYSTEM_PROMPT, schema: RECIPE_SCHEMA, user: userPrompt }, options);
 }
