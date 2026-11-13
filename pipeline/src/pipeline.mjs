@@ -1,8 +1,9 @@
 import { readFile } from 'node:fs/promises';
 import { PipelineError } from './errors.mjs';
 import { ASR_MODEL, hangulLanguage, transcribeUpload } from './asr.mjs';
-import { fetchReel, instagramEnabled, parseReelCode, reelMedia } from './instagram.mjs';
-import { fetchTranscript, parseVideoId, watchUrl } from './youtube.mjs';
+import { fetchReel, instagramEnabled, parseReelCode, reelMedia, reelVideo } from './instagram.mjs';
+import { fetchTranscript, fetchVideoFile, parseVideoId, watchUrl } from './youtube.mjs';
+import { ocrEnabled, readScreenText } from './ocr.mjs';
 import { fetchPinnedComment } from './comments.mjs';
 import { commentSegments, descriptionSegments, normalizeSegments, renderForPrompt } from './segments.mjs';
 import { buildUserPrompt, PROMPT_VERSION } from './schema.mjs';
@@ -60,10 +61,9 @@ async function collectUpload(upload, { env, fetchImpl, onStage }) {
   source.caption.language = asr.language;
   source.video.durationMs = asr.durationMs;
   const evidence = normalizeSegments(source.segments);
-  if (!evidence.length) {
-    throw new PipelineError(`No speech in upload ${upload.id}`, { stage: 'asr', errorCode: 'unavailable', reason: 'no_speech' });
-  }
-  return { source, evidence };
+  const empty = new PipelineError(`No speech in upload ${upload.id}`, { stage: 'asr', errorCode: 'unavailable', reason: 'no_speech' });
+  const video = async () => (/^video\//.test(upload.mime || '') || /\.(mp4|mov|webm|m4v)$/i.test(upload.filename || '') ? { video: upload } : { video: null, reason: 'no_video' });
+  return { source, evidence, empty, video };
 }
 
 // A reel's caption reads as a description. Speech is added when there is any; without it the caption alone
@@ -109,22 +109,47 @@ async function collectInstagram(code, { env, fetchImpl, onStage }) {
     onStage({ stage: 'asr', state: 'skipped', reason: 'no_media' });
   }
   const evidence = [...normalizeSegments(source.segments), ...descriptionSegments(source.video.description)];
-  if (!evidence.length) {
-    throw new PipelineError(`No speech or caption in reel ${code}`, { stage: 'asr', errorCode: 'unavailable', reason: 'no_media_no_caption' });
+  const empty = new PipelineError(`No speech or caption in reel ${code}`, { stage: 'asr', errorCode: 'unavailable', reason: 'no_media_no_caption' });
+  return { source, evidence, empty, video: () => reelVideo(reel, { media, fetchImpl }) };
+}
+
+// On-screen text (KAN-51). Never fails the job: without a video, the tool or a working request the stage is
+// skipped with the reason, and a passing failure is marked (ocr_lost) so the result is not reused from the cache.
+// ocr: false turns the stage off for this call; { sample } replaces frame sampling (tests).
+async function screenText({ video, env, fetchImpl, onStage, durationMs, ocr }) {
+  const skip = (reason, lost = false) => {
+    onStage({ stage: 'ocr', state: 'skipped', reason });
+    return { segments: [], info: null, lost };
+  };
+  if (ocr === false || !ocrEnabled(env)) return skip('ocr_off');
+  onStage({ stage: 'ocr', state: 'started' });
+  const t0 = Date.now();
+  try {
+    const got = await video();
+    if (!got.video) return skip(got.reason ?? 'no_video', Boolean(got.lost));
+    const out = await readScreenText(got.video, { env, fetchImpl, durationMs, ...(ocr?.sample && { sample: ocr.sample }) });
+    onStage({ stage: 'ocr', state: 'done', ms: Date.now() - t0 });
+    return { segments: out.segments, info: { model: out.model, frames: out.frames, every_ms: out.everyMs, usage: out.usage } };
+  } catch (err) {
+    // Anything else (a broken download, an odd reply) must not fail the job either. We cannot tell
+    // whether it would pass on a retry, so the run is marked and not reused from the cache.
+    if (!(err instanceof PipelineError)) return skip('ocr_transient', true);
+    return skip(err.reason, Boolean(err.retry));
   }
-  return { source, evidence };
 }
 
 // upload: { id, bytes, filename, mime } for an uploaded video file, instead of url.
 // estimateOutput replays a saved amount-estimate reply. With llmOutput alone the estimate is skipped, so replays make no call.
-export async function runPipeline({ url, upload, transcriptFile, languages, env = process.env, fetchImpl = fetch, llmOutput, estimateOutput, onStage = () => {}, comments = true }) {
+export async function runPipeline({ url, upload, transcriptFile, languages, env = process.env, fetchImpl = fetch, llmOutput, estimateOutput, onStage = () => {}, comments = true, ocr = true }) {
   let source;
   let evidence;
+  let empty = null;
+  let video = async () => ({ video: null, reason: 'no_video' });
   const reelCode = url && !transcriptFile ? parseReelCode(url) : null;
   if (upload) {
-    ({ source, evidence } = await collectUpload(upload, { env, fetchImpl, onStage }));
+    ({ source, evidence, empty, video } = await collectUpload(upload, { env, fetchImpl, onStage }));
   } else if (reelCode) {
-    ({ source, evidence } = await collectInstagram(reelCode, { env, fetchImpl, onStage }));
+    ({ source, evidence, empty, video } = await collectInstagram(reelCode, { env, fetchImpl, onStage }));
   } else {
     ({ source, evidence } = await inStage(onStage, 'collect', async () => {
       const source = await loadSource({ url, transcriptFile, languages, fetchImpl, comments });
@@ -133,17 +158,19 @@ export async function runPipeline({ url, upload, transcriptFile, languages, env 
         ...descriptionSegments(source.video.description),
         ...commentSegments(source.video.pinnedComment),
       ];
-      if (!evidence.length) {
-        throw new PipelineError(`No captions, description or pinned comment for ${source.video.videoId}`, {
-          stage: 'collect', errorCode: 'unavailable', reason: 'no_captions_no_description',
-        });
-      }
       return { source, evidence };
     }));
+    empty = new PipelineError(`No captions, description or pinned comment for ${source.video.videoId}`, {
+      stage: 'collect', errorCode: 'unavailable', reason: 'no_captions_no_description',
+    });
+    if (!transcriptFile && source.video.videoId) video = () => fetchVideoFile(source.video.videoId, { fetchImpl });
     // YouTube links read the platform captions; transcribing them ourselves is KAN-50.
     onStage({ stage: 'asr', state: 'skipped', reason: source.segments.length ? 'timed_captions_available' : 'not_implemented' });
   }
-  onStage({ stage: 'ocr', state: 'skipped', reason: 'not_implemented' });
+  const screen = await screenText({ video, env, fetchImpl, onStage, durationMs: source.video.durationMs, ocr });
+  evidence.push(...screen.segments);
+  // With no other evidence, the video can still be read from its on-screen text alone.
+  if (!evidence.length) throw empty;
 
   let llm = llmOutput;
   let model = null;
@@ -186,6 +213,8 @@ export async function runPipeline({ url, upload, transcriptFile, languages, env 
       generated_at: new Date().toISOString(),
       ...(source.commentNote && { comment_note: source.commentNote }),
       ...(source.speechLost && { speech_lost: true }),
+      ...(screen.info && { ocr: screen.info }),
+      ...(screen.lost && { ocr_lost: true }),
       ...(estimate && { estimate: { prompt_version: ESTIMATE_PROMPT_VERSION, applied: estimate.applied, usage: estimate.usage } }),
     },
   };

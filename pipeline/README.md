@@ -3,7 +3,7 @@
 YouTube 요리 영상 링크를 받아 자막·설명란·작성자 고정 댓글을 가져오고, LLM(사용자 본인 키)으로 재료·단계·팁을 추출한다. 모든 항목은 근거 세그먼트 ID에 연결되고, 시각은 코드가 근거에서 계산한다.
 
 - 런타임: Node.js 22 이상, 외부 의존성 없음 (ESM, `"type": "module"`)
-- 현재 프롬프트 버전: `recipe-extract-v7` (`src/schema.mjs`의 `PROMPT_VERSION`)
+- 현재 프롬프트 버전: `recipe-extract-v8` (`src/schema.mjs`의 `PROMPT_VERSION`)
 - 기본 모델: `gpt-4.1` (`src/llm.mjs`의 `DEFAULT_MODELS.openai`)
 - 테스트: `npm test` (LLM·네트워크 호출 없음)
 
@@ -63,6 +63,7 @@ YouTube URL
 |---|---|
 | `src/youtube.mjs` | `parseVideoId`(watch/shorts/youtu.be/embed/live/ID), `watchUrl(id, sec)`(Shorts는 시크가 안 돼서 watch URL로 변환), `parseCaptionXml`(timedtext와 srv3), `fetchTranscript` |
 | `src/segments.mjs` | `normalizeSegments`, `descriptionSegments`, `commentSegments`, `renderForPrompt`, `formatClock` |
+| `src/ocr.mjs` | 화면 글자(KAN-51): `sampleFrames`(ffmpeg로 1초마다 프레임, 90장 넘으면 간격을 늘림), `readScreenText`(`gpt-4.1-mini` 비전으로 15장씩 받아 적기), `mergeFrameTexts`(같은 줄이 이어지면 한 구간). `OCR=on`일 때만 실행 |
 | `src/comments.mjs` | `fetchPinnedComment`: 작성자가 쓰고 고정한 댓글. 실패하거나 없으면 `null`이고 파이프라인은 계속 간다 |
 | `src/schema.mjs` | `PROMPT_VERSION`, `RECIPE_SCHEMA`(OpenAI strict용: 모든 속성 required, `additionalProperties:false`), `SYSTEM_PROMPT`, `buildUserPrompt` |
 | `src/llm.mjs` | `resolveProvider(env)`, `callOpenAI`(추론 모델이 temperature를 거부하면 빼고 재시도), `callAnthropic`, `extractRecipe` |
@@ -78,6 +79,7 @@ YouTube URL
 | `scripts/compare-models.mjs` | 같은 자막으로 여러 모델 실행. 결과는 `compare/<버전>/<영상ID>/<모델>.json` |
 | `scripts/repeat-model.mjs` | 같은 모델을 N번 실행해 실행 간 편차 확인. 결과는 `.../repeat/` |
 | `test/pipeline.test.mjs` | 단위 테스트 (`node --test`). LLM 호출은 `fetch`를 모킹한다 |
+| `test/ocr.test.mjs` | 화면 글자 병합·배치·영상 형식 선택, 업로드에서 화면 글자만으로 레시피 만들기, OCR 실패·영상 없음·꺼짐. ffmpeg·API는 가짜 |
 | `test/job.test.mjs` | `runJob`의 실패 분류(워커 문서 6번 표)와 워커 저장 흐름. YouTube·LLM·DB 모두 가짜 |
 | `test/fixtures/sample-gochujang-bowl.*.json` | 테스트용으로 직접 쓴 가짜 자막·설명과 기준 LLM 출력. 실제 영상 자막이 아니다 |
 
@@ -171,6 +173,7 @@ $env:SUPABASE_SERVICE_ROLE_KEY = "<service_role 키>"
 $env:OPENAI_API_KEY = "<OpenAI 키>"
 $env:APIFY_TOKEN = "<Apify 토큰>"            # Instagram 수집. 이 키와 아래 키가 둘 다 없으면 Instagram은 지원 전처럼 not_youtube로 끝남
 $env:SCRAPECREATORS_API_KEY = "<예비 업체 키>"
+$env:OCR = "on"                       # 화면 글자 읽기(KAN-51). ffmpeg가 PATH에 있어야 한다(FFMPEG_PATH로 바꿀 수 있음). OCR_MODEL로 모델 변경
 $env:PIPELINE_TREE = (git rev-parse HEAD:pipeline)   # 없으면 버전이 +dev가 되고 캐시를 쓰지 않는다
 node src/worker.mjs            # 계속 돌며 2초마다 대기 job 확인
 node src/worker.mjs --once     # 대기 job이 없으면 끝냄
@@ -205,6 +208,7 @@ node src/worker.mjs --once     # 대기 job이 없으면 끝냄
 | v5 | 도구는 재료가 아님, 교정한 이름만 남김, "생략가능"은 분량이 아님 | 도구를 재료로 넣음, 교정 전후 이름이 둘 다 남음 |
 | v6 | 대안 분량·다른 인분 분량은 팁으로, "다/전부"는 분량이 아님 | v4 규칙이 너무 넓게 적용돼 선택 사항 분량을 분량에 넣고 불일치로 표시 |
 | v7 | 근거에 작성자 고정 댓글(`[C01 고정 댓글]`) 추가, 분량은 설명란처럼 다룸 | 개발용 영상 6개 중 4개가 재료·분량을 고정 댓글에 씀. 그중 2개는 음성·설명란에 분량이 거의 없음 |
+| v8 | 근거에 화면 글자(`[O01 00:09 화면]`) 추가. 분량 출처에 화면 글자 포함 | 영어 평가셋 14편 중 2편은 말소리가 노래뿐이고 재료가 화면 글자로만 나옴 |
 
 코드 쪽 변경: 팁 중복 단계 제거와 대안 병합(v3), 문자열 "null" 처리(v3 이후), 출처별 분량·불일치·확인 필요(v4), 중복 경고(v5), 도구 제거(v6).
 
@@ -214,7 +218,7 @@ node src/worker.mjs --once     # 대기 job이 없으면 끝냄
 - 재생 불가 영상과 자막이 없는 영상은 처리하지 못한다(STT 경로 없음).
 - 개발용 영상이 적어 모든 판단이 작은 표본에서 나왔다.
 - 테스트의 기준 LLM 출력은 직접 만든 것이고 사람 라벨이 아니다.
-- 화면 자막(OCR)과 고정 댓글은 아직 근거로 쓰지 않는다.
+- 화면 글자(OCR)는 `OCR=on`일 때만 읽는다. YouTube 영상 파일은 player API의 형식 주소로 받는데, 긴 영상(14편 중 2분 32초짜리 1편)은 받지 못해 `no_video`로 건너뛴다. 영상 위 자막(burned-in)도 그대로 읽혀서 말소리와 겹치는 구간이 많다.
 - 단위 계열 비교가 단순하다. "1t"(티스푼)와 "반스푼"은 불일치로 나온다. 단위 변환을 하지 않기로 했으므로 의도된 동작이다.
 - YouTube만 지원한다.
 - 출력은 아직 팀 계약 스키마(`schemas/recipe.schema.json`) 형식이 아니다. 내보내기는 다음 PR.

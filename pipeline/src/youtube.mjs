@@ -188,3 +188,53 @@ export async function fetchTranscript(videoId, { languages = ['ko', 'en'], fetch
   }
   throw new PipelineError(`No usable captions for ${videoId} (${attempts.join('; ')})`, { stage: 'collect', ...classifyFailure(failures) });
 }
+
+// Video file for reading on-screen text (KAN-51), or null with why not. The Android client's formats come
+// with plain URLs, so no signature step is needed. The smallest MP4 whose short side is at least 360px is
+// enough to read overlaid text; a video-only stream is fine since OCR needs no sound.
+export const MAX_VIDEO_BYTES = 60 * 1024 * 1024;
+const VIDEO_TIMEOUT_MS = 60_000;
+
+export function pickVideoFormat(formats) {
+  const mp4 = (formats || []).filter((f) => f.url && /^video\/mp4/.test(f.mimeType || '') && f.width && f.height);
+  const side = (f) => Math.min(f.width, f.height);
+  const enough = mp4.filter((f) => side(f) >= 360).sort((a, b) => side(a) - side(b) || (a.bitrate ?? 0) - (b.bitrate ?? 0));
+  return enough[0] ?? mp4.sort((a, b) => side(b) - side(a))[0] ?? null;
+}
+
+// { video } or { video: null, reason, lost }. lost: a download failed midway, so a later run may get it.
+export async function fetchVideoFile(videoId, { fetchImpl = fetch, timeoutMs = YOUTUBE_TIMEOUT_MS, maxBytes = MAX_VIDEO_BYTES } = {}) {
+  let lost = false;
+  for (const client of CLIENTS) {
+    const { res } = await request(fetchImpl, PLAYER_URL, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json', 'user-agent': client.userAgent },
+      body: JSON.stringify({ videoId, context: { client: { clientName: client.name, clientVersion: client.version, hl: 'en', ...client.extra } } }),
+    }, timeoutMs);
+    if (!res?.ok) continue;
+    let player;
+    try {
+      player = await res.json();
+    } catch {
+      continue;
+    }
+    const sd = player.streamingData;
+    const format = pickVideoFormat([...(sd?.formats || []), ...(sd?.adaptiveFormats || [])]);
+    if (!format) continue;
+    if (Number(format.contentLength) > maxBytes) return { video: null, reason: 'video_too_large' };
+    const file = await request(fetchImpl, format.url, { headers: { 'user-agent': client.userAgent } }, VIDEO_TIMEOUT_MS);
+    if (file.error) lost = true;
+    if (!file.res?.ok) continue;
+    let bytes;
+    try {
+      bytes = new Uint8Array(await file.res.arrayBuffer());
+    } catch {
+      lost = true;
+      continue;
+    }
+    if (bytes.byteLength > maxBytes) return { video: null, reason: 'video_too_large' };
+    if (!bytes.byteLength) continue;
+    return { video: { bytes, filename: 'video.mp4', mime: 'video/mp4', height: format.height, width: format.width } };
+  }
+  return { video: null, reason: 'no_video', ...(lost && { lost: true }) };
+}

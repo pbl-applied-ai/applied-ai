@@ -46,6 +46,9 @@ const UNTIMED_LABEL = { description: '설명', comment: '고정 댓글' };
 
 export function renderForPrompt(segments) {
   return segments
-    .map((s) => (UNTIMED_LABEL[s.kind] ? `[${s.id} ${UNTIMED_LABEL[s.kind]}] ${s.text}` : `[${s.id} ${formatClock(s.startMs)}] ${s.text}`))
+    .map((s) => {
+      if (UNTIMED_LABEL[s.kind]) return `[${s.id} ${UNTIMED_LABEL[s.kind]}] ${s.text}`;
+      return `[${s.id} ${formatClock(s.startMs)}${s.kind === 'ocr' ? ' 화면' : ''}] ${s.text}`;
+    })
     .join('\n');
 }

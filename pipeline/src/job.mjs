@@ -5,6 +5,7 @@ import { estimateEnabled, ESTIMATE_PROMPT_VERSION } from './estimate.mjs';
 import { parseReelCode } from './instagram.mjs';
 import { resolveProvider } from './llm.mjs';
 import { runPipeline } from './pipeline.mjs';
+import { OCR_MODEL, ocrEnabled } from './ocr.mjs';
 import { PROMPT_VERSION } from './schema.mjs';
 import { toEvidenceBundle, toTeamRecipe } from './team-schema.mjs';
 import { parseVideoId } from './youtube.mjs';
@@ -47,6 +48,8 @@ export function extractorVersion(env = process.env) {
     collector: 'youtube-timedtext',
     prompt: PROMPT_VERSION,
     model,
+    // Results with and without on-screen text are not the same run, so the cache keeps them apart.
+    ...(ocrEnabled(env) && { ocr: env.OCR_MODEL || OCR_MODEL }),
     // A run without suggestions must not be reused once they are on, and the other way round.
     ...(estimateEnabled(env) && { estimate: ESTIMATE_PROMPT_VERSION }),
   };
@@ -147,7 +150,11 @@ export async function runJob(input, { onStage = () => {}, env = process.env, fet
       status: 'succeeded',
       canonical_key: key,
       // No lookup asks for this value, so a result missing speech only because of a passing failure is not reused.
-      extractor_version: result.meta.speech_lost ? { ...version, speech: 'lost' } : version,
+      extractor_version: {
+        ...version,
+        ...(result.meta.speech_lost && { speech: 'lost' }),
+        ...(result.meta.ocr_lost && { ocr: 'lost' }),
+      },
       ...run,
       description_only: descriptionOnly,
       metrics: { stages, usage },

@@ -1,8 +1,8 @@
 export const TEAM_SCHEMA_VERSION = '0.2';
 
-// Internal evidence IDs (S01, D01, C01) become team IDs (asr-0, desc-0, comment-0). Platform captions
+// Internal evidence IDs (S01, D01, C01, O01) become team IDs (asr-0, desc-0, comment-0, ocr-0). Platform captions
 // map to "asr" because the team schema has no separate caption type yet.
-const TEAM_PREFIX = { speech: 'asr', description: 'desc', comment: 'comment' };
+const TEAM_PREFIX = { speech: 'asr', description: 'desc', comment: 'comment', ocr: 'ocr' };
 
 export function teamIdMap(evidence) {
   const map = new Map();
@@ -32,7 +32,7 @@ export function toEvidenceBundle(result, { runId, createdAt } = {}) {
   for (const seg of result.evidence) {
     const id = map.get(seg.id);
     if (seg.kind === 'description' || seg.kind === 'comment') segments.push({ id, type: seg.kind, text: seg.text });
-    else segments.push({ id, type: 'asr', start_ms: seg.startMs, end_ms: seg.endMs, text: seg.text });
+    else segments.push({ id, type: seg.kind === 'ocr' ? 'ocr' : 'asr', start_ms: seg.startMs, end_ms: seg.endMs, text: seg.text });
   }
   const upload = source.platform === 'upload';
   const instagram = source.platform === 'instagram';
@@ -60,6 +60,7 @@ export function toEvidenceBundle(result, { runId, createdAt } = {}) {
         },
         ...(instagram && { collect: { tool: caption.vendor ?? 'unknown', version: 'api' } }),
         ...(result.evidence.some((s) => s.kind === 'comment') && { pinned_comment: { tool: 'youtube-next', version: 'WEB' } }),
+        ...(meta.ocr && { ocr: { tool: 'ffmpeg+openai-vision', version: meta.ocr.model, config: { every_ms: meta.ocr.every_ms, frames: meta.ocr.frames } } }),
       },
     },
     segments,

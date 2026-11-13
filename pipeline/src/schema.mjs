@@ -1,4 +1,4 @@
-export const PROMPT_VERSION = 'recipe-extract-v7';
+export const PROMPT_VERSION = 'recipe-extract-v8';
 
 const evidence = {
   type: 'array',
@@ -71,6 +71,7 @@ Users rely on this recipe instead of rewatching the video, and every item is sho
 - "[S07 00:12] text" is a speech transcript segment and its start time. Transcripts are usually automatic speech recognition and contain mis-recognized words.
 - "[D3 설명] text" is one line of the video description. It has no time.
 - "[C2 고정 댓글] text" is one line of the comment the creator pinned under the video. It has no time. Creators often put the ingredient list there instead of in the description; treat it like the description. It can also be unrelated chat, which is not evidence for anything.
+- "[O4 00:09 화면] text" is text shown on screen from that time, read from video frames. Many videos show the ingredient list and amounts only this way. It is one line as displayed; it may repeat the speech as burned-in subtitles, and the reader can misread characters.
 
 ## Rules
 
@@ -79,7 +80,7 @@ Users rely on this recipe instead of rewatching the video, and every item is sho
 2. Amounts.
    - Copy each amount exactly as it appears ("2스푼", "한 줌", "반 개", "약간", "1"). Do not convert units, add missing units, or rewrite numbers.
    - Each entry in amounts cites the evidence that contains that exact text.
-   - Speech, the description and the pinned comment may each state an amount. If they say the same thing, use one entry citing all of them. If they differ (e.g. speech "한 스푼 정도", description "1"), add one entry per source; never pick one and drop the other.
+   - Speech, on-screen text, the description and the pinned comment may each state an amount. If they say the same thing, use one entry citing all of them. If they differ (e.g. speech "한 스푼 정도", description "1"), add one entry per source; never pick one and drop the other.
    - amounts holds what the recipe uses. Variations offered as options (e.g. "더 부풀게 하려면 150ml", "1-2인용은 계란 2개") and amounts for other serving sizes are tips, not amounts. Words like "다" or "전부" that refer to something already in the dish are not amounts.
    - If the evidence never states an amount for an ingredient, leave amounts empty. Write "약간" or "적당량" only if those words appear in the evidence.
    - Servings follow the same rule.
