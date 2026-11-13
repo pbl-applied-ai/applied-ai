@@ -1,7 +1,8 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { mergeFrameTexts, ocrEnabled, readScreenText } from '../src/ocr.mjs';
-import { pickVideoFormat } from '../src/youtube.mjs';
+import { fetchVideoFile, pickVideoFormat } from '../src/youtube.mjs';
+import { reelVideo } from '../src/instagram.mjs';
 import { runPipeline } from '../src/pipeline.mjs';
 import { renderForPrompt } from '../src/segments.mjs';
 import { toEvidenceBundle } from '../src/team-schema.mjs';
@@ -141,6 +142,59 @@ test('a failed OCR request skips the stage, marks the run, and keeps the other e
   assert.equal(result.meta.ocr_lost, true);
   assert.equal(result.evidence.filter((e) => e.kind === 'ocr').length, 0);
   assert.ok(result.evidence.some((e) => e.kind === 'speech'));
+});
+
+test('a reply of JSON null skips OCR as ocr_transient instead of failing the job', async () => {
+  const events = [];
+  const fetchImpl = async (url) =>
+    url.includes('/audio/transcriptions')
+      ? { ok: true, status: 200, json: async () => speechWhisper }
+      : { ok: true, status: 200, json: async () => ({ choices: [{ message: { content: 'null' } }] }) };
+  const result = await runPipeline({ upload, env: OCR_ENV, fetchImpl, llmOutput: llm, ocr: { sample: async () => frames(2) }, onStage: log(events) });
+  assert.ok(events.includes('ocr:skipped:ocr_transient'), events.join(' '));
+  assert.equal(result.meta.ocr_lost, true);
+});
+
+test('an unexpected error inside OCR skips the stage and marks the run', async () => {
+  const events = [];
+  const result = await runPipeline({
+    upload,
+    env: OCR_ENV,
+    fetchImpl: uploadFetch(speechWhisper, []),
+    llmOutput: llm,
+    ocr: { sample: async () => { throw new TypeError('boom'); } },
+    onStage: log(events),
+  });
+  assert.ok(events.includes('ocr:skipped:ocr_transient'), events.join(' '));
+  assert.equal(result.meta.ocr_lost, true);
+});
+
+// Fake YouTube: the player answers with one MP4 format, then the file request gets file().
+const youtube = (file, format = {}) => async (url) =>
+  url.includes('/player')
+    ? { ok: true, status: 200, json: async () => ({ streamingData: { formats: [{ url: 'https://v.example/f.mp4', mimeType: 'video/mp4', width: 360, height: 640, ...format }] } }) }
+    : file();
+
+test('a YouTube video cut off midway is no_video and lost, not a failed job', async () => {
+  const cut = async () => ({ ok: true, status: 200, arrayBuffer: async () => { throw new TypeError('terminated'); } });
+  assert.deepEqual(await fetchVideoFile('AbCdEfGhIj0', { fetchImpl: youtube(cut) }), { video: null, reason: 'no_video', lost: true });
+  const timedOut = async () => { throw Object.assign(new Error('t'), { name: 'TimeoutError' }); };
+  assert.deepEqual(await fetchVideoFile('AbCdEfGhIj0', { fetchImpl: youtube(timedOut) }), { video: null, reason: 'no_video', lost: true });
+});
+
+test('a YouTube video without a size is checked after the download', async () => {
+  const big = async () => ({ ok: true, status: 200, arrayBuffer: async () => new ArrayBuffer(11) });
+  assert.deepEqual(await fetchVideoFile('AbCdEfGhIj0', { fetchImpl: youtube(big), maxBytes: 10 }), { video: null, reason: 'video_too_large' });
+  const ok = await fetchVideoFile('AbCdEfGhIj0', { fetchImpl: youtube(big), maxBytes: 11 });
+  assert.equal(ok.video.bytes.byteLength, 11);
+});
+
+test('a reel video that failed for a passing reason is marked lost', async () => {
+  const reel = { videoUrl: 'https://cdn.example/r.mp4' };
+  const down = async () => { throw new TypeError('fetch failed'); };
+  assert.deepEqual(await reelVideo(reel, { fetchImpl: down }), { video: null, reason: 'no_video', lost: true });
+  const gone = async () => ({ ok: false, status: 404 });
+  assert.deepEqual(await reelVideo(reel, { fetchImpl: gone }), { video: null, reason: 'no_video' });
 });
 
 test('an audio-only upload skips OCR as no_video', async () => {

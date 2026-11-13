@@ -151,6 +151,7 @@ async function readBatch(batch, offset, { apiKey, model, fetchImpl }) {
   } catch {
     throw ocrError('OCR response is not the expected JSON', 'ocr_transient', true);
   }
+  if (!Array.isArray(data?.frames)) throw ocrError('OCR response has no frames', 'ocr_transient', true);
   const texts = new Map(data.frames.map((f) => [f.frame, f.text]));
   return { texts: batch.map((_, i) => texts.get(offset + i + 1) ?? ''), usage: body.usage ?? null };
 }

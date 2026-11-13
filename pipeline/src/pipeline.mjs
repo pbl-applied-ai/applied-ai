@@ -126,12 +126,14 @@ async function screenText({ video, env, fetchImpl, onStage, durationMs, ocr }) {
   const t0 = Date.now();
   try {
     const got = await video();
-    if (!got.video) return skip(got.reason ?? 'no_video');
+    if (!got.video) return skip(got.reason ?? 'no_video', Boolean(got.lost));
     const out = await readScreenText(got.video, { env, fetchImpl, durationMs, ...(ocr?.sample && { sample: ocr.sample }) });
     onStage({ stage: 'ocr', state: 'done', ms: Date.now() - t0 });
     return { segments: out.segments, info: { model: out.model, frames: out.frames, every_ms: out.everyMs, usage: out.usage } };
   } catch (err) {
-    if (!(err instanceof PipelineError)) throw err;
+    // Anything else (a broken download, an odd reply) must not fail the job either. We cannot tell
+    // whether it would pass on a retry, so the run is marked and not reused from the cache.
+    if (!(err instanceof PipelineError)) return skip('ocr_transient', true);
     return skip(err.reason, Boolean(err.retry));
   }
 }

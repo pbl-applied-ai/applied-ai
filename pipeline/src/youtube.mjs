@@ -202,7 +202,9 @@ export function pickVideoFormat(formats) {
   return enough[0] ?? mp4.sort((a, b) => side(b) - side(a))[0] ?? null;
 }
 
-export async function fetchVideoFile(videoId, { fetchImpl = fetch, timeoutMs = YOUTUBE_TIMEOUT_MS } = {}) {
+// { video } or { video: null, reason, lost }. lost: a download failed midway, so a later run may get it.
+export async function fetchVideoFile(videoId, { fetchImpl = fetch, timeoutMs = YOUTUBE_TIMEOUT_MS, maxBytes = MAX_VIDEO_BYTES } = {}) {
+  let lost = false;
   for (const client of CLIENTS) {
     const { res } = await request(fetchImpl, PLAYER_URL, {
       method: 'POST',
@@ -219,12 +221,20 @@ export async function fetchVideoFile(videoId, { fetchImpl = fetch, timeoutMs = Y
     const sd = player.streamingData;
     const format = pickVideoFormat([...(sd?.formats || []), ...(sd?.adaptiveFormats || [])]);
     if (!format) continue;
-    if (Number(format.contentLength) > MAX_VIDEO_BYTES) return { video: null, reason: 'video_too_large' };
+    if (Number(format.contentLength) > maxBytes) return { video: null, reason: 'video_too_large' };
     const file = await request(fetchImpl, format.url, { headers: { 'user-agent': client.userAgent } }, VIDEO_TIMEOUT_MS);
+    if (file.error) lost = true;
     if (!file.res?.ok) continue;
-    const bytes = new Uint8Array(await file.res.arrayBuffer());
+    let bytes;
+    try {
+      bytes = new Uint8Array(await file.res.arrayBuffer());
+    } catch {
+      lost = true;
+      continue;
+    }
+    if (bytes.byteLength > maxBytes) return { video: null, reason: 'video_too_large' };
     if (!bytes.byteLength) continue;
     return { video: { bytes, filename: 'video.mp4', mime: 'video/mp4', height: format.height, width: format.width } };
   }
-  return { video: null, reason: 'no_video' };
+  return { video: null, reason: 'no_video', ...(lost && { lost: true }) };
 }

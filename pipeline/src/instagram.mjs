@@ -154,5 +154,6 @@ export async function reelVideo(reel, { media = null, fetchImpl = fetch } = {}) 
   if (media?.filename === 'video.mp4') return { video: media };
   if (!reel.videoUrl) return { video: null, reason: 'no_video' };
   const out = await download(reel.videoUrl, fetchImpl, MAX_REEL_VIDEO_BYTES);
-  return out.bytes ? { video: { bytes: out.bytes, filename: 'video.mp4', mime: 'video/mp4' } } : { video: null, reason: 'no_video' };
+  if (out.bytes) return { video: { bytes: out.bytes, filename: 'video.mp4', mime: 'video/mp4' } };
+  return { video: null, reason: 'no_video', ...(out.transient && { lost: true }) };
 }
