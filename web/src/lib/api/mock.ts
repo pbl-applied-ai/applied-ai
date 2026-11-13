@@ -3,8 +3,8 @@
 //
 // 링크에 따라 결과가 달라진다(MOCK_LINKS: 실패 안내 7종 + 지원 안 하는 링크). 그 밖의 YouTube 링크는 모두 성공하고 SAMPLE_RECIPE를 돌려준다.
 // 시간 흐름: 대기 0.8초 → collect → structure → 끝(약 5초).
-import { PARTIAL_RECIPE, SAMPLE_RECIPE } from './fixtures';
-import { toSummary } from './editable';
+import { PARTIAL_RECIPE, SAMPLE_ESTIMATES, SAMPLE_RECIPE } from './fixtures';
+import { toSummary, withoutEstimates } from './editable';
 import { checkShortsUrl } from '../shorts';
 import { checkUploadFile } from '../upload';
 import {
@@ -177,7 +177,13 @@ export function createMockApi(options: MockOptions = {}): RecipeApi {
       const videoId = runId.startsWith('run-') ? runId.slice(4) : '';
       if (!videoId || (FAILURES[videoId] && FAILURES[videoId].reason !== 'partial_recipe')) return null;
       const job = Object.values(load().jobs).find((j) => j.videoId === videoId);
-      return runFor(videoId, job?.sourceUrl ?? `https://www.youtube.com/shorts/${videoId}`);
+      const run = runFor(videoId, job?.sourceUrl ?? `https://www.youtube.com/shorts/${videoId}`);
+      // 서버(get_run)처럼 로그인했을 때만 추정값을 붙인다
+      if (!load().user) return run;
+      const ingredients = run.recipe.ingredients.map((ing) =>
+        !ing.amount_raw && SAMPLE_ESTIMATES[ing.name] ? { ...ing, amount_estimate: SAMPLE_ESTIMATES[ing.name] } : ing,
+      );
+      return { ...run, recipe: { ...run.recipe, ingredients } };
     },
 
     async getUser() {
@@ -223,7 +229,7 @@ export function createMockApi(options: MockOptions = {}): RecipeApi {
       const existing = Object.values(state.recipes).find((r) => r.runId === draft.runId);
       const at = iso(now());
       const recipe: UserRecipe = {
-        ...draft,
+        ...withoutEstimates(draft),
         id: existing?.id ?? crypto.randomUUID(),
         sourceUrl: Object.values(state.jobs).find((j) => `run-${j.videoId}` === draft.runId)?.sourceUrl ?? '',
         createdAt: existing?.createdAt ?? at,
@@ -255,7 +261,7 @@ export function createMockApi(options: MockOptions = {}): RecipeApi {
       requireUser(state);
       const current = state.recipes[id];
       if (!current) throw new Error('recipe not found');
-      const next: UserRecipe = { ...current, ...draft, id, updatedAt: iso(now()) };
+      const next: UserRecipe = { ...current, ...withoutEstimates(draft), id, updatedAt: iso(now()) };
       save({ ...state, recipes: { ...state.recipes, [id]: next } });
     },
 

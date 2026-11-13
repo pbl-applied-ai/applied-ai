@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { addIngredient, addStep, canSave, editIngredient, editStep, revertItem, toEditable, type Run } from "@/lib/api";
+import { acceptAllEstimates, acceptEstimate, addIngredient, addStep, canSave, editIngredient, editStep, estimateCount, revertItem, toEditable, withoutEstimates, type Run } from "@/lib/api";
 import { PARTIAL_RECIPE, SAMPLE_RECIPE } from "@/lib/api/fixtures";
 import { amountView, descriptionNotice, isDescriptionOnly, isUserAdded, missingParts, saveBlocker } from "./review";
 
@@ -98,5 +98,69 @@ describe("설명 기반 안내", () => {
     const reelWithSpeech: Run = { ...reel, recipe: { ...reel.recipe, steps: [{ order: 1, text: "볶는다.", evidence: ["asr-0"] }] } };
     expect(descriptionNotice(reelWithSpeech)).toBeNull();
     expect(descriptionNotice({ ...descOnly, sourceUrl: "" })).toBe("영상 설명란만 보고 만든 레시피예요.");
+  });
+});
+
+describe("추정 분량 (KAN-66)", () => {
+  const estimated: Run = {
+    ...run,
+    recipe: {
+      ...SAMPLE_RECIPE,
+      ingredients: SAMPLE_RECIPE.ingredients.map((ing) =>
+        ing.name === "마늘"
+          ? { ...ing, amount_estimate: { text: "4~5쪽", basis: "1인분 기준" } }
+          : ing.name === "목살"
+            ? { ...ing, amount_estimate: { text: "200g" } }
+            : ing,
+      ),
+    },
+  };
+
+  it("확인 안 된 분량에 추정값이 있으면 영상 값과 따로 \"추정\"으로 보여 준다", () => {
+    const draft = toEditable(estimated);
+    expect(amountView(draft.ingredients[1])).toEqual({ kind: "estimate", text: "4~5쪽", basis: "1인분 기준" });
+    expect(amountView(draft.ingredients[3])).toEqual({ kind: "estimate", text: "200g", basis: null });
+    expect(amountView(draft.ingredients[0])).toEqual({ kind: "confirmed", text: "살짝만" });
+    expect(estimateCount(draft)).toBe(2);
+  });
+
+  it("확인된 분량에 잘못 붙은 추정값은 쓰지 않는다", () => {
+    const wrong: Run = {
+      ...run,
+      recipe: { ...SAMPLE_RECIPE, ingredients: [{ ...SAMPLE_RECIPE.ingredients[0], amount_estimate: { text: "1큰술" } }] },
+    };
+    const draft = toEditable(wrong);
+    expect(amountView(draft.ingredients[0])).toEqual({ kind: "confirmed", text: "살짝만" });
+    expect(estimateCount(draft)).toBe(0);
+  });
+
+  it("추정값을 쓰면 직접 입력이 되고, 되돌리면 다시 추정이다", () => {
+    const used = acceptEstimate(toEditable(estimated), "ing-2");
+    expect(amountView(used.ingredients[1])).toEqual({ kind: "user", text: "4~5쪽" });
+    expect(used.ingredients[1].user_entered).toBe(true);
+    expect(used.ingredients[1].amount_status).toBe("unconfirmed");
+    expect(estimateCount(used)).toBe(1);
+
+    const reverted = revertItem(used, estimated, "ing-2");
+    expect(amountView(reverted.ingredients[1]).kind).toBe("estimate");
+  });
+
+  it("추정값을 고쳐 쓰면 고친 값이 직접 입력이다", () => {
+    const fixed = editIngredient(toEditable(estimated), "ing-2", { amount_raw: "3쪽" });
+    expect(amountView(fixed.ingredients[1])).toEqual({ kind: "user", text: "3쪽" });
+  });
+
+  it("모두 쓰기는 추정값이 있는 분량만 채운다", () => {
+    const all = acceptAllEstimates(toEditable(estimated));
+    expect(estimateCount(all)).toBe(0);
+    expect(all.ingredients.filter((i) => i.user_entered).map((i) => i.amount_raw)).toEqual(["4~5쪽", "200g"]);
+    expect(amountView(all.ingredients[4])).toEqual({ kind: "missing" });
+  });
+
+  it("저장할 때는 쓰지 않은 추정값을 뺀다", () => {
+    const saved = withoutEstimates(acceptEstimate(toEditable(estimated), "ing-2"));
+    expect(saved.ingredients.some((i) => "amount_estimate" in i)).toBe(false);
+    expect(saved.ingredients[1].amount_raw).toBe("4~5쪽");
+    expect(saved.ingredients[3].amount_raw).toBeNull();
   });
 });

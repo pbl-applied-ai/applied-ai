@@ -13,6 +13,8 @@ export function toEditable(run: Run): EditableRecipe {
       name: ing.name,
       amount_raw: ing.amount_raw,
       amount_status: ing.amount_status,
+      // 추정값은 영상에서 확인 안 된 분량에만 붙인다(KAN-52). 로그인 전 공개 링크에서는 서버가 빼서 안 온다.
+      ...(ing.amount_estimate && !ing.amount_raw ? { amount_estimate: ing.amount_estimate } : {}),
       ...(ing.optional ? { optional: true } : {}),
       edited: false,
       user_entered: false,
@@ -46,10 +48,34 @@ export function editIngredient(
       if (next.amount_raw !== ing.amount_raw) {
         next.amount_status = 'unconfirmed';
         next.user_entered = Boolean(next.amount_raw);
+        // 추정값을 쓰거나 고치면 사용자가 채운 분량이 된다. 추정값은 [되돌리기]로 다시 나온다.
+        delete next.amount_estimate;
       }
       return next;
     }),
   };
+}
+
+// 추정값을 그대로 분량으로 쓴다. 쓴 값은 "직접 입력"이다(user_entered).
+export function acceptEstimate(draft: EditableRecipe, id: string): EditableRecipe {
+  const ing = draft.ingredients.find((item) => item.id === id);
+  if (!ing?.amount_estimate || ing.amount_raw) return draft;
+  return editIngredient(draft, id, { amount_raw: ing.amount_estimate.text });
+}
+
+// 추정값이 있는 분량을 모두 한 번에 쓴다.
+export function acceptAllEstimates(draft: EditableRecipe): EditableRecipe {
+  return draft.ingredients.reduce((next, ing) => acceptEstimate(next, ing.id), draft);
+}
+
+// 아직 쓰지 않은 추정값 수. [추정 분량 N개 모두 쓰기]에 쓴다.
+export function estimateCount(draft: Pick<EditableRecipe, 'ingredients'>): number {
+  return draft.ingredients.filter((ing) => ing.amount_estimate && !ing.amount_raw).length;
+}
+
+// 저장할 때는 추정값을 뺀다. 사용자 레시피에는 쓴 값(amount_raw + user_entered)만 남는다(#45).
+export function withoutEstimates<T extends Pick<EditableRecipe, 'ingredients'>>(draft: T): T {
+  return { ...draft, ingredients: draft.ingredients.map(({ amount_estimate: _estimate, ...ing }) => ing) };
 }
 
 export function addIngredient(draft: EditableRecipe, name: string, amountRaw: string | null = null): EditableRecipe {

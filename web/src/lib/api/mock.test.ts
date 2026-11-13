@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { toEditable } from "./editable";
 import { MOCK_LINKS, createMockApi } from "./mock";
 
 function setup() {
@@ -33,6 +34,24 @@ describe("createMockApi", () => {
     const b = await api.getJob(partial.jobId);
     expect([b?.status, b?.errorCode, b?.reason]).toEqual(["failed", "insufficient", "partial_recipe"]);
     expect(b?.runId).toBeTruthy();
+  });
+
+  it("추정값은 로그인했을 때만 오고, 저장한 레시피에는 남지 않는다(KAN-66)", async () => {
+    const { api } = setup();
+    const runId = "run-Smpl0Gochu1";
+    const before = await api.getRun(runId);
+    expect(before!.recipe.ingredients.some((i) => i.amount_estimate)).toBe(false);
+
+    await api.signInWithGoogle("/");
+    const after = await api.getRun(runId);
+    const garlic = after!.recipe.ingredients.find((i) => i.name === "마늘");
+    expect(garlic?.amount_estimate?.text).toBeTruthy();
+    expect(after!.recipe.ingredients.find((i) => i.amount_raw)?.amount_estimate).toBeUndefined();
+
+    await api.saveRecipe(toEditable(after!));
+    const [card] = await api.listRecipes();
+    const saved = await api.getRecipe(card.id);
+    expect(saved!.ingredients.some((i) => "amount_estimate" in i)).toBe(false);
   });
 
   it("Shorts가 아닌 YouTube 링크는 unsupported_source", async () => {

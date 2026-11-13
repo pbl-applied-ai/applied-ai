@@ -71,6 +71,7 @@ export interface EditableIngredient {
   name: string;
   amount_raw: string | null;
   amount_status: AmountStatus;
+  amount_estimate?: { text: string; basis?: string }; // 아직 쓰지 않은 AI 추정값. 저장할 때는 뺀다
   optional?: boolean;
   edited: boolean; // 추출 결과에서 바뀌었으면 true → "직접 입력" 표시
   user_entered: boolean; // 사용자가 추가한 항목이거나 근거 없이 채운 분량
