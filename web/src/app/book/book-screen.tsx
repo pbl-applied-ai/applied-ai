@@ -4,9 +4,11 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import { type Job, type RecipeSummary, api } from "@/lib/api";
-import { type JobCard, jobCards, shortDate } from "@/lib/book";
+import { type JobCard, jobCards } from "@/lib/book";
 import { type BookHidden, hideJob, readBookHidden } from "@/lib/book-hidden";
 import { useRequireUser } from "@/lib/use-require-user";
+import { JobCardList, RecipeCard } from "@/components/book-cards";
+import { TabBar } from "@/components/tab-bar";
 
 const POLL_MS = 3000;
 
@@ -84,69 +86,20 @@ export function BookScreen() {
 
       {!loading && !failed && (
         <div className="flex flex-col gap-3 px-5 pb-8">
-          {cards.map((card) => (
-            <div
-              key={card.jobId}
-              className={`flex items-center rounded-xl border ${
-                card.kind === "failed" ? "border-line-strong bg-background" : "border-dashed border-[#8a8a85] bg-[#fafaf8]"
-              }`}
-            >
-              <Link href={card.href} className={`flex min-w-0 flex-1 items-center gap-3 py-3.5 pl-4 ${card.kind === "failed" ? "pr-1" : "pr-4"}`}>
-                {card.kind === "working" ? (
-                  <span className="size-10 shrink-0 animate-spin rounded-full border-[3px] border-disabled border-t-link" aria-hidden="true" />
-                ) : (
-                  <span
-                    className={`flex size-10 shrink-0 items-center justify-center rounded-full text-sm font-bold ${
-                      card.kind === "failed" ? "bg-subtle text-muted" : "bg-foreground text-background"
-                    }`}
-                    aria-hidden="true"
-                  >
-                    {card.kind === "failed" ? "!" : "✓"}
-                  </span>
-                )}
-                <span className="flex min-w-0 flex-1 flex-col gap-0.5">
-                  <span className="text-[15px] font-bold">{card.title}</span>
-                  <span className="text-[13px] text-muted">{card.detail}</span>
-                </span>
-                {card.kind !== "failed" && (
-                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#5c5c5c" strokeWidth="2" aria-hidden="true">
-                    <path d="M9 6l6 6-6 6" />
-                  </svg>
-                )}
-              </Link>
-              {/* 실패 카드는 지울 방법이 없으면 계속 쌓이므로 [닫기]를 둔다 */}
-              {card.kind === "failed" && (
-                <button
-                  type="button"
-                  aria-label="실패 카드 닫기"
-                  onClick={() => {
-                    if (!user) return;
-                    hideJob(user.id, card.jobId);
-                    setHidden(readBookHidden(user.id));
-                  }}
-                  className="mr-1 flex size-11 shrink-0 items-center justify-center rounded-full"
-                >
-                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#5c5c5c" strokeWidth="2" aria-hidden="true">
-                    <path d="M6 6l12 12M18 6L6 18" />
-                  </svg>
-                </button>
-              )}
-            </div>
-          ))}
+          <JobCardList
+            cards={cards}
+            onHide={(jobId) => {
+              if (!user) return;
+              hideJob(user.id, jobId);
+              setHidden(readBookHidden(user.id));
+            }}
+          />
 
           {recipes && recipes.length > 0 && (
             <>
               <h2 className="mt-3 text-sm font-medium text-muted">저장한 레시피 {recipes.length}</h2>
               {recipes.map((r) => (
-                <Link key={r.id} href={`/recipes/${encodeURIComponent(r.id)}`} className="flex gap-3 rounded-xl border border-line p-3.5">
-                  <span className="size-16 shrink-0 rounded-lg bg-[#e9e9e5]" aria-hidden="true" />
-                  <span className="flex min-w-0 flex-1 flex-col justify-center gap-1.5">
-                    <span className="truncate text-base font-bold">{r.title}</span>
-                    <span className="text-[13px] text-muted">
-                      재료 {r.ingredientCount} · {shortDate(r.createdAt)} 저장
-                    </span>
-                  </span>
-                </Link>
+                <RecipeCard key={r.id} recipe={r} />
               ))}
             </>
           )}
@@ -164,6 +117,7 @@ export function BookScreen() {
           )}
         </div>
       )}
+      <TabBar />
     </main>
   );
 }

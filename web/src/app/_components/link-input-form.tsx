@@ -4,6 +4,7 @@ import { useRouter } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
 import { NotSignedInError, UPLOAD_ENABLED, api } from "@/lib/api";
 import { fileSource, rememberJobSource } from "@/lib/job-source";
+import { rememberRecentJob } from "@/lib/recent-jobs";
 import { SHORTS_ERROR_TEXT, checkShortsUrl } from "@/lib/shorts";
 import { UPLOAD_ACCEPT, UPLOAD_ERROR_TEXT, checkUploadFile } from "@/lib/upload";
 
@@ -15,10 +16,16 @@ export function LinkInputForm() {
   // 직접 칠 때는 다 치기 전까지 오류를 숨긴다. 입력칸을 벗어나거나 붙여 넣은 뒤부터 보여 준다(버튼은 바로 꺼짐).
   const [showFieldError, setShowFieldError] = useState(false);
   const fileInput = useRef<HTMLInputElement>(null);
+  const linkInput = useRef<HTMLInputElement>(null);
   const [uploading, setUploading] = useState(false);
   const [uploadError, setUploadError] = useState<string | null>(null);
   // 업로드는 로그인한 사람만 된다. 파일을 고르기 전에 로그인으로 보내려고 미리 알아 둔다(null = 아직 모름).
   const [signedIn, setSignedIn] = useState<boolean | null>(null);
+
+  // 레시피북의 [+ 영상으로 레시피 만들기]·로그인 뒤 돌아오기는 /?new=1로 온다. 입력칸에 커서를 둔다(S1).
+  useEffect(() => {
+    if (new URLSearchParams(window.location.search).get("new") === "1") linkInput.current?.focus();
+  }, []);
 
   useEffect(() => {
     if (!UPLOAD_ENABLED) return;
@@ -32,7 +39,7 @@ export function LinkInputForm() {
     };
   }, []);
 
-  // 로그인한 사람은 / 에서 레시피북으로 넘어가니(HomeRedirect) 링크 입력이 그대로 보이는 /?new=1로 돌아온다.
+  // 로그인하고 홈으로 돌아와 입력칸에서 다시 고르게 한다.
   function goLogin() {
     router.push(`/login?next=${encodeURIComponent("/?new=1")}`);
   }
@@ -70,6 +77,7 @@ export function LinkInputForm() {
     try {
       const { jobId } = await api.createJob(check.url);
       rememberJobSource(jobId, check.url);
+      rememberRecentJob(jobId);
       router.push(`/jobs/${encodeURIComponent(jobId)}`);
       // 이 화면은 이동 뒤에도 상태가 남는다(cacheComponents). [다른 링크 넣기]·뒤로 가기로 오면
       // 빈 입력칸에서 다시 시작하도록 비우고 버튼도 푼다. 보낸 링크는 처리 중 화면에 보인다.
@@ -97,6 +105,7 @@ export function LinkInputForm() {
     try {
       const { jobId } = await api.createUploadJob(file);
       rememberJobSource(jobId, fileSource(file.name));
+      rememberRecentJob(jobId);
       router.push(`/jobs/${encodeURIComponent(jobId)}`);
       setUploading(false);
     } catch (err) {
@@ -118,6 +127,7 @@ export function LinkInputForm() {
       <div className="mt-2 flex gap-2">
         <input
           id="link"
+          ref={linkInput}
           type="url"
           inputMode="url"
           autoComplete="off"

@@ -19,7 +19,7 @@ export interface ScreenContext {
   fromUpload?: boolean; // 이 job이 업로드한 파일인지. 그러면 [영상 파일로 넣기] 대신 [다른 파일 올리기]
 }
 
-/** 실패 안내와 지금 보여 줄 버튼. 쓸 수 없는 버튼(업로드 전, 비로그인 레시피북, 링크 모름)은 뺀다. */
+/** 실패 안내와 지금 보여 줄 버튼. 쓸 수 없는 버튼(업로드 전, 링크 모름)은 뺀다. */
 export function failureView(job: Pick<Job, "errorCode" | "reason" | "runId">, ctx: ScreenContext) {
   // partial_recipe인데 찾은 결과(runId)가 없으면 보여 줄 게 없으니 "레시피를 찾지 못했어요"로 안내한다
   const noPartial = job.reason === "partial_recipe" && !job.runId;
@@ -32,12 +32,11 @@ export function failureView(job: Pick<Job, "errorCode" | "reason" | "runId">, ct
   const actions = asked.filter((a: FailAction) => {
     if (a === "retry") return ctx.canRetry;
     if (a === "upload" || a === "other_file") return ctx.uploadReady;
-    if (a === "go_book") return ctx.loggedIn;
     if (a === "show_partial") return Boolean(job.runId);
     return true;
   });
-  // 다른 출구(레시피북·업로드)를 뺐으면 막다른 화면이 되지 않게 [다른 링크 넣기]를 붙인다
-  const exitRemoved = asked.some((a) => (a === "go_book" || a === "upload" || a === "other_file") && !actions.includes(a));
+  // 다른 출구(업로드)를 뺐으면 막다른 화면이 되지 않게 [다른 링크 넣기]를 붙인다
+  const exitRemoved = asked.some((a) => (a === "upload" || a === "other_file") && !actions.includes(a));
   if ((exitRemoved || actions.length === 0) && !actions.includes("other_link")) actions.push("other_link");
   return { title: guide.title, body: guide.body ?? "", actions };
 }

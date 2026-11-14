@@ -110,7 +110,7 @@ describe('failureView 업로드', () => {
     const view = (errorCode: 'retryable' | 'internal', reason: string) =>
       failureView({ errorCode, reason, runId: null }, { ...ctx, loggedIn: true, canRetry: true, fromUpload: true }).actions;
     expect(view('retryable', 'asr_transient')).toEqual(['other_file', 'other_link']);
-    expect(view('internal', 'asr_config')).toEqual(['other_file', 'go_book']);
+    expect(view('internal', 'asr_config')).toEqual(['other_file', 'go_home']);
   });
 
   it('업로드 실패 reason마다 안내가 있다', () => {
