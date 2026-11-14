@@ -148,6 +148,24 @@ class AmountCaseTest(unittest.TestCase):
         self.assertTrue(evaluate.contains_amount("1 tsp", "Add 1 TSP salt"))
         self.assertFalse(evaluate.contains_amount("1 tsp", "Add 11 TSP salt"))
 
+    def test_t_after_number_keeps_case(self):
+        # 숫자 바로 뒤 단위 T(큰술)와 t(작은술)는 3배 차이라 대소문자를 남긴다(#55 리뷰)
+        self.assertNotEqual(evaluate.norm_amount("1T"), evaluate.norm_amount("1t"))
+        self.assertNotEqual(evaluate.norm_amount("1/2 T"), evaluate.norm_amount("1/2 t"))
+        self.assertNotEqual(evaluate.norm_amount("½T"), evaluate.norm_amount("½t"))
+        self.assertEqual(evaluate.norm_amount("1T"), evaluate.norm_amount("1 T"))
+        self.assertEqual(evaluate.norm_amount("2 Tbsp"), evaluate.norm_amount("2 tbsp"))
+        self.assertFalse(evaluate.contains_amount("1t", "간장 1T"))
+        self.assertTrue(evaluate.contains_amount("1T", "간장 1T, 설탕 1t"))
+
+    def test_t_vs_t_scored_wrong(self):
+        gold = {"bundle": {"segments": [{"id": "desc-0", "type": "description", "text": "간장 1T"}]},
+                "recipe": {"ingredients": [ing("간장", "1T", ["desc-0"])], "steps": []}}
+        pred = {"bundle": None, "recipe": {"ingredients": [ing("간장", "1t", ["desc-0"])], "steps": []}}
+        c = evaluate.evaluate_case(gold, pred, SYN)
+        self.assertEqual((c["amount_pairs"], c["amount_norm"]), (1, 0))
+        self.assertEqual(c["unverified"], 1)
+
 
 class CaseScoreTest(unittest.TestCase):
     @classmethod

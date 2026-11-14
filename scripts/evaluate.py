@@ -12,7 +12,8 @@
 - 분량 상태는 confirmed·unconfirmed만 처리한다. 그 밖의 값은 따로 세고 경고한다.
 - 근거 정확도는 짝지은 재료만 본다(짝 안 된 재료·단계의 근거는 제외).
 - 같은 이름이 여러 줄이면 분량이 같은 짝 → 근거가 겹치는 짝 → 순서대로 짝짓는다.
-- 분량 비교(amount_norm·출처별 맞힘·근거 안 분량 확인)는 대소문자를 무시한다. amount_exact는 원문 그대로.
+- 분량 비교(amount_norm·출처별 맞힘·근거 안 분량 확인)는 대소문자를 무시한다. 단, 숫자 바로 뒤 단위 T(큰술)와
+  t(작은술)는 구분한다. amount_exact는 원문 그대로.
 
 지표 정의는 PR(KAN-26) 설명을 따른다. 점수·정답·실행 결과는 레포에 커밋하지 않는다.
 """
@@ -62,9 +63,16 @@ def norm_text(s: str) -> str:
     return re.sub(r"\s+", "", unicodedata.normalize("NFKC", s or ""))
 
 
+# 숫자 바로 뒤에 혼자 오는 단위 T(큰술)는 t(작은술)와 3배 차이라 대소문자를 남긴다(#55 리뷰).
+# NFKC 뒤라 "½"도 "1⁄2"처럼 숫자로 끝난다. "2Tbsp"처럼 영어 글자가 이어지면 단위 이름이라 대소문자를 무시한다.
+_BIG_T = re.compile(r"(?<=\d)T(?![A-Za-z])")
+_BIG_T_MARK = ""  # casefold가 바꾸지 않는 사용자 정의 영역 글자
+
+
 def norm_amount(s: str | None) -> str:
-    """분량 비교용: norm_text + 대소문자 무시("2 Tbsp" = "2 tbsp"). 단위·숫자 표기는 바꾸지 않는다."""
-    return norm_text(s).casefold()
+    """분량 비교용: norm_text + 대소문자 무시("2 Tbsp" = "2 tbsp"). 단, 숫자 뒤 T/t는 구분("1T" ≠ "1t").
+    단위·숫자 표기는 바꾸지 않는다."""
+    return _BIG_T.sub(_BIG_T_MARK, norm_text(s)).casefold()
 
 
 def norm_name(s: str) -> str:
