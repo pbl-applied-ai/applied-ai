@@ -11,6 +11,8 @@
 - --manifest: case,platform,category 열(category = 분량 출처 분류). 소계에 쓴다.
 - 분량 상태는 confirmed·unconfirmed만 처리한다. 그 밖의 값은 따로 세고 경고한다.
 - 근거 정확도는 짝지은 재료만 본다(짝 안 된 재료·단계의 근거는 제외).
+- 같은 이름이 여러 줄이면 분량이 같은 짝 → 근거가 겹치는 짝 → 순서대로 짝짓는다.
+- 분량 비교(amount_norm·출처별 맞힘·근거 안 분량 확인)는 대소문자를 무시한다. amount_exact는 원문 그대로.
 
 지표 정의는 PR(KAN-26) 설명을 따른다. 점수·정답·실행 결과는 레포에 커밋하지 않는다.
 """
@@ -60,6 +62,11 @@ def norm_text(s: str) -> str:
     return re.sub(r"\s+", "", unicodedata.normalize("NFKC", s or ""))
 
 
+def norm_amount(s: str | None) -> str:
+    """분량 비교용: norm_text + 대소문자 무시("2 Tbsp" = "2 tbsp"). 단위·숫자 표기는 바꾸지 않는다."""
+    return norm_text(s).casefold()
+
+
 def norm_name(s: str) -> str:
     """재료 이름 비교용: NFKC, 괄호와 괄호 안 내용 제거, 소문자, 공백 제거."""
     s = unicodedata.normalize("NFKC", s or "")
@@ -77,12 +84,17 @@ def load_synonyms(path: Path) -> dict[str, str]:
     return table
 
 
-def match_ingredients(gold: list[dict], pred: list[dict], synonyms: dict[str, str]) -> list[tuple[int, int]]:
+def match_ingredients(
+    gold: list[dict], pred: list[dict], synonyms: dict[str, str], prefer=None
+) -> list[tuple[int, int]]:
     """1:1 탐욕 매칭. 단계마다 모든 gold를 돈 뒤 다음 단계로 간다(앞 단계 짝을 뒤 단계가 가로채지 않게).
 
     ① name 정확 일치 ② 동의어 ③ 한쪽 name_raw ↔ 상대 name.
     항목 id(v0.2)는 보지 않는다(#3 A: 평가는 재료 이름으로).
+    같은 이름이 여러 줄이면(재료를 부분마다 따로 적음) prefer(g, p) 점수가 높은 짝부터 고른다.
+    점수가 같으면 예전처럼 gold 순서 → pred 순서다.
     """
+    prefer = prefer or (lambda g, p: 0)
     def keys_exact(item):
         return {norm_name(item["name"])}
 
@@ -103,15 +115,17 @@ def match_ingredients(gold: list[dict], pred: list[dict], synonyms: dict[str, st
     ]
     pairs, used_g, used_p = [], set(), set()
     for same in passes:
-        for gi, g in enumerate(gold):
-            if gi in used_g:
+        candidates = sorted(
+            (-prefer(g, p), gi, pi)
+            for gi, g in enumerate(gold) if gi not in used_g
+            for pi, p in enumerate(pred) if pi not in used_p and same(g, p)
+        )
+        for _, gi, pi in candidates:
+            if gi in used_g or pi in used_p:
                 continue
-            for pi, p in enumerate(pred):
-                if pi not in used_p and same(g, p):
-                    pairs.append((gi, pi))
-                    used_g.add(gi)
-                    used_p.add(pi)
-                    break
+            pairs.append((gi, pi))
+            used_g.add(gi)
+            used_p.add(pi)
     return sorted(pairs)
 
 
@@ -136,7 +150,7 @@ DIGIT_AFTER = re.compile(r"^(?:\d|[.,/]\d)")
 
 def contains_amount(amount: str | None, text: str) -> bool:
     """정규화한 분량이 정규화한 문장에 숫자 경계를 지켜 나오는지."""
-    amount, text = norm_text(amount), norm_text(text)
+    amount, text = norm_amount(amount), norm_amount(text)
     if not amount:
         return False
     start = text.find(amount)
@@ -191,7 +205,15 @@ def evaluate_case(gold: dict, pred: dict, synonyms: dict[str, str]) -> dict:
     c["no_result"] = int(p_recipe is None)
     c["partial"] = int(partial)
 
-    pairs = match_ingredients(g_ings, p_ings, synonyms)
+    def prefer(g, p):
+        # 같은 이름 여러 줄일 때만 차이가 난다: 분량이 같으면 2, 근거 구간이 겹치면 1.
+        same_amount = bool(g.get("amount_raw")) and norm_amount(g["amount_raw"]) == norm_amount(p.get("amount_raw"))
+        g_ev = [g_segs[i] for i in g["evidence"] if i in g_segs]
+        p_ev = [p_segs[i] for i in p.get("evidence", []) if i in p_segs]
+        overlap = any(seg_match(s, t) for s in p_ev for t in g_ev)
+        return 2 * same_amount + overlap
+
+    pairs = match_ingredients(g_ings, p_ings, synonyms, prefer)
     matched_g = {gi for gi, _ in pairs}
     matched_p = {pi for _, pi in pairs}
 
@@ -217,7 +239,7 @@ def evaluate_case(gold: dict, pred: dict, synonyms: dict[str, str]) -> dict:
             c["amount_pairs"] += 1
             if ps == "confirmed":
                 c["amount_exact"] += int((p.get("amount_raw") or "").strip() == g["amount_raw"].strip())
-                c["amount_norm"] += int(norm_text(p.get("amount_raw")) == norm_text(g["amount_raw"]))
+                c["amount_norm"] += int(norm_amount(p.get("amount_raw")) == norm_amount(g["amount_raw"]))
         elif ps == "confirmed":
             c["fabricated"] += 1
             for src in amount_sources(p, p_segs)[0]:
@@ -263,7 +285,7 @@ def evaluate_case(gold: dict, pred: dict, synonyms: dict[str, str]) -> dict:
         correct = (
             pi is not None
             and p_ings[pi].get("amount_status") == "confirmed"
-            and norm_text(p_ings[pi].get("amount_raw")) == norm_text(g["amount_raw"])
+            and norm_amount(p_ings[pi].get("amount_raw")) == norm_amount(g["amount_raw"])
         )
         for src in srcs:
             sources[src]["with"] += 1
