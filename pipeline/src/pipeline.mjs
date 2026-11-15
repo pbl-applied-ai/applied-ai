@@ -9,6 +9,7 @@ import { commentSegments, descriptionSegments, normalizeSegments, renderForPromp
 import { buildUserPrompt, PROMPT_VERSION } from './schema.mjs';
 import { estimateAmounts, estimateEnabled, ESTIMATE_PROMPT_VERSION } from './estimate.mjs';
 import { extractRecipe, resolveProvider } from './llm.mjs';
+import { examplesFor } from './fewshot.mjs';
 import { resolveRecipe } from './resolve.mjs';
 
 // video.pinnedComment is the creator's pinned comment text or null; commentNote says why it is null.
@@ -176,17 +177,21 @@ export async function runPipeline({ url, upload, transcriptFile, languages, env 
   let model = null;
   let usage = null;
   let latencyMs = null;
+  let fewshot = [];
   if (!llm) {
     const out = await inStage(onStage, 'structure', async () => {
       const config = resolveProvider(env);
       const t0 = Date.now();
-      const res = await extractRecipe(config, buildUserPrompt(source.video, renderForPrompt(evidence)), { fetchImpl });
-      return { ...res, model: `${config.provider}:${config.model}`, latencyMs: Date.now() - t0 };
+      const prompt = buildUserPrompt(source.video, renderForPrompt(evidence));
+      const examples = await examplesFor(prompt, { env, fetchImpl });
+      const res = await extractRecipe(config, prompt, { fetchImpl, examples });
+      return { ...res, model: `${config.provider}:${config.model}`, latencyMs: Date.now() - t0, examples: examples.map((e) => e.id) };
     });
     llm = out.data;
     usage = out.usage;
     model = out.model;
     latencyMs = out.latencyMs;
+    fewshot = out.examples;
   }
 
   // Left open on purpose: runJob closes finalize after checking the result (CLI callers ignore stages).
@@ -211,6 +216,7 @@ export async function runPipeline({ url, upload, transcriptFile, languages, env 
       usage,
       latency_ms: latencyMs,
       generated_at: new Date().toISOString(),
+      ...(fewshot.length && { fewshot_examples: fewshot }),
       ...(source.commentNote && { comment_note: source.commentNote }),
       ...(source.speechLost && { speech_lost: true }),
       ...(screen.info && { ocr: screen.info }),

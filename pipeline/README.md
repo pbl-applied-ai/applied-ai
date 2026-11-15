@@ -34,6 +34,17 @@ node scripts/repeat-model.mjs <transcript.json> gpt-4.1 3
 - `OPENAI_API_KEY` 또는 `ANTHROPIC_API_KEY`
 - `LLM_PROVIDER` (`openai` | `anthropic`, 기본: 설정된 키 쪽)
 - `LLM_MODEL` (기본 모델 대신 쓸 모델)
+- `FEWSHOT_INDEX` (선택) 예시 색인 파일 경로. 있으면 영상마다 근거가 가장 비슷한 골드 예시를 프롬프트 앞에 넣는다. 영상 한 편에 임베딩 1번(OpenAI 키 필요)
+- `FEWSHOT_K` (기본 2) 넣을 예시 수. 0이면 끔
+
+예시 색인 만들기 (학습 JSONL → 임베딩, 몇 센트). 남의 자막이 들어 있어서 레포 밖에 둔다:
+
+```bash
+node src/train-cli.mjs <골드 폴더>... --not-in <평가셋 폴더> --holdout 10 --out train.jsonl --holdout-out val.jsonl --report report.csv
+node src/fewshot-cli.mjs train.jsonl --out fewshot-index.json --report report.csv
+```
+
+평가셋 채점(예시 없음·예시 넣음·오픈 모델 LoRA를 같은 방식으로): `node scripts/score-answers.mjs prompts.jsonl answers-*.jsonl`. 오픈 모델 학습은 `../finetune/lora_colab.ipynb`.
 
 `compare/`, `dev-candidates/`, `out/`, `*.transcript.json`(테스트 fixture 제외)은 `.gitignore` 대상이다. 실제 영상의 자막·실행 결과는 레포에 올리지 않는다.
 

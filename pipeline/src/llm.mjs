@@ -48,7 +48,13 @@ async function readJson(label, res) {
   }
 }
 
-// task: { name, system, schema, user } — the same JSON-schema call for the recipe and for the amount estimate.
+// Few-shot examples go before the real prompt as earlier user/assistant turns (src/fewshot.mjs).
+const exampleTurns = (task) => (task.examples ?? []).flatMap((ex) => [
+  { role: 'user', content: ex.user },
+  { role: 'assistant', content: ex.assistant },
+]);
+
+// task: { name, system, schema, user, examples? } — the same JSON-schema call for the recipe and for the amount estimate.
 async function callOpenAI({ apiKey, model }, task, fetchImpl, timeoutMs) {
   const request = (withTemperature) =>
     post('OpenAI', fetchImpl, 'https://api.openai.com/v1/chat/completions', {
@@ -57,10 +63,7 @@ async function callOpenAI({ apiKey, model }, task, fetchImpl, timeoutMs) {
       body: JSON.stringify({
         model,
         ...(withTemperature ? { temperature: 0 } : {}),
-        messages: [
-          { role: 'system', content: task.system },
-          { role: 'user', content: task.user },
-        ],
+        messages: [{ role: 'system', content: task.system }, ...exampleTurns(task), { role: 'user', content: task.user }],
         response_format: { type: 'json_schema', json_schema: { name: task.name, strict: true, schema: task.schema } },
       }),
     }, timeoutMs);
@@ -96,7 +99,7 @@ async function callAnthropic({ apiKey, model }, task, fetchImpl, timeoutMs) {
       system: task.system,
       tools: [{ name: task.name, description: 'Return the result.', input_schema: task.schema }],
       tool_choice: { type: 'tool', name: task.name },
-      messages: [{ role: 'user', content: task.user }],
+      messages: [...exampleTurns(task), { role: 'user', content: task.user }],
     }),
   }, timeoutMs);
   const body = await readJson('Anthropic', res);
@@ -112,6 +115,7 @@ export async function callStructured(config, task, { fetchImpl = fetch, timeoutM
   return call(config, task, fetchImpl, timeoutMs);
 }
 
-export function extractRecipe(config, userPrompt, options) {
-  return callStructured(config, { name: 'save_recipe', system: SYSTEM_PROMPT, schema: RECIPE_SCHEMA, user: userPrompt }, options);
+export function extractRecipe(config, userPrompt, options = {}) {
+  const { examples = [], ...rest } = options;
+  return callStructured(config, { name: 'save_recipe', system: SYSTEM_PROMPT, schema: RECIPE_SCHEMA, user: userPrompt, examples }, rest);
 }
