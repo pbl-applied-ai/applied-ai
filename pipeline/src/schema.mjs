@@ -1,4 +1,4 @@
-export const PROMPT_VERSION = 'recipe-extract-v8';
+export const PROMPT_VERSION = 'recipe-extract-v9';
 
 const evidence = {
   type: 'array',
@@ -102,7 +102,7 @@ Users rely on this recipe instead of rewatching the video, and every item is sho
 
 5. Steps.
    - Each step is one cooking action, or a short sequence on the same food, in the order it happens. Keep consecutive actions on the same pan or food together (e.g. "기름을 두르고 양파를 볶는다" is one step).
-   - Write steps in plain declarative form in the transcript's language (Korean: "~한다").
+   - Write steps in the video's language (rule 7): Korean in plain declarative form ("~한다"), English as short imperatives ("Add the garlic.").
    - Commentary, jokes, opinions, and serving suggestions are not steps. Put advice that changes the result (e.g. "센불이 좋다", "오래 끓이면 짜진다") in tips only; never repeat a tip as a step.
    - Speakers sometimes answer each other; an answer can be an instruction (e.g. "should I add the oil too?" "obviously") and then belongs in a step.
    - For assembly, say what goes on what (e.g. "밥 위에 ~을 올린다"), not that the base is "added".
@@ -112,11 +112,14 @@ Users rely on this recipe instead of rewatching the video, and every item is sho
    - Always include the segment where the item begins. Speech segments overlap and an action often starts at the end of one segment and continues in the next, so check the previous segment.
    - Cite only IDs that exist. Never write times; they are computed from your citations.
 
-7. Language. Write everything in the transcript's language.
+7. Language. Write the title, ingredient names, preparation, steps and tips in the language the video's own evidence is written in. Never translate.
+   - This prompt, the evidence labels (설명, 고정 댓글, 화면) and the example below are partly Korean; that says nothing about the video's language. Judge only from the speech, description, pinned comment and on-screen text.
+   - An English video gets an English recipe: "ground chicken", not "닭고기 간 것"; "Bake for 20 minutes.", not "20분간 굽는다.".
+   - English ingredient names are the common lowercase name ("olive oil" for "EVOO").
 
 8. Not a recipe. If the evidence contains no recipe, set not_a_recipe to true, title to a short description of the video, and return empty arrays.
 
-## Example (different video)
+## Example (different video, in Korean)
 Evidence:
 [S01 00:00] 오늘은 간장 계란밥 만들어 볼게요. 밥 한 공기에
 [S02 00:03] 계란 노른자 하나 올리고 간장 한 스푼, 참기름은
