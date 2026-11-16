@@ -1,9 +1,17 @@
-// 홈(S6)과 레시피북(S1)이 같이 쓰는 카드: "만드는 중" 카드, 저장한 레시피 카드.
+// 레시피북(B)의 카드: "만드는 중" 카드, 저장한 레시피 카드.
 import Link from "next/link";
 import type { RecipeSummary } from "@/lib/api";
 import { type JobCard, shortDate } from "@/lib/book";
 
-export function JobCardList({ cards, onHide }: { cards: JobCard[]; onHide: (jobId: string) => void }) {
+export function JobCardList({
+  cards,
+  onHide,
+  onOpen,
+}: {
+  cards: JobCard[];
+  onHide: (jobId: string) => void;
+  onOpen?: (card: JobCard) => void; // 카드를 눌러 결과를 열 때
+}) {
   return cards.map((card) => (
     <div
       key={card.jobId}
@@ -11,7 +19,7 @@ export function JobCardList({ cards, onHide }: { cards: JobCard[]; onHide: (jobI
         card.kind === "failed" ? "border-line-strong bg-background" : "border-dashed border-[#8a8a85] bg-[#fafaf8]"
       }`}
     >
-      <Link href={card.href} className={`flex min-w-0 flex-1 items-center gap-3 py-3.5 pl-4 ${card.kind === "failed" ? "pr-1" : "pr-4"}`}>
+      <Link href={card.href} onClick={() => onOpen?.(card)} className={`flex min-w-0 flex-1 items-center gap-3 py-3.5 pl-4 ${card.kind === "failed" ? "pr-1" : "pr-4"}`}>
         {card.kind === "working" ? (
           <span className="size-10 shrink-0 animate-spin rounded-full border-[3px] border-disabled border-t-link" aria-hidden="true" />
         ) : (

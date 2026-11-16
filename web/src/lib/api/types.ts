@@ -110,18 +110,22 @@ export interface RecipeSummary {
   createdAt: string;
 }
 
-// 홈 추천 레시피 묶음(S6). 팀이 미리 변환해 둔 결과(run)를 묶어 둔다. 카드를 누르면 공개 보기(/r/<runId>)
-export interface RecommendationCard {
+// 홈 추천 레시피(H Home "Trending now"). 팀이 미리 변환해 둔 결과(run)다. 카드를 누르면 공개 보기(/r/<runId>)
+// 모양은 docs/screen-data.md(#57) 4절 1번 `list_featured()`를 따른다. KAN-73에서 실제 API가 나오면 이름만 맞춘다.
+export type FeaturedCategory = 'thanksgiving' | 'christmas' | 'budget' | 'quick';
+
+export interface FeaturedRecipe {
   runId: string;
   title: string;
   creator: string; // 크리에이터 이름. 원본 링크와 함께 항상 보여 준다(기획안 저작권 기준)
+  platform: 'youtube' | 'instagram' | 'upload';
+  durationMs: number | null; // 영상 길이
+  thumbnailUrl: string | null; // null이면 요리명 글자 카드
+  ingredientNames: string[]; // 검색·재료 요약에 쓴다
   ingredientCount: number;
-}
-
-export interface RecommendationGroup {
-  id: string;
-  title: string;
-  cards: RecommendationCard[];
+  stepCount: number;
+  categories: FeaturedCategory[];
+  saveCount: number; // 이 run을 저장한 사람 수. 화면은 10 미만이면 숨긴다(#57 3절 6번)
 }
 
 export interface User {
@@ -144,7 +148,7 @@ export interface RecipeApi {
   createUploadJob(file: File): Promise<{ jobId: string }>; // 로그인 필요(안 했으면 NotSignedInError). 영상 파일을 올리고 job을 만든다(KAN-49). 원본은 처리 뒤 지운다
   getJob(jobId: string): Promise<Job | null>; // 처리 중 화면이 1~2초마다 부른다
   getRun(runId: string): Promise<Run | null>;
-  listRecommendations(): Promise<RecommendationGroup[]>; // 홈 추천 묶음. 없으면 빈 목록이고 홈은 묶음 칸을 숨긴다
+  listFeatured(): Promise<FeaturedRecipe[]>; // 홈 추천 레시피. 없으면 빈 목록이고 홈은 추천 칸을 숨긴다
 
   // 로그인
   getUser(): Promise<User | null>;

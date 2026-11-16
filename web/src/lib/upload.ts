@@ -19,9 +19,9 @@ export type UploadCheck =
   | { ok: false; reason: 'empty' | 'type' | 'size' };
 
 export const UPLOAD_ERROR_TEXT: Record<'empty' | 'type' | 'size', string> = {
-  empty: '빈 파일이에요. 다른 파일을 골라 주세요.',
-  type: 'mp4·mov·webm 영상만 올릴 수 있어요.',
-  size: '25MB 이하 영상만 올릴 수 있어요.',
+  empty: 'This file is empty. Please pick another one.',
+  type: 'Only mp4, mov or webm videos can be uploaded.',
+  size: 'Videos must be 25MB or smaller.',
 };
 
 // 브라우저가 형식을 비워 두는 경우가 있어 확장자로도 확인한다.

@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { failureView, stageText } from "./job-display";
 
-const demo = { loggedIn: false, canRetry: true, uploadReady: false };
+const demo = { canRetry: true, uploadReady: false };
 
 describe("stageText", () => {
   it("단계마다 문구가 있다", () => {
@@ -40,7 +40,7 @@ describe("failureView", () => {
     expect(failureView({ errorCode: "unavailable", reason: "not_playable", runId: null }, demo).actions).toEqual(["other_link"]);
     // [홈으로]는 로그인 전에도 둔다. 홈의 "만드는 중" 카드로 돌아올 수 있어서다(KAN-56)
     expect(failureView({ errorCode: "internal", reason: "unexpected", runId: null }, demo).actions).toEqual(["retry", "go_home"]);
-    expect(failureView({ errorCode: "internal", reason: "unexpected", runId: null }, { ...demo, loggedIn: true }).actions).toEqual(["retry", "go_home"]);
+    expect(failureView({ errorCode: "internal", reason: "unexpected", runId: null }, demo).actions).toEqual(["retry", "go_home"]);
   });
 
   it("링크를 모르면 다시 시도 대신 다른 링크만", () => {

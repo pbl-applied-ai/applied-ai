@@ -1,144 +1,126 @@
 "use client";
 
-// S6 한 화면 홈(docs/ux-flow.md). 로그인 전·후 같은 홈을 쓴다.
-// 위에서부터 링크 입력 → "만드는 중" 카드 → 추천 레시피 묶음 → 내 최근 레시피.
+// H Home (docs/screen-data.md #57 2절 H). 로그인 전·후 같은 홈이다.
+// 검색 → 카테고리 칩 → Trending now 추천 카드. 링크 넣기는 하단 탭 [+ Convert], 만드는 중 카드는 Recipe book으로 옮겼다.
+// 설정 톱니(T Settings)·카드 [+] 바로 저장(K 카테고리 시트)은 그 화면을 만들 때 붙인다.
 import Link from "next/link";
 import { useEffect, useState } from "react";
-import { JobCardList, RecipeCard } from "@/components/book-cards";
 import { TabBar } from "@/components/tab-bar";
-import { type Job, type RecipeSummary, type RecommendationGroup, type User, api } from "@/lib/api";
-import { jobCards } from "@/lib/book";
-import { type BookHidden, hideJob, readBookHidden } from "@/lib/book-hidden";
-import { recentJobIds } from "@/lib/recent-jobs";
-import { LinkInputForm } from "./link-input-form";
-
-const POLL_MS = 3000;
-const RECENT_COUNT = 3;
-// 로그인 전 실패 카드 [닫기]는 이 브라우저에만 남긴다
-const GUEST = "guest";
-
-interface Mine {
-  jobs: Job[];
-  recipes: RecipeSummary[];
-  hidden: BookHidden;
-}
+import { type FeaturedCategory, type FeaturedRecipe, api } from "@/lib/api";
+import {
+  FEATURED_CHIPS,
+  PLATFORM_LABEL,
+  durationText,
+  filterFeatured,
+  ingredientSummary,
+  saveCountText,
+} from "@/lib/featured";
 
 export function HomeScreen() {
-  const [user, setUser] = useState<User | null | undefined>(undefined); // undefined = 아직 모름
-  const [mine, setMine] = useState<Mine | null>(null);
-  const [groups, setGroups] = useState<RecommendationGroup[]>([]);
+  const [featured, setFeatured] = useState<FeaturedRecipe[] | null>(null); // null = 불러오는 중
+  const [query, setQuery] = useState("");
+  const [category, setCategory] = useState<FeaturedCategory | "all">("all");
 
   useEffect(() => {
     let alive = true;
-    api.getUser().then(
-      (u) => alive && setUser(u),
-      () => alive && setUser(null),
-    );
-    // 추천을 못 불러오면 묶음 칸만 숨긴다. 홈의 다른 부분은 그대로 쓴다
-    api.listRecommendations().then(
-      (g) => alive && setGroups(g),
-      () => {},
+    // 추천을 못 불러오면 빈 목록처럼 보여 준다. 링크 넣기는 탭에서 그대로 된다
+    api.listFeatured().then(
+      (list) => alive && setFeatured(list),
+      () => alive && setFeatured([]),
     );
     return () => {
       alive = false;
     };
   }, []);
 
-  useEffect(() => {
-    if (user === undefined) return;
-    let cancelled = false;
-    let timer: ReturnType<typeof setTimeout>;
-    async function refresh() {
-      try {
-        const next: Mine = user
-          ? { ...(await loadSignedIn()), hidden: readBookHidden(user.id) }
-          : { jobs: await loadGuestJobs(), recipes: [], hidden: readBookHidden(GUEST) };
-        if (cancelled) return;
-        setMine(next);
-        if (next.jobs.some((j) => j.status === "queued" || j.status === "running")) timer = setTimeout(refresh, POLL_MS);
-      } catch {
-        // 못 불러오면 카드·최근 레시피 없이 홈을 보여 준다. 링크 입력은 그대로 된다
-        if (!cancelled) setMine({ jobs: [], recipes: [], hidden: readBookHidden(user?.id ?? GUEST) });
-      }
-    }
-    refresh();
-    return () => {
-      cancelled = true;
-      clearTimeout(timer);
-    };
-  }, [user]);
-
-  const cards = mine ? jobCards(mine.jobs, mine.recipes, mine.hidden) : [];
-  const recent = mine?.recipes.slice(0, RECENT_COUNT) ?? [];
+  const shown = featured ? filterFeatured(featured, query, category) : [];
+  const hasFeatured = featured !== null && featured.length > 0;
 
   return (
     <main className="flex flex-1 flex-col">
-      <header className="flex items-center py-3 pr-3 pl-5">
-        <span className="text-[15px] font-bold">숏폼 레시피</span>
+      <header className="flex items-center px-5 pt-4 pb-2">
+        <span className="rounded-xl border-2 border-foreground px-2.5 py-0.5 text-xl font-bold tracking-tight">pinch</span>
       </header>
 
-      <section className="flex flex-col gap-3 px-5 pt-4">
-        <h1 className="text-[24px] leading-snug font-bold">
-          저장만 해 둔 요리 숏폼,
-          <br />
-          따라 할 수 있는 레시피로
-        </h1>
-        <p className="text-sm leading-relaxed text-muted">Shorts 링크를 넣으면 재료·분량·조리 순서를 정리해 드려요.</p>
-      </section>
+      <h1 className="px-5 pt-4 text-[28px] leading-tight font-bold">What should I cook today?</h1>
 
-      <LinkInputForm />
+      {hasFeatured && (
+        <>
+          <form role="search" onSubmit={(e) => e.preventDefault()} className="px-5 pt-5">
+            <label htmlFor="search" className="sr-only">
+              Search recipes or ingredients
+            </label>
+            <div className="flex h-13 items-center rounded-full border border-line-strong pr-1.5 pl-4 focus-within:border-foreground">
+              <input
+                id="search"
+                type="search"
+                autoComplete="off"
+                placeholder="Search recipes or ingredients"
+                value={query}
+                onChange={(e) => setQuery(e.target.value)}
+                className="h-full min-w-0 flex-1 bg-transparent text-[15px] outline-none"
+              />
+              <span className="flex size-10 shrink-0 items-center justify-center rounded-full bg-foreground text-background" aria-hidden="true">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round">
+                  <circle cx="11" cy="11" r="6.5" />
+                  <path d="M16 16l4 4" />
+                </svg>
+              </span>
+            </div>
+          </form>
 
-      {cards.length > 0 && (
-        <section aria-label="레시피 만드는 중" className="flex flex-col gap-3 px-5 pt-8">
-          <JobCardList
-            cards={cards}
-            onHide={(jobId) => {
-              const owner = user?.id ?? GUEST;
-              hideJob(owner, jobId);
-              setMine((m) => m && { ...m, hidden: readBookHidden(owner) });
-            }}
-          />
-        </section>
+          <ul aria-label="Categories" className="flex gap-3 overflow-x-auto px-5 pt-5 [scrollbar-width:none]">
+            {FEATURED_CHIPS.map((chip) => {
+              const active = chip.id === category;
+              return (
+                <li key={chip.id} className="shrink-0">
+                  <button
+                    type="button"
+                    aria-pressed={active}
+                    onClick={() => setCategory(chip.id)}
+                    className="flex w-[72px] flex-col items-center gap-1.5 text-xs"
+                  >
+                    <span
+                      className={`flex size-14 items-center justify-center rounded-full text-2xl ${
+                        active ? "border-2 border-foreground bg-subtle" : "border border-line bg-subtle"
+                      }`}
+                      aria-hidden="true"
+                    >
+                      {chip.emoji}
+                    </span>
+                    <span className={active ? "font-bold" : "text-muted"}>{chip.label}</span>
+                  </button>
+                </li>
+              );
+            })}
+          </ul>
+        </>
       )}
 
-      {groups.map((group) => (
-        <section key={group.id} aria-labelledby={`reco-${group.id}`} className="flex flex-col pt-9">
-          <h2 id={`reco-${group.id}`} className="px-5 text-lg font-bold">
-            {group.title}
-          </h2>
+      <section aria-labelledby="trending" className="flex flex-col pt-7 pb-8">
+        <h2 id="trending" className="px-5 text-lg font-bold">
+          Trending now
+        </h2>
+        {featured === null && <p className="px-5 py-10 text-center text-sm text-muted">Loading…</p>}
+        {featured !== null && !hasFeatured && (
+          <div className="flex flex-col items-center gap-3 px-5 py-10 text-center">
+            <p className="text-sm text-muted">Trending recipes are coming soon.</p>
+            <Link href="/convert" className="flex h-12 items-center rounded-full bg-foreground px-6 text-[15px] font-bold text-background">
+              Convert a video
+            </Link>
+          </div>
+        )}
+        {hasFeatured && shown.length === 0 && (
+          <p className="px-5 py-10 text-center text-sm text-muted">No recipes match. Try another word.</p>
+        )}
+        {shown.length > 0 && (
           <ul className="mt-3 flex snap-x snap-mandatory gap-3 overflow-x-auto scroll-px-5 px-5 pb-1 [scrollbar-width:none]">
-            {group.cards.map((card) => (
-              <li key={card.runId} className="w-32 shrink-0 snap-start">
-                <Link href={`/r/${encodeURIComponent(card.runId)}`} className="flex flex-col gap-1.5">
-                  {/* 원본 썸네일을 쓸지는 저작권 기준과 같이 정한다(docs/ux-flow.md S6 [결정 필요]) */}
-                  <span className="aspect-square w-full rounded-xl bg-[#e9e9e5]" aria-hidden="true" />
-                  <span className="line-clamp-2 text-[15px] leading-snug font-bold">{card.title}</span>
-                  <span className="flex flex-col text-xs text-muted">
-                    <span className="truncate">{card.creator}</span>
-                    <span>재료 {card.ingredientCount}</span>
-                  </span>
-                </Link>
+            {shown.map((r) => (
+              <li key={r.runId} className="w-[72%] shrink-0 snap-start">
+                <FeaturedCard recipe={r} />
               </li>
             ))}
           </ul>
-        </section>
-      ))}
-
-      <section aria-labelledby="recent" className="flex flex-col gap-3 px-5 pt-9 pb-8">
-        <div className="flex items-center justify-between">
-          <h2 id="recent" className="text-lg font-bold">
-            내 최근 레시피
-          </h2>
-          {recent.length > 0 && (
-            <Link href="/book" className="flex min-h-11 items-center px-1 text-sm font-medium text-muted">
-              전체 보기
-            </Link>
-          )}
-        </div>
-        {recent.length > 0 ? (
-          recent.map((r) => <RecipeCard key={r.id} recipe={r} />)
-        ) : (
-          <p className="text-sm text-muted">저장한 레시피가 여기 모여요.</p>
         )}
       </section>
 
@@ -147,13 +129,36 @@ export function HomeScreen() {
   );
 }
 
-async function loadSignedIn(): Promise<Pick<Mine, "jobs" | "recipes">> {
-  const [jobs, recipes] = await Promise.all([api.listMyJobs(), api.listRecipes()]);
-  return { jobs, recipes };
-}
-
-/** 로그인 전: 이 브라우저에서 만든 작업. 찾을 수 없는 작업은 뺀다 */
-async function loadGuestJobs(): Promise<Job[]> {
-  const jobs = await Promise.all(recentJobIds().map((id) => api.getJob(id).catch(() => null)));
-  return jobs.filter((j): j is Job => j !== null);
+function FeaturedCard({ recipe: r }: { recipe: FeaturedRecipe }) {
+  const saves = saveCountText(r.saveCount);
+  const meta = [ingredientSummary(r), durationText(r.durationMs)].filter(Boolean).join(" · ");
+  return (
+    <Link href={`/r/${encodeURIComponent(r.runId)}`} className="flex flex-col gap-2">
+      <span className="relative block aspect-square w-full overflow-hidden rounded-3xl bg-subtle">
+        {r.thumbnailUrl ? (
+          // 썸네일은 받아 저장하지 않고 원래 주소를 그대로 띄운다(#57 5절)
+          // eslint-disable-next-line @next/next/no-img-element
+          <img src={r.thumbnailUrl} alt="" className="size-full object-cover" />
+        ) : (
+          // 썸네일이 없으면(Instagram·업로드·목업) 요리명 글자 카드
+          <span className="flex size-full items-center justify-center p-6 text-center text-xl leading-snug font-bold text-muted">
+            {r.title}
+          </span>
+        )}
+        <span className="absolute top-3 left-3 rounded-full border border-foreground bg-background px-2.5 py-0.5 text-xs font-bold">
+          ▶ {PLATFORM_LABEL[r.platform]}
+        </span>
+        {saves && (
+          <span className="absolute right-3 bottom-3 rounded-full border border-foreground bg-background px-2.5 py-0.5 text-xs font-bold">
+            {saves}
+          </span>
+        )}
+      </span>
+      <span className="line-clamp-2 text-lg leading-snug font-bold">{r.title}</span>
+      <span className="flex flex-col text-[13px] text-muted">
+        {meta && <span className="truncate">{meta}</span>}
+        <span className="truncate">@{r.creator}</span>
+      </span>
+    </Link>
+  );
 }
