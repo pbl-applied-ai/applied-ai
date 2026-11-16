@@ -95,6 +95,78 @@ class MatchTest(unittest.TestCase):
         self.assertEqual(b["fabricated"], 0)
 
 
+class DuplicateNameTest(unittest.TestCase):
+    """같은 재료를 부분마다 따로 적은 정답(영어 평가셋 규칙, 한국어도 있음). 짝은 순서가 아니라 분량·근거로 고른다."""
+
+    SEGS = [
+        {"id": "desc-0", "type": "description", "text": "1 tsp black pepper"},
+        {"id": "desc-1", "type": "description", "text": "1/2 tsp black pepper"},
+        {"id": "desc-2", "type": "description", "text": "black pepper to taste"},
+    ]
+    GOLD = [ing("black pepper", "1 tsp", ["desc-0"]), ing("black pepper", "1/2 tsp", ["desc-1"]),
+            ing("black pepper", "to taste", ["desc-2"])]
+
+    def score(self, preds):
+        bundle = {"video_id": "Smpl0Peppr1", "segments": self.SEGS}
+        gold = {"bundle": bundle, "recipe": {"video_id": "Smpl0Peppr1", "ingredients": self.GOLD, "steps": []}}
+        preds = [dict(p, id=f"ing-{i + 1}") for i, p in enumerate(preds)]
+        return evaluate.evaluate_case(gold, {"bundle": bundle, "recipe": {"ingredients": preds, "steps": []}}, SYN)
+
+    def test_order_does_not_matter(self):
+        c = self.score(list(reversed(self.GOLD)))
+        self.assertEqual((c["matched"], c["amount_exact"], c["amount_norm"]), (3, 3, 3))
+        self.assertEqual((c["ev_pred_correct"], c["ev_gold_covered"]), (3, 3))
+
+    def test_merged_row_pairs_with_its_amount(self):
+        c = self.score([ing("black pepper", "1/2 tsp", ["desc-1"])])
+        self.assertEqual((c["matched"], c["amount_norm"], c["ev_pred_correct"]), (1, 1, 1))
+
+    def test_evidence_breaks_tie_without_amount(self):
+        # 분량 없이 근거만 다른 두 줄: 근거가 겹치는 줄끼리 짝짓는다
+        c = self.score([ing("black pepper", None, ["desc-2"]), ing("black pepper", None, ["desc-0"])])
+        self.assertEqual((c["matched"], c["ev_pred_correct"]), (2, 2))
+
+    def test_unique_names_keep_old_pairs(self):
+        self.assertEqual(
+            evaluate.match_ingredients([ing("밥"), ing("밥"), ing("김")], [ing("김"), ing("밥")], SYN), [(0, 1), (2, 0)]
+        )
+
+
+class AmountCaseTest(unittest.TestCase):
+    """영어 분량은 대소문자만 다르면 같다(amount_norm·근거 확인). amount_exact는 원문 그대로 비교."""
+
+    def test_amount_norm_ignores_case(self):
+        gold = {"bundle": {"segments": [{"id": "desc-0", "type": "description", "text": "2 Tbsp butter"}]},
+                "recipe": {"ingredients": [ing("butter", "2 Tbsp", ["desc-0"])], "steps": []}}
+        pred = {"bundle": None, "recipe": {"ingredients": [ing("butter", "2 tbsp", ["desc-0"])], "steps": []}}
+        c = evaluate.evaluate_case(gold, pred, SYN)
+        self.assertEqual((c["amount_exact"], c["amount_norm"]), (0, 1))
+        self.assertEqual(c["sources"]["설명"]["correct"], 1)
+        self.assertEqual(c["unverified"], 0)
+
+    def test_contains_amount_ignores_case(self):
+        self.assertTrue(evaluate.contains_amount("1 tsp", "Add 1 TSP salt"))
+        self.assertFalse(evaluate.contains_amount("1 tsp", "Add 11 TSP salt"))
+
+    def test_t_after_number_keeps_case(self):
+        # 숫자 바로 뒤 단위 T(큰술)와 t(작은술)는 3배 차이라 대소문자를 남긴다(#55 리뷰)
+        self.assertNotEqual(evaluate.norm_amount("1T"), evaluate.norm_amount("1t"))
+        self.assertNotEqual(evaluate.norm_amount("1/2 T"), evaluate.norm_amount("1/2 t"))
+        self.assertNotEqual(evaluate.norm_amount("½T"), evaluate.norm_amount("½t"))
+        self.assertEqual(evaluate.norm_amount("1T"), evaluate.norm_amount("1 T"))
+        self.assertEqual(evaluate.norm_amount("2 Tbsp"), evaluate.norm_amount("2 tbsp"))
+        self.assertFalse(evaluate.contains_amount("1t", "간장 1T"))
+        self.assertTrue(evaluate.contains_amount("1T", "간장 1T, 설탕 1t"))
+
+    def test_t_vs_t_scored_wrong(self):
+        gold = {"bundle": {"segments": [{"id": "desc-0", "type": "description", "text": "간장 1T"}]},
+                "recipe": {"ingredients": [ing("간장", "1T", ["desc-0"])], "steps": []}}
+        pred = {"bundle": None, "recipe": {"ingredients": [ing("간장", "1t", ["desc-0"])], "steps": []}}
+        c = evaluate.evaluate_case(gold, pred, SYN)
+        self.assertEqual((c["amount_pairs"], c["amount_norm"]), (1, 0))
+        self.assertEqual(c["unverified"], 1)
+
+
 class CaseScoreTest(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
