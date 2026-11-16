@@ -158,6 +158,8 @@ v3를 확정으로 보면 아래 결정을 바꾸는 것이다. 바꿀지, v3에
 | 11 | P 3단계 "Reading on-screen text", 출처 On-screen | OCR 꺼짐(#52, 평가는 OCR 끔) | 켜면 영상당 15~20초·비용 증가 | 서비스는 **OCR 켜기**를 제안(평가 v1.0은 계속 끔). 수빈 결정 |
 | 12 | 화면 언어 영어, 앱 이름 pinch | UX v0.7은 한국어 문구 | `labels.ts` 문구 전부 | v3대로 영어. 레시피 내용은 영상 언어 그대로 |
 
+**11/15 확인(유란, #57):** 1·2·4·8·12번은 제안대로. 2번 칩은 Voice / On-screen / Description, `amount_source`가 없으면 칩을 숨긴다. 3번 인분 조절은 **월요일엔 보류**(화면에는 "As shown in the video"만, −/+는 다음에). 11번은 수빈 결정을 따른다. 1·7·11번은 수빈 확인 대기.
+
 ## 4. KAN-73에서 만들 것
 
 | # | 무엇 | 화면 | 내용 |
@@ -174,6 +176,7 @@ v3를 확정으로 보면 아래 결정을 바꾸는 것이다. 바꿀지, v3에
 | 10 | 웹 타입 v0.2 | 전부 | `TeamRecipe` v0.2(`id`·`partial`), `Run`에 2번 필드, `RecipeSummary`에 3번 필드, `User.name` |
 
 - 순서 제안: **1·2·3·5 → 4 → 6·7** (월요일 연결에 필요한 것 먼저). 8·9는 3절 결정 뒤.
+- 5번은 따로 RPC를 두지 않고 2번 `get_run` 응답의 `my_recipe_id`로 합쳤다(호출 하나 줄임). 응답 타입은 [7절](#7-응답-타입-kan-73-14번).
 - 모두 pgTAP 테스트 + 배포 DB 적용 목록(`supabase/README.md`)까지. 응답 타입(1·2·3·4번)은 구현 전에 유란에게 먼저 보낸다.
 - 썸네일 주소: YouTube는 `https://i.ytimg.com/vi/<id>/hqdefault.jpg`를 서버가 만들어 준다. Instagram·업로드는 `null` → 요리명 글자 카드.
 - 추천 레시피 데이터: 4묶음 × 5편 ≈ 20편 변환(유료 호출 약 20번, OCR은 11번 결정대로). 평가셋 영상은 쓰지 않는다.
@@ -192,4 +195,160 @@ v3를 확정으로 보면 아래 결정을 바꾸는 것이다. 바꿀지, v3에
 
 | 넣기 | 보류(데모 전 다시 봄) |
 |---|---|
-| H(검색은 웹 거르기), D, C(미리보기·한도 빼고), P, F, R(출처 칩·인분 조절 포함), L, K, B, T(이름·로그아웃·정적 링크) | Cook time(3절 5번), 알림(10번), 하루 한도(7번), 링크 미리보기(9번), 설정의 단위·기본 인분·계정 삭제 |
+| H(검색은 웹 거르기), D, C(미리보기·한도 빼고), P, F, R(출처 칩 포함), L, K, B, T(이름·로그아웃·정적 링크) | Cook time(3절 5번), 인분 조절(3번), 알림(10번), 하루 한도(7번), 링크 미리보기(9번), 설정의 단위·기본 인분·계정 삭제 |
+
+## 7. 응답 타입 (KAN-73 1~4번)
+
+유란이 이 모양대로 목업(`mock.ts`)을 먼저 만들고, 선규가 같은 모양으로 RPC를 만든다. 웹 타입은 camelCase, RPC 응답은 snake_case이고 `supabase.ts`가 바꾼다(지금 `JobRow` → `Job`과 같은 방식). 구현하면서 바뀌면 이 절을 먼저 고친다.
+
+### 공통
+
+```ts
+export type Platform = 'youtube' | 'instagram' | 'upload';
+
+// 재료 분량이 나온 곳(3절 2번). 확정 분량의 글자가 든 근거 구간의 종류로 서버가 정한다.
+// asr → voice, ocr → on_screen, desc·comment·title → description. 확정 분량이 아니면 null → 칩을 숨긴다.
+export type AmountSource = 'voice' | 'on_screen' | 'description';
+
+// Home 칩(3절 8번). 칩 글자·이모지는 웹 상수로 둔다: All / Thanksgiving / Christmas / Budget / Quick & easy
+export type FeaturedCategory = 'thanksgiving' | 'christmas' | 'budget' | 'quick';
+
+// 썸네일: YouTube는 서버가 `https://i.ytimg.com/vi/<영상 ID>/hqdefault.jpg`를 만든다. Instagram·업로드는 null → 요리명 글자 카드.
+```
+
+### 1. 추천 목록 — `listFeatured()` / RPC `list_featured()` (로그인 없이)
+
+```ts
+export interface FeaturedRecipe {
+  runId: string;
+  title: string;                 // recipe.title
+  creator: string | null;        // bundle.source.channel. 원본 링크와 함께 항상 보여 준다
+  platform: Platform;
+  sourceUrl: string;
+  durationMs: number | null;     // bundle.source.duration_ms. 카드의 "10 min" 자리는 3절 5번 결정 전까지 영상 길이 또는 비움
+  thumbnailUrl: string | null;
+  ingredientNames: string[];     // 전부. 카드에는 앞 4개("Ramen, egg, bacon, cheese"), 검색은 전부
+  ingredientCount: number;
+  stepCount: number;
+  categories: FeaturedCategory[];// 한 레시피가 여러 칩에 들어갈 수 있다
+  saveCount: number;             // 저장한 사람 수. 10 미만이면 화면에서 숨김(3절 6번)
+}
+
+listFeatured(): Promise<FeaturedRecipe[]>; // Trending 순서(팀이 정한 position). 칩·검색은 웹에서 거른다
+```
+
+- #56의 `listRecommendations(): RecommendationGroup[]`는 v3 Home(칩 + Trending 한 줄)에 맞춰 이걸로 바꾼다.
+- 서버: `featured_runs(run_id, categories text[], position int)`를 팀이 채운다. `list_featured()`는 `runs`와 묶어 위 필드를 돌려준다.
+
+### 2. 레시피 상세 — `getRun(runId)` / RPC `get_run(p_run_id)` (로그인 없이, 바꿈)
+
+```ts
+export interface TeamIngredient {
+  id: string;                          // 스키마 v0.2 항목 ID ('ing-1' …)
+  name: string;
+  name_raw?: string;
+  amount_raw: string | null;
+  amount_status: AmountStatus;
+  amount_estimate?: { text: string; basis?: string }; // 3절 1번 결정대로(로그인 전에도 줄지)
+  amount_source?: AmountSource | null; // 새 필드. 저장된 recipe가 아니라 get_run이 계산해서 붙인다
+  optional?: boolean;
+  evidence: string[];
+}
+
+export interface TeamStep { id: string; order: number; text: string; evidence: string[] }
+
+export interface TeamRecipe {
+  schema_version: '0.2';
+  video_id: string;
+  title: string;
+  servings_raw?: string | null;
+  partial?: boolean;
+  ingredients: TeamIngredient[];
+  steps: TeamStep[];
+}
+
+export interface Run {
+  id: string;
+  sourceUrl: string;
+  recipe: TeamRecipe;
+  partial: boolean;
+  createdAt: string;
+  // 새 필드
+  platform: Platform;
+  creator: string | null;
+  durationMs: number | null;
+  thumbnailUrl: string | null;
+  saveCount: number;
+  myRecipeId: string | null;           // 로그인했고 이 run을 저장했으면 내 레시피 ID → 버튼 "Saved"(4절 5번)
+}
+```
+
+- `get_run`의 반환 열이 바뀌어서 `create or replace`가 안 되고 함수를 지우고 다시 만든다. 공개 링크·S4가 같이 쓰므로 같은 PR에서 `supabase.ts`를 맞춘다.
+
+### 3. 레시피북 목록 — `listRecipes(options)` / RPC `list_recipes(p_limit, p_category_id)` (로그인 필요)
+
+```ts
+export interface RecipeSummary {
+  id: string;
+  runId: string;
+  title: string;
+  ingredientCount: number;
+  stepCount: number;          // 새 필드
+  unconfirmedCount: number;   // "N to check": 분량이 비어 있는 재료 수(지금 editable.ts unconfirmedCount와 같은 뜻)
+  sourceUrl: string;          // 새 필드. 업로드는 'upload:<id>'
+  platform: Platform;         // 새 필드
+  thumbnailUrl: string | null;// 새 필드
+  categoryIds: string[];      // 새 필드
+  createdAt: string;
+  updatedAt: string;          // 새 필드. 정렬용
+}
+
+listRecipes(options?: { limit?: number; categoryId?: string }): Promise<RecipeSummary[]>; // 최근 저장 순
+```
+
+### 4. 카테고리 — 로그인 필요
+
+```ts
+export interface Category {
+  id: string;
+  name: string;            // 1~30자, 내 카테고리 안에서 대소문자 무시하고 겹치지 않음
+  emoji: string | null;
+  recipeCount: number;     // 칩 "Pasta 4", 시트 "4 recipes"
+  createdAt: string;
+}
+
+listCategories(): Promise<Category[]>;                                  // RPC list_categories()
+createCategory(input: { name: string; emoji?: string | null }): Promise<Category>; // RPC create_category(p_name, p_emoji). 같은 이름이면 오류
+saveRecipe(draft: EditableRecipe, options?: { categoryIds?: string[] }): Promise<{ id: string }>; // save_recipe(..., p_category_ids)
+updateRecipe(id: string, draft: EditableRecipe, options?: { categoryIds?: string[] }): Promise<void>; // undefined면 카테고리 그대로
+```
+
+- 카테고리 이름 바꾸기·지우기는 v3에 없어서 이번엔 만들지 않는다.
+- 사용자 한 명당 카테고리 최대 20개.
+
+### 같이 바뀌는 것
+
+```ts
+export interface User { id: string; email: string | null; name: string | null } // name: 구글 user_metadata.full_name
+```
+
+### 목업 예시
+
+```json
+{
+  "runId": "00000000-0000-0000-0000-00000000f001",
+  "title": "Bacon egg & cheese ramen",
+  "creator": "@sample.kitchen",
+  "platform": "youtube",
+  "sourceUrl": "https://www.youtube.com/shorts/Smpl0Ramen1",
+  "durationMs": 21000,
+  "thumbnailUrl": "https://i.ytimg.com/vi/Smpl0Ramen1/hqdefault.jpg",
+  "ingredientNames": ["ramen noodles", "egg yolk", "bacon", "cheese", "sriracha", "mayonnaise", "half and half", "water"],
+  "ingredientCount": 8,
+  "stepCount": 3,
+  "categories": ["quick"],
+  "saveCount": 0
+}
+```
+
+목업은 가짜 영상 ID(`Smpl0…`)만 쓴다. 실제 영상의 제목·자막을 넣지 않는다.
