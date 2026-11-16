@@ -146,6 +146,11 @@ export function createSupabaseApi(base: RecipeApi, options: SupabaseOptions): Re
   const demo: RecipeApi = {
     ...base,
 
+    // 추천 묶음은 아직 저장 방식이 없다(KAN-60·73). 목 묶음이 배포 화면에 보이지 않게 빈 목록을 준다.
+    async listRecommendations() {
+      return [];
+    },
+
     async createJob(sourceUrl) {
       const id = await rpc<string>('create_job', { p_source_url: sourceUrl.trim() });
       if (!id) throw new Error('create_job returned no id');

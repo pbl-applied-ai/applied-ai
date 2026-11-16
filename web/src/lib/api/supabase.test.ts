@@ -35,6 +35,12 @@ function setup(replies: Record<string, { status?: number; body: unknown }>) {
 }
 
 describe('createSupabaseApi', () => {
+  it('추천 묶음은 아직 저장 방식이 없어서 목 묶음 대신 빈 목록을 준다 (KAN-56)', async () => {
+    const { api, sent } = setup({});
+    expect(await api.listRecommendations()).toEqual([]);
+    expect(sent).toHaveLength(0);
+  });
+
   it('creates a job with the anon key and returns its id', async () => {
     // PostgREST는 uuid 하나를 JSON 문자열("…")로 돌려준다
     const { api, sent } = setup({ create_job: { body: JSON.stringify(JOB_ID) } });
