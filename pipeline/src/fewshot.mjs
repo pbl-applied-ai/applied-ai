@@ -1,3 +1,5 @@
+import { createHash } from 'node:crypto';
+import { readFileSync, statSync } from 'node:fs';
 import { readFile, writeFile } from 'node:fs/promises';
 import { PipelineError } from './errors.mjs';
 
@@ -64,14 +66,42 @@ async function loadIndex(file) {
   return cache.get(file);
 }
 
-// FEWSHOT_INDEX turns few-shot on; FEWSHOT_K (default 2) sets how many examples. Needs OPENAI_API_KEY for the query
-// embedding. Returns [] when few-shot is off.
-export async function examplesFor(userPrompt, { env = process.env, fetchImpl = fetch } = {}) {
-  if (!env.FEWSHOT_INDEX) return [];
+const fewshotK = (env) => {
   const k = Number(env.FEWSHOT_K ?? DEFAULT_K);
-  if (!k) return [];
-  if (!env.OPENAI_API_KEY) throw new PipelineError('FEWSHOT_INDEX needs OPENAI_API_KEY for embeddings.', { stage: 'structure', errorCode: 'internal', reason: 'llm_config' });
-  const index = await loadIndex(env.FEWSHOT_INDEX);
+  return Number.isInteger(k) && k > 0 ? k : 0;
+};
+
+// FEWSHOT_INDEX turns few-shot on; FEWSHOT_K (default 2, 0 = off) sets how many examples. The query embedding needs
+// OPENAI_API_KEY, so without it few-shot stays off (like OCR).
+export const fewshotEnabled = (env = process.env) => Boolean(env.FEWSHOT_INDEX?.trim()) && fewshotK(env) > 0 && Boolean(env.OPENAI_API_KEY);
+
+// The cache key part for few-shot runs (job.mjs extractorVersion): a hash of the index file and k, so results made
+// with another index, another k or no examples at all are never reused for each other. The hash is kept per file
+// until its size or modified time changes. An unreadable file gives 'unreadable'; examplesFor then fails and the run
+// is marked lost, so nothing made under that key is reused.
+const hashes = new Map();
+export function fewshotVersion(env = process.env) {
+  const file = env.FEWSHOT_INDEX.trim();
+  let index = 'unreadable';
+  try {
+    const { size, mtimeMs } = statSync(file);
+    const stamp = `${size}:${mtimeMs}`;
+    if (hashes.get(file)?.stamp !== stamp) {
+      hashes.set(file, { stamp, hash: createHash('sha256').update(readFileSync(file)).digest('hex').slice(0, 12) });
+    }
+    index = hashes.get(file).hash;
+  } catch {
+    // Left as 'unreadable'.
+  }
+  return { index, k: fewshotK(env) };
+}
+
+// Returns [] when few-shot is off. Throws when the index cannot be read or the embedding call fails; the pipeline
+// then carries on without examples (src/pipeline.mjs).
+export async function examplesFor(userPrompt, { env = process.env, fetchImpl = fetch } = {}) {
+  if (!fewshotEnabled(env)) return [];
+  const k = fewshotK(env);
+  const index = await loadIndex(env.FEWSHOT_INDEX.trim());
   const [q] = await embed([userPrompt], { apiKey: env.OPENAI_API_KEY, fetchImpl });
   return pickExamples(index, q, k);
 }

@@ -178,25 +178,35 @@ export async function runPipeline({ url, upload, transcriptFile, languages, env 
   let usage = null;
   let latencyMs = null;
   let fewshot = [];
+  let fewshotFailed = null;
   if (!llm) {
     const out = await inStage(onStage, 'structure', async () => {
       const config = resolveProvider(env);
       const t0 = Date.now();
       const prompt = buildUserPrompt(source.video, renderForPrompt(evidence));
-      const examples = await examplesFor(prompt, { env, fetchImpl });
+      // Examples only help; a broken index or a failed embedding call must not fail the job (like OCR and estimates).
+      let examples = [];
+      let failed = null;
+      try {
+        examples = await examplesFor(prompt, { env, fetchImpl });
+      } catch (err) {
+        failed = String(err?.message ?? err);
+      }
       const res = await extractRecipe(config, prompt, { fetchImpl, examples });
-      return { ...res, model: `${config.provider}:${config.model}`, latencyMs: Date.now() - t0, examples: examples.map((e) => e.id) };
+      return { ...res, model: `${config.provider}:${config.model}`, latencyMs: Date.now() - t0, examples: examples.map((e) => e.id), failed };
     });
     llm = out.data;
     usage = out.usage;
     model = out.model;
     latencyMs = out.latencyMs;
     fewshot = out.examples;
+    fewshotFailed = out.failed;
   }
 
   // Left open on purpose: runJob closes finalize after checking the result (CLI callers ignore stages).
   onStage({ stage: 'finalize', state: 'started' });
   const recipe = resolveRecipe(llm, evidence);
+  if (fewshotFailed) recipe.warnings.push(`few-shot examples skipped: ${fewshotFailed}`);
   const estimate = estimateEnabled(env) && (!llmOutput || estimateOutput)
     ? await estimateAmounts(recipe, { env, fetchImpl, estimateOutput })
     : null;
@@ -217,6 +227,8 @@ export async function runPipeline({ url, upload, transcriptFile, languages, env 
       latency_ms: latencyMs,
       generated_at: new Date().toISOString(),
       ...(fewshot.length && { fewshot_examples: fewshot }),
+      // Made without the examples the cache key promises, so the run is shown but not reused (like ocr_lost).
+      ...(fewshotFailed && { fewshot_lost: true }),
       ...(source.commentNote && { comment_note: source.commentNote }),
       ...(source.speechLost && { speech_lost: true }),
       ...(screen.info && { ocr: screen.info }),

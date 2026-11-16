@@ -5,32 +5,85 @@
 // answers: { case, cond, text } per line, text = the model's JSON answer (gpt-4.1 runs or an open model in Colab).
 // Same answer shape as fine-tuning (src/train-data.mjs), so every model is scored the same way. No LLM calls.
 // Prompts and answers hold other people's captions: keep them outside the repo.
+//
+// A quick check only. The gold here is the training answer (items without citable evidence are left out), not the
+// eval-set gold v1.0, so these numbers are not comparable with the KAN-26 baseline. For the presentation, turn each
+// answer into a team recipe with runPipeline({ transcriptFile, llmOutput }) and score it with scripts/evaluate.py.
+// Names and amounts are compared the way evaluate.py does (norm_name, norm_amount, eval_synonyms.json, #55 pairing).
 import { readFileSync, writeFileSync } from 'node:fs';
 import { pathToFileURL } from 'node:url';
 
-const norm = (s) => String(s ?? '').normalize('NFKC').replace(/[\s()\[\]·,.\-]/g, '').toLowerCase();
+// evaluate.py norm_name: NFKC, drop brackets and what is inside them, lowercase, no spaces.
+export const normName = (s) => String(s ?? '').normalize('NFKC').replace(/\([^)]*\)|\[[^\]]*\]/g, '').replace(/\s+/g, '').toLowerCase();
+
+// evaluate.py norm_amount: NFKC, no spaces, case ignored, except a lone T right after a digit (tablespoon) stays
+// apart from t (teaspoon), #55. Dots, dashes and other marks are kept: 1.5큰술 ≠ 15큰술, 1-2개 ≠ 12개.
+const BIG_T = /(?<=\d)T(?![A-Za-z])/g;
+const BIG_T_MARK = ''; // a private-use character that case folding leaves alone
+export const normAmount = (s) => String(s ?? '').normalize('NFKC').replace(/\s+/g, '').replace(BIG_T, BIG_T_MARK).toLowerCase();
+
 const amountOf = (ing) => ing.amounts?.[0]?.text ?? null;
 
-export function score(expected, pred) {
+// scripts/eval_synonyms.json → { normalized alias: normalized canonical }
+export function loadSynonyms(file = new URL('../../scripts/eval_synonyms.json', import.meta.url)) {
+  const table = new Map();
+  for (const g of JSON.parse(readFileSync(file, 'utf8')).groups) {
+    for (const alias of g.aliases) table.set(normName(alias), normName(g.canonical));
+  }
+  return table;
+}
+let defaultSynonyms = null;
+
+// evaluate.py match_ingredients: one-to-one, exact name first, then synonyms (no containment: 간장 ≠ 진간장).
+// Within a pass, when one name has several rows, pairs with the same amount win, then pairs citing the same
+// segment, then gold order → answer order (#55). Training answers have no name_raw, so that pass is left out.
+export function matchIngredients(gold, got, synonyms) {
+  const syn = (item) => {
+    const k = normName(item.name);
+    return synonyms.get(k) ?? k;
+  };
+  const passes = [(g, p) => normName(g.name) === normName(p.name), (g, p) => syn(g) === syn(p)];
+  const prefer = (g, p) => {
+    const ga = amountOf(g);
+    const sameAmount = Boolean(ga) && normAmount(ga) === normAmount(amountOf(p));
+    const overlap = (p.evidence ?? []).some((id) => (g.evidence ?? []).includes(id));
+    return 2 * sameAmount + overlap;
+  };
+  const pairs = [];
+  const usedG = new Set();
+  const usedP = new Set();
+  for (const same of passes) {
+    const candidates = [];
+    gold.forEach((g, gi) => {
+      if (usedG.has(gi)) return;
+      got.forEach((p, pi) => {
+        if (!usedP.has(pi) && normName(p.name) && same(g, p)) candidates.push({ score: prefer(g, p), gi, pi });
+      });
+    });
+    candidates.sort((a, b) => b.score - a.score || a.gi - b.gi || a.pi - b.pi);
+    for (const { gi, pi } of candidates) {
+      if (usedG.has(gi) || usedP.has(pi)) continue;
+      pairs.push([gi, pi]);
+      usedG.add(gi);
+      usedP.add(pi);
+    }
+  }
+  return pairs.sort((a, b) => a[0] - b[0]);
+}
+
+export function score(expected, pred, synonyms = (defaultSynonyms ??= loadSynonyms())) {
   const gold = expected.ingredients.filter((i) => !i.is_group_header);
   const got = (pred.ingredients ?? []).filter((i) => !i.is_group_header);
-  const used = new Set();
-  let matched = 0;
-  let amountGold = 0;
+  const pairs = matchIngredients(gold, got, synonyms);
+  const matched = pairs.length;
+  const amountGold = gold.filter((g) => amountOf(g)).length;
   let amountHit = 0;
   let amountExtra = 0;
   let amountMissed = 0;
-  for (const g of gold) {
-    const gn = norm(g.name);
-    let j = got.findIndex((p, k) => !used.has(k) && norm(p.name) === gn);
-    if (j === -1) j = got.findIndex((p, k) => !used.has(k) && norm(p.name) && (norm(p.name).includes(gn) || gn.includes(norm(p.name))));
-    const ga = amountOf(g);
-    if (ga) amountGold++;
-    if (j === -1) continue;
-    used.add(j);
-    matched++;
-    const pa = amountOf(got[j]);
-    if (ga && pa && norm(ga) === norm(pa)) amountHit++;
+  for (const [gi, pi] of pairs) {
+    const ga = amountOf(gold[gi]);
+    const pa = amountOf(got[pi]);
+    if (ga && pa && normAmount(ga) === normAmount(pa)) amountHit++;
     else if (ga && !pa) amountMissed++;
     else if (!ga && pa) amountExtra++;
   }

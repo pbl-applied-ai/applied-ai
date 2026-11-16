@@ -1,6 +1,11 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { buildIndex, examplesFor, pickExamples } from '../src/fewshot.mjs';
+import { mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
+import { fileURLToPath } from 'node:url';
+import { buildIndex, examplesFor, fewshotEnabled, fewshotVersion, pickExamples } from '../src/fewshot.mjs';
+import { extractorVersion, runJob } from '../src/job.mjs';
 import { extractRecipe } from '../src/llm.mjs';
 
 const index = {
@@ -19,7 +24,61 @@ test('pickExamples returns the closest examples first', () => {
 test('examplesFor is off without FEWSHOT_INDEX and makes no call', async () => {
   const fetchImpl = () => assert.fail('no call expected');
   assert.deepEqual(await examplesFor('prompt', { env: {}, fetchImpl }), []);
-  assert.deepEqual(await examplesFor('prompt', { env: { FEWSHOT_INDEX: 'x', FEWSHOT_K: '0' }, fetchImpl }), []);
+  assert.deepEqual(await examplesFor('prompt', { env: { FEWSHOT_INDEX: 'x', FEWSHOT_K: '0', OPENAI_API_KEY: 'k' }, fetchImpl }), []);
+  // The query embedding needs the OpenAI key, so without it few-shot stays off instead of failing the job
+  assert.deepEqual(await examplesFor('prompt', { env: { FEWSHOT_INDEX: 'x' }, fetchImpl }), []);
+  assert.equal(fewshotEnabled({ FEWSHOT_INDEX: 'x', OPENAI_API_KEY: 'k' }), true);
+});
+
+const KEY_ENV = { OPENAI_API_KEY: 'test-key', LLM_PROVIDER: 'openai', AMOUNT_ESTIMATE: 'off' };
+async function withIndexFile(fn) {
+  const dir = mkdtempSync(join(tmpdir(), 'fewshot-'));
+  try {
+    return await fn(join(dir, 'index.json'));
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+}
+
+test('the cache key carries the index hash and k only while few-shot is on (#58 review)', async () => {
+  await withIndexFile((file) => {
+    writeFileSync(file, JSON.stringify(index));
+    const v = extractorVersion({ ...KEY_ENV, FEWSHOT_INDEX: file });
+    assert.match(v.fewshot.index, /^[0-9a-f]{12}$/);
+    assert.equal(v.fewshot.k, 2);
+    assert.equal(extractorVersion({ ...KEY_ENV, FEWSHOT_INDEX: file, FEWSHOT_K: '3' }).fewshot.k, 3);
+    writeFileSync(file, JSON.stringify({ examples: index.examples.slice(1) }) + ' ');
+    assert.notEqual(fewshotVersion({ FEWSHOT_INDEX: file }).index, v.fewshot.index, 'another index is another key');
+    assert.equal(extractorVersion(KEY_ENV).fewshot, undefined);
+    assert.equal(extractorVersion({ ...KEY_ENV, FEWSHOT_INDEX: file, FEWSHOT_K: '0' }).fewshot, undefined);
+  });
+  assert.equal(fewshotVersion({ FEWSHOT_INDEX: join(tmpdir(), 'no-such-fewshot-index.json') }).index, 'unreadable');
+});
+
+const fixture = (name) => new URL(`./fixtures/${name}`, import.meta.url);
+const llmFixture = readFileSync(fixture('sample-gochujang-bowl.llm.json'), 'utf8');
+const TRANSCRIPT = fileURLToPath(fixture('sample-gochujang-bowl.transcript.json'));
+const chatReply = () => ({ ok: true, status: 200, json: async () => ({ choices: [{ message: { content: llmFixture }, finish_reason: 'stop' }], usage: {} }) });
+
+test('a failed embedding call or unreadable index does not fail the job: no examples, a warning, not reused (#58 review)', async () => {
+  await withIndexFile(async (file) => {
+    writeFileSync(file, JSON.stringify(index));
+    const chats = [];
+    const fetchImpl = async (url, init) => {
+      if (url.endsWith('/embeddings')) return { ok: false, status: 500, json: async () => ({ error: { message: 'boom' } }) };
+      chats.push(JSON.parse(init.body));
+      return chatReply();
+    };
+    for (const env of [{ ...KEY_ENV, FEWSHOT_INDEX: file }, { ...KEY_ENV, FEWSHOT_INDEX: `${file}.missing` }]) {
+      const out = await runJob({ source_url: 'https://www.youtube.com/shorts/Smpl0Gochu1' }, { env, transcriptFile: TRANSCRIPT, fetchImpl });
+      assert.equal(out.status, 'succeeded', out.message);
+      assert.equal(out.extractor_version.fewshot, 'lost');
+      assert.ok(out.warnings.some((w) => /few-shot examples skipped/.test(w)));
+      assert.equal(out.internal.meta.fewshot_lost, true);
+    }
+    assert.equal(chats.length, 2);
+    assert.ok(chats.every((b) => b.messages.length === 2), 'the recipe call goes out without example turns');
+  });
 });
 
 test('buildIndex embeds each user prompt and keeps the answer', async () => {
