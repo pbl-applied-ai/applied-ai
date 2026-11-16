@@ -1,40 +1,59 @@
 "use client";
 
+// B Recipe book (docs/screen-data.md #57 2절 B). 하단 탭으로 온다.
+// 로그인 전: "Sign in to see your recipe book" + 이 브라우저에서 만든 작업 카드(recent-jobs). 로그인 화면으로 보내지 않는다.
+// 로그인 후: 내 작업 카드 + 저장한 레시피. 카테고리 칩·정렬·격자 카드는 K 카테고리 시트와 같이 바꾼다.
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useEffect, useState } from "react";
-import { type Job, type RecipeSummary, api } from "@/lib/api";
-import { type JobCard, jobCards } from "@/lib/book";
-import { type BookHidden, hideJob, readBookHidden } from "@/lib/book-hidden";
-import { useRequireUser } from "@/lib/use-require-user";
+import { Suspense, useEffect, useState } from "react";
+import { GoogleButton } from "@/app/login/google-button";
 import { JobCardList, RecipeCard } from "@/components/book-cards";
 import { TabBar } from "@/components/tab-bar";
+import { type Job, type RecipeSummary, type User, api } from "@/lib/api";
+import { type JobCard, jobCards } from "@/lib/book";
+import { type BookHidden, hideJob, readBookHidden } from "@/lib/book-hidden";
+import { forgetRecentJob, recentJobIds } from "@/lib/recent-jobs";
 
 const POLL_MS = 3000;
+// 로그인 전 실패 카드 [닫기]는 이 브라우저에만 남긴다
+const GUEST = "guest";
+
+interface Book {
+  jobs: Job[];
+  recipes: RecipeSummary[];
+  hidden: BookHidden;
+}
 
 export function BookScreen() {
   const router = useRouter();
-  const user = useRequireUser("/book");
-  const [jobs, setJobs] = useState<Job[] | null>(null);
-  const [recipes, setRecipes] = useState<RecipeSummary[] | null>(null);
+  const [user, setUser] = useState<User | null | undefined>(undefined); // undefined = 아직 모름
+  const [book, setBook] = useState<Book | null>(null);
   const [failed, setFailed] = useState(false);
-  const [hidden, setHidden] = useState<BookHidden | null>(null);
 
   useEffect(() => {
-    if (!user) return;
-    const userId = user.id;
+    let alive = true;
+    api.getUser().then(
+      (u) => alive && setUser(u),
+      () => alive && setUser(null),
+    );
+    return () => {
+      alive = false;
+    };
+  }, []);
+
+  useEffect(() => {
+    if (user === undefined) return;
+    const owner = user?.id ?? GUEST;
     let cancelled = false;
     let timer: ReturnType<typeof setTimeout>;
     async function refresh() {
       try {
-        const [nextJobs, nextRecipes] = await Promise.all([api.listMyJobs(), api.listRecipes()]);
+        const [jobs, recipes] = user ? await Promise.all([api.listMyJobs(), api.listRecipes()]) : [await loadGuestJobs(), []];
         if (cancelled) return;
-        setJobs(nextJobs);
-        setRecipes(nextRecipes);
-        setHidden(readBookHidden(userId));
+        setBook({ jobs, recipes, hidden: readBookHidden(owner) });
         setFailed(false);
         // 만드는 중인 작업이 있으면 카드 문구가 바뀌도록 가끔 다시 읽는다
-        if (nextJobs.some((j) => j.status === "queued" || j.status === "running")) timer = setTimeout(refresh, POLL_MS);
+        if (jobs.some((j) => j.status === "queued" || j.status === "running")) timer = setTimeout(refresh, POLL_MS);
       } catch {
         if (!cancelled) setFailed(true);
       }
@@ -46,73 +65,74 @@ export function BookScreen() {
     };
   }, [user]);
 
-  const cards: JobCard[] = jobs && recipes && hidden ? jobCards(jobs, recipes, hidden) : [];
-  const loading = !user || ((jobs === null || recipes === null) && !failed);
+  const cards: JobCard[] = book ? jobCards(book.jobs, book.recipes, book.hidden) : [];
+  const loading = user === undefined || (book === null && !failed);
 
   return (
     <main className="flex flex-1 flex-col">
       <header className="flex items-center justify-between px-5 pt-5 pb-3">
-        <h1 className="text-[22px] font-bold">내 레시피북</h1>
-        <button
-          type="button"
-          aria-label="로그아웃"
-          title="로그아웃"
-          onClick={async () => {
-            await api.signOut();
-            router.replace("/");
-          }}
-          className="flex size-11 items-center justify-center rounded-full border border-line bg-subtle"
-        >
-          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#5c5c5c" strokeWidth="2" aria-hidden="true">
-            <circle cx="12" cy="8" r="4" />
-            <path d="M4 21c1.5-4 4.5-6 8-6s6.5 2 8 6" />
-          </svg>
-        </button>
+        <h1 className="text-[26px] font-bold">My recipe book</h1>
+        {user && (
+          <button
+            type="button"
+            aria-label="Sign out"
+            title="Sign out"
+            onClick={async () => {
+              await api.signOut();
+              router.replace("/");
+            }}
+            className="flex size-11 items-center justify-center rounded-full border border-line bg-subtle"
+          >
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#5c5c5c" strokeWidth="2" aria-hidden="true">
+              <circle cx="12" cy="8" r="4" />
+              <path d="M4 21c1.5-4 4.5-6 8-6s6.5 2 8 6" />
+            </svg>
+          </button>
+        )}
       </header>
 
-      <div className="px-5 pb-4">
-        <Link href="/?new=1" className="flex h-13 items-center justify-center gap-2 rounded-xl bg-foreground text-base font-bold text-background">
-          + 영상으로 레시피 만들기
-        </Link>
-      </div>
-
-      {loading && <p className="px-5 py-10 text-center text-sm text-muted">불러오는 중…</p>}
+      {loading && <p className="px-5 py-10 text-center text-sm text-muted">Loading…</p>}
 
       {failed && (
         <p role="alert" className="px-5 py-10 text-center text-sm text-danger">
-          레시피북을 불러오지 못했어요. 잠시 뒤에 다시 열어 주세요.
+          We couldn&apos;t load your recipe book. Please try again in a moment.
         </p>
       )}
 
       {!loading && !failed && (
-        <div className="flex flex-col gap-3 px-5 pb-8">
+        <div className="flex flex-1 flex-col gap-3 px-5 pb-8">
           <JobCardList
             cards={cards}
             onHide={(jobId) => {
-              if (!user) return;
-              hideJob(user.id, jobId);
-              setHidden(readBookHidden(user.id));
+              const owner = user?.id ?? GUEST;
+              hideJob(owner, jobId);
+              setBook((b) => b && { ...b, hidden: readBookHidden(owner) });
             }}
+            // 로그인 전: 준비된 레시피를 열면 카드에서 뺀다(#57 5절). 실패는 처리 중 화면이 연 뒤에 뺀다
+            onOpen={(card) => !user && card.kind === "ready" && forgetRecentJob(card.jobId)}
           />
 
-          {recipes && recipes.length > 0 && (
+          {!user && <SignInPrompt />}
+
+          {user && book && book.recipes.length > 0 && (
             <>
-              <h2 className="mt-3 text-sm font-medium text-muted">저장한 레시피 {recipes.length}</h2>
-              {recipes.map((r) => (
+              <h2 className="mt-3 text-sm font-medium text-muted">Saved recipes {book.recipes.length}</h2>
+              {book.recipes.map((r) => (
                 <RecipeCard key={r.id} recipe={r} />
               ))}
             </>
           )}
 
-          {recipes && recipes.length === 0 && cards.length === 0 && (
-            <div className="flex flex-col items-center gap-3 px-5 py-16 text-center">
-              <span className="size-[72px] rounded-2xl border border-dashed border-line-strong bg-subtle" aria-hidden="true" />
-              <p className="text-base font-medium">아직 저장한 레시피가 없어요</p>
-              <p className="text-sm leading-relaxed text-muted">
-                저장해 둔 요리 숏폼,
-                <br />
-                텍스트 레시피로 바꿔 보세요.
-              </p>
+          {user && book && book.recipes.length === 0 && cards.length === 0 && (
+            <div className="flex flex-1 flex-col items-center justify-center gap-3 py-16 text-center">
+              <span className="text-5xl" aria-hidden="true">
+                📖
+              </span>
+              <p className="text-lg font-bold">No recipes saved yet</p>
+              <p className="text-sm leading-relaxed text-muted">Turn a cooking short into a recipe you can follow.</p>
+              <Link href="/convert" className="mt-2 flex h-12 items-center rounded-full bg-foreground px-6 text-[15px] font-bold text-background">
+                Convert a video
+              </Link>
             </div>
           )}
         </div>
@@ -120,4 +140,32 @@ export function BookScreen() {
       <TabBar />
     </main>
   );
+}
+
+function SignInPrompt() {
+  return (
+    <div className="flex flex-1 flex-col items-center justify-center gap-3 py-10 text-center">
+      <span className="flex size-28 items-center justify-center rounded-full bg-subtle text-5xl" aria-hidden="true">
+        📖
+      </span>
+      <p className="mt-2 text-lg font-bold">Sign in to see your recipe book</p>
+      <p className="text-sm leading-relaxed text-muted">
+        Your saved recipes live here.
+        <br />
+        You can still convert videos without an account.
+      </p>
+      {/* 로그인하고 이 화면으로 돌아온다(next가 없으면 /book) */}
+      <div className="mt-3 flex w-full flex-col">
+        <Suspense fallback={null}>
+          <GoogleButton />
+        </Suspense>
+      </div>
+    </div>
+  );
+}
+
+/** 로그인 전: 이 브라우저에서 만든 작업. 찾을 수 없는 작업은 뺀다 */
+async function loadGuestJobs(): Promise<Job[]> {
+  const jobs = await Promise.all(recentJobIds().map((id) => api.getJob(id).catch(() => null)));
+  return jobs.filter((j): j is Job => j !== null);
 }

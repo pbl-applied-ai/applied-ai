@@ -8,7 +8,7 @@ import { rememberRecentJob } from "@/lib/recent-jobs";
 import { SHORTS_ERROR_TEXT, checkShortsUrl } from "@/lib/shorts";
 import { UPLOAD_ACCEPT, UPLOAD_ERROR_TEXT, checkUploadFile } from "@/lib/upload";
 
-export function LinkInputForm() {
+export function ConvertForm() {
   const router = useRouter();
   const [url, setUrl] = useState("");
   const [submitting, setSubmitting] = useState(false);
@@ -22,9 +22,9 @@ export function LinkInputForm() {
   // 업로드는 로그인한 사람만 된다. 파일을 고르기 전에 로그인으로 보내려고 미리 알아 둔다(null = 아직 모름).
   const [signedIn, setSignedIn] = useState<boolean | null>(null);
 
-  // 레시피북의 [+ 영상으로 레시피 만들기]·로그인 뒤 돌아오기는 /?new=1로 온다. 입력칸에 커서를 둔다(S1).
+  // 탭의 [+ Convert]·로그인 뒤 돌아오기로 오면 바로 붙여 넣을 수 있게 입력칸에 커서를 둔다.
   useEffect(() => {
-    if (new URLSearchParams(window.location.search).get("new") === "1") linkInput.current?.focus();
+    linkInput.current?.focus();
   }, []);
 
   useEffect(() => {
@@ -39,9 +39,9 @@ export function LinkInputForm() {
     };
   }, []);
 
-  // 로그인하고 홈으로 돌아와 입력칸에서 다시 고르게 한다.
+  // 로그인하고 이 화면으로 돌아와 다시 고르게 한다.
   function goLogin() {
-    router.push(`/login?next=${encodeURIComponent("/?new=1")}`);
+    router.push(`/login?next=${encodeURIComponent("/convert")}`);
   }
 
   // 로그인 안 했으면 파일 창을 열지 않고 바로 로그인으로 보낸다. 고른 파일이 사라지지 않게.
@@ -59,14 +59,10 @@ export function LinkInputForm() {
     showFieldError && !check.ok && check.reason !== "empty" ? SHORTS_ERROR_TEXT[check.reason] : null;
   const canSubmit = check.ok && !submitting;
 
-  async function paste() {
-    try {
-      const text = await navigator.clipboard.readText();
-      setUrl(text.trim());
-      setShowFieldError(true);
-    } catch {
-      // 클립보드 권한이 없으면 사용자가 직접 붙여 넣는다.
-    }
+  function clear() {
+    setUrl("");
+    setShowFieldError(false);
+    linkInput.current?.focus();
   }
 
   async function submit(e: React.FormEvent) {
@@ -85,7 +81,7 @@ export function LinkInputForm() {
       setShowFieldError(false);
       setSubmitting(false);
     } catch {
-      setSubmitError("잠시 문제가 생겼어요. 다시 시도해 주세요.");
+      setSubmitError("Something went wrong. Please try again.");
       setSubmitting(false);
     }
   }
@@ -115,16 +111,20 @@ export function LinkInputForm() {
         goLogin();
         return;
       }
-      setUploadError("파일을 올리지 못했어요. 다시 시도해 주세요.");
+      setUploadError("We couldn't upload the file. Please try again.");
     }
   }
 
   return (
-    <form onSubmit={submit} className="flex flex-col px-5 pt-7" noValidate>
-      <label htmlFor="link" className="text-[15px] font-medium">
-        YouTube Shorts 요리 영상 링크
+    <form onSubmit={submit} className="flex flex-1 flex-col px-5" noValidate>
+      <label htmlFor="link" className="sr-only">
+        YouTube Shorts link
       </label>
-      <div className="mt-2 flex gap-2">
+      <div
+        className={`mt-6 flex h-14 items-center rounded-2xl border-[1.5px] pr-1 pl-4 focus-within:border-foreground ${
+          fieldError ? "border-danger" : "border-line-strong"
+        }`}
+      >
         <input
           id="link"
           ref={linkInput}
@@ -141,17 +141,15 @@ export function LinkInputForm() {
           onPaste={() => setShowFieldError(true)}
           aria-invalid={fieldError ? true : undefined}
           aria-describedby={fieldError ? "link-error" : undefined}
-          className={`h-13 min-w-0 flex-1 rounded-[10px] border-[1.5px] px-3.5 text-base outline-link ${
-            fieldError ? "border-danger" : "border-line-strong"
-          }`}
+          className="h-full min-w-0 flex-1 bg-transparent text-base outline-none"
         />
-        <button
-          type="button"
-          onClick={paste}
-          className="h-13 shrink-0 rounded-[10px] border-[1.5px] border-foreground px-3.5 text-sm font-medium"
-        >
-          붙여넣기
-        </button>
+        {url && (
+          <button type="button" onClick={clear} aria-label="Clear link" className="flex size-11 shrink-0 items-center justify-center text-muted">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" aria-hidden="true">
+              <path d="M6 6l12 12M18 6L6 18" />
+            </svg>
+          </button>
+        )}
       </div>
       {fieldError && (
         <p id="link-error" className="mt-2 text-[13px] text-danger">
@@ -159,56 +157,56 @@ export function LinkInputForm() {
         </p>
       )}
 
-      <button
-        type="submit"
-        disabled={!canSubmit}
-        className="mt-5 h-13 rounded-xl bg-foreground text-base font-bold text-background disabled:bg-disabled disabled:text-muted"
-      >
-        {submitting ? "보내는 중…" : "레시피 만들기"}
-      </button>
-      {submitError && (
-        <p role="alert" className="mt-2 text-[13px] text-danger">
-          {submitError}
-        </p>
-      )}
-
-      <div className="mt-7 flex items-center gap-3">
-        <div className="h-px flex-1 bg-line" />
-        <span className="text-[13px] text-muted">링크가 안 되면</span>
-        <div className="h-px flex-1 bg-line" />
+      {/* 링크 미리보기(제목·채널)는 보류(#57 3절 9번). Instagram은 KAN-62 뒤에 칩을 더한다 */}
+      <p className="mt-7 text-[13px] font-medium text-muted">Works with</p>
+      <div className="mt-2 flex flex-wrap gap-2">
+        <span className="rounded-full border border-line px-3.5 py-1.5 text-sm">▶️ YouTube Shorts</span>
       </div>
-      {UPLOAD_ENABLED ? (
-        <>
-          <input ref={fileInput} type="file" accept={UPLOAD_ACCEPT} onChange={upload} hidden />
-          <button
-            type="button"
-            onClick={pickFile}
-            disabled={uploading}
-            className="mt-5 h-13 rounded-xl border-[1.5px] border-foreground text-base font-medium disabled:border-line-strong disabled:text-muted"
-          >
-            {uploading ? "올리는 중…" : "영상 파일로 넣기"}
-          </button>
-          {uploadError && (
-            <p role="alert" className="mt-2 text-[13px] text-danger">
-              {uploadError}
-            </p>
-          )}
-          <p className="mt-2 text-[13px] leading-relaxed text-muted">
-            로그인하면 올릴 수 있어요. 직접 찍었거나 사용 권한이 있는 영상만 올려 주세요. 올린 영상은 레시피를 만든 뒤 지워져요. (25MB까지)
+
+      <div className="mt-6 flex flex-col gap-1 rounded-2xl bg-subtle px-4 py-3.5 text-sm leading-relaxed">
+        <p>💬 Recipes spoken or shown in the video work best.</p>
+        <p className="text-muted">⏱️ This can take about a minute.</p>
+      </div>
+
+      <div className="sticky bottom-0 mt-auto flex flex-col items-center gap-3 bg-background pt-6 pb-[max(1.75rem,env(safe-area-inset-bottom))]">
+        <button
+          type="submit"
+          disabled={!canSubmit}
+          className="h-14 w-full rounded-full bg-foreground text-base font-bold text-background disabled:bg-disabled disabled:text-muted"
+        >
+          {submitting ? "Sending…" : "Convert to recipe"}
+        </button>
+        {submitError && (
+          <p role="alert" className="text-[13px] text-danger">
+            {submitError}
           </p>
-        </>
-      ) : (
-        <>
-          <button
-            type="button"
-            disabled
-            className="mt-5 h-13 rounded-xl border-[1.5px] border-line-strong text-base font-medium text-muted"
-          >
-            영상 파일로 넣기
-          </button>
-          <p className="mt-2 text-[13px] leading-relaxed text-muted">영상 파일 올리기는 준비 중이에요.</p>
-        </>
-      )}
+        )}
+
+        {UPLOAD_ENABLED ? (
+          <>
+            <input ref={fileInput} type="file" accept={UPLOAD_ACCEPT} onChange={upload} hidden />
+            <button
+              type="button"
+              onClick={pickFile}
+              disabled={uploading}
+              className="min-h-11 text-sm text-muted underline underline-offset-4 disabled:no-underline"
+            >
+              {uploading ? "Uploading…" : "Upload a video file instead"}
+            </button>
+            {uploadError && (
+              <p role="alert" className="text-[13px] text-danger">
+                {uploadError}
+              </p>
+            )}
+            <p className="text-center text-xs leading-relaxed text-muted">
+              Sign in to upload. Only upload videos you made or have rights to. We delete them after making the recipe.
+              (Up to 25MB)
+            </p>
+          </>
+        ) : (
+          <p className="text-center text-xs text-muted">Video file upload is coming soon.</p>
+        )}
+      </div>
     </form>
   );
 }

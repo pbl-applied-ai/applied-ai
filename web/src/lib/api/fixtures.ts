@@ -1,29 +1,40 @@
 // 목 데이터. 직접 만든 가짜 fixture(pipeline/test/fixtures/sample-gochujang-bowl)의 파이프라인 출력이다.
 // 실제 영상이 아니다. #13의 examples/example-002-pipeline-output/recipe.json과 같은 내용.
-import type { RecommendationGroup, TeamRecipe } from './types';
+import type { FeaturedCategory, FeaturedRecipe, TeamRecipe } from './types';
 
 // 목에서만 쓰는 가짜 추정값(KAN-52 amount_estimate 모양). 위 파이프라인 출력에는 없다.
 // 로그인했을 때만 붙인다. 로그인 전 공개 링크에서는 서버가 추정값을 빼는 것과 맞춘다(#45).
-// 홈 추천 묶음 목업. 화면 모양만 보기 위한 가짜 값이다. 실제 묶음은 KAN-60(저장 방식)·KAN-63(영상 고르기) 뒤에 붙인다.
+// 홈 추천 목업. 화면 모양만 보기 위한 가짜 값이다(요리명·크리에이터·숫자 모두 예시).
+// 실제 목록은 KAN-60(저장 방식)·KAN-63(영상 고르기)·KAN-73(list_featured) 뒤에 붙인다.
 // 목 getRun은 어떤 runId든 SAMPLE_RECIPE를 돌려주므로 카드를 누르면 요리명이 달라 보인다.
-export const MOCK_RECOMMENDATIONS: RecommendationGroup[] = [
-  {
-    id: 'mock-cheap',
-    title: '자취 가성비',
-    cards: [
-      { runId: 'run-MockReco001', title: '김치볶음밥', creator: '예시 크리에이터 A', ingredientCount: 9 },
-      { runId: 'run-MockReco002', title: '두부 부침', creator: '예시 크리에이터 B', ingredientCount: 8 },
-      { runId: 'run-MockReco003', title: '계란말이', creator: '예시 크리에이터 C', ingredientCount: 7 },
-    ],
-  },
-  {
-    id: 'mock-party',
-    title: '크리스마스·연말 홈파티',
-    cards: [
-      { runId: 'run-MockReco004', title: '감바스', creator: '예시 크리에이터 D', ingredientCount: 6 },
-      { runId: 'run-MockReco005', title: '토마토 카프레제', creator: '예시 크리에이터 E', ingredientCount: 7 },
-    ],
-  },
+const featured = (
+  n: number,
+  title: string,
+  categories: FeaturedCategory[],
+  ingredientNames: string[],
+  saveCount: number,
+): FeaturedRecipe => ({
+  runId: `run-MockFeat00${n}`,
+  title,
+  creator: `example_creator_${n}`,
+  platform: 'youtube',
+  durationMs: (20 + n * 7) * 1000,
+  thumbnailUrl: null,
+  ingredientNames,
+  ingredientCount: ingredientNames.length + 3,
+  stepCount: 4,
+  categories,
+  saveCount,
+});
+
+export const MOCK_FEATURED: FeaturedRecipe[] = [
+  featured(1, 'Kimchi fried rice', ['budget', 'quick'], ['rice', 'kimchi', 'egg', 'scallion'], 2300),
+  featured(2, 'Honey butter roast turkey', ['thanksgiving'], ['turkey', 'butter', 'honey', 'garlic'], 840),
+  featured(3, 'Garlic butter shrimp', ['christmas', 'quick'], ['shrimp', 'butter', 'garlic', 'parsley'], 1200),
+  featured(4, 'Tofu steak', ['budget'], ['tofu', 'soy sauce', 'garlic', 'sesame oil'], 5),
+  featured(5, 'Mashed potatoes', ['thanksgiving', 'budget'], ['potato', 'butter', 'milk', 'salt'], 410),
+  featured(6, 'Caprese skewers', ['christmas'], ['tomato', 'mozzarella', 'basil', 'olive oil'], 96),
+  featured(7, 'Rolled omelette', ['budget', 'quick'], ['egg', 'carrot', 'scallion', 'salt'], 3100),
 ];
 
 export const SAMPLE_ESTIMATES: Record<string, { text: string; basis?: string }> = {

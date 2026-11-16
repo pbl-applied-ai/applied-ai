@@ -98,7 +98,7 @@ describe('createSupabaseApi 업로드', () => {
 });
 
 describe('failureView 업로드', () => {
-  const ctx = { loggedIn: false, canRetry: false, uploadReady: true };
+  const ctx = { canRetry: false, uploadReady: true };
 
   it('업로드한 파일이 실패하면 [영상 파일로 넣기] 대신 [다른 파일 올리기]', () => {
     const job = { errorCode: 'unavailable' as const, reason: 'not_playable', runId: null };
@@ -108,7 +108,7 @@ describe('failureView 업로드', () => {
 
   it('업로드한 파일은 원본이 지워져서 [다시 시도] 대신 [다른 파일 올리기]', () => {
     const view = (errorCode: 'retryable' | 'internal', reason: string) =>
-      failureView({ errorCode, reason, runId: null }, { ...ctx, loggedIn: true, canRetry: true, fromUpload: true }).actions;
+      failureView({ errorCode, reason, runId: null }, { ...ctx, canRetry: true, fromUpload: true }).actions;
     expect(view('retryable', 'asr_transient')).toEqual(['other_file', 'other_link']);
     expect(view('internal', 'asr_config')).toEqual(['other_file', 'go_home']);
   });

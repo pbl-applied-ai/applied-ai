@@ -13,7 +13,6 @@ export function stageText(job: Pick<Job, "status" | "stage">): string {
 }
 
 export interface ScreenContext {
-  loggedIn: boolean;
   canRetry: boolean; // 다시 시도할 링크를 기억하고 있는지
   uploadReady: boolean; // 영상 파일 업로드 경로가 있는지
   fromUpload?: boolean; // 이 job이 업로드한 파일인지. 그러면 [영상 파일로 넣기] 대신 [다른 파일 올리기]

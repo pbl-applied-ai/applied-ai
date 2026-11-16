@@ -6,12 +6,10 @@ import { useEffect, useState, useSyncExternalStore } from "react";
 import { ACTION_LABEL, type FailAction, type Job, UPLOAD_ENABLED, api } from "@/lib/api";
 import { failureView, stageText } from "@/lib/job-display";
 import { recallJobSource, rememberJobSource, sourceFileName } from "@/lib/job-source";
-import { rememberRecentJob } from "@/lib/recent-jobs";
+import { forgetRecentJob, rememberRecentJob } from "@/lib/recent-jobs";
 
 const POLL_MS = 1500;
 const MAX_POLL_ERRORS = 3;
-// 로그인은 KAN-24·KAN-31에서 붙인다. 그 전까지는 비로그인 화면만 보인다.
-const LOGGED_IN = false;
 
 const subscribeNothing = () => () => {};
 
@@ -45,6 +43,8 @@ export function JobProgress() {
           setView({ kind: "missing" });
           return;
         }
+        // 결과를 봤으니 레시피북의 로그인 전 "만드는 중" 카드에서 뺀다(#57 5절)
+        if (job.status === "succeeded" || job.status === "failed") forgetRecentJob(id);
         if (job.status === "succeeded") {
           if (job.runId) {
             setView({ kind: "progress", job });
@@ -104,7 +104,7 @@ export function JobProgress() {
               setPollKey((k) => k + 1);
             },
           },
-          { label: ACTION_LABEL.other_link, href: "/" },
+          { label: ACTION_LABEL.other_link, href: "/convert" },
         ]}
       />
     );
@@ -115,14 +115,13 @@ export function JobProgress() {
       <Failure
         title="이 작업을 찾을 수 없어요"
         body={"주소가 바뀌었거나 오래된 작업이에요.\n링크를 다시 넣어 주세요."}
-        actions={[{ label: ACTION_LABEL.other_link, href: "/" }]}
+        actions={[{ label: ACTION_LABEL.other_link, href: "/convert" }]}
       />
     );
   }
 
   if (view.kind === "failed") {
     const failure = failureView(view.job, {
-      loggedIn: LOGGED_IN,
       canRetry: Boolean(source) && !fileName,
       uploadReady: UPLOAD_ENABLED,
       fromUpload: Boolean(fileName),
@@ -148,11 +147,11 @@ export function JobProgress() {
       </div>
 
       <div className="flex flex-col gap-2.5 px-5 pb-7">
-        {/* 로그인 전에도 떠날 수 있다. 이 브라우저에서 만든 작업은 홈의 "만드는 중" 카드로 돌아온다(KAN-56) */}
+        {/* 로그인 전에도 떠날 수 있다. 이 브라우저에서 만든 작업은 레시피북의 "만드는 중" 카드로 돌아온다(#57 1절) */}
         <p className="text-center text-sm leading-relaxed text-muted">
           화면을 나가도 계속 만들어요.
           <br />
-          다 되면 홈에서 볼 수 있어요.
+          다 되면 레시피북에서 볼 수 있어요.
         </p>
         <Link href="/" className="flex h-13 items-center justify-center rounded-xl border-[1.5px] border-foreground text-base font-medium">
           {ACTION_LABEL.go_home}
@@ -178,7 +177,7 @@ function toAction(
     case "upload":
     case "other_file":
     case "other_link":
-      return { label: ACTION_LABEL[action], href: "/" };
+      return { label: ACTION_LABEL[action], href: "/convert" };
   }
 }
 

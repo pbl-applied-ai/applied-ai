@@ -30,13 +30,13 @@ import { checkShortsUrl } from '@/lib/shorts';
 
 | 화면 | 함수 |
 |---|---|
-| S2 링크 입력 | `checkShortsUrl`(`@/lib/shorts`) → `api.createJob` |
+| C Convert(`/convert`, 예전 S2) 링크 입력 | `checkShortsUrl`(`@/lib/shorts`) → `api.createJob`, 만든 작업은 `rememberRecentJob`(`@/lib/recent-jobs`) |
 | S2 영상 파일로 넣기 | `UPLOAD_ENABLED`일 때만 켠다. `checkUploadFile`(`@/lib/upload`) → `api.createUploadJob` |
 | S3 처리 중·실패 안내 | `api.getJob` 1~2초마다, `STAGE_LABEL`, 실패면 `failGuide(job)` + `ACTION_LABEL`. `partial_recipe`면 `job.runId`로 "찾은 만큼 보기" |
 | S4 확인·수정 | `api.getRun`·`api.getUser` → 로그인 안 했으면 보기만, 했으면 `toEditable` → `editIngredient`·`addStep`·`revertItem` 등, `canSave` |
 | S4 저장 | `api.saveRecipe` (로그인한 사람만 저장 버튼이 보인다) |
-| S6 홈 | `api.listRecommendations`(추천 묶음. Supabase는 저장 방식이 정해질 때까지 빈 목록), 로그인했으면 `api.listMyJobs`·`api.listRecipes`(최근 3개), 로그인 전이면 `recent-jobs`에 기억한 작업을 `api.getJob`으로 |
-| S1 레시피북 | `api.listMyJobs`(만드는 중 카드), `api.listRecipes` |
+| H 홈 | `api.listFeatured`(추천. Supabase는 KAN-73 `list_featured`가 나올 때까지 빈 목록), 검색·칩은 `filterFeatured`(`@/lib/featured`)로 웹에서 거른다 |
+| B 레시피북(예전 S1) | 로그인했으면 `api.listMyJobs`(만드는 중 카드)·`api.listRecipes`, 로그인 전이면 `recent-jobs`에 기억한 작업을 `api.getJob`으로(5개·7일, 결과를 열면 뺀다) |
 | S5 상세 | `api.getRecipe`, `api.updateRecipe`, `api.deleteRecipe` |
 | 공개 링크 `/r/<runId>` | S4와 같은 주소. 로그인 안 했으면 `api.getRun` 결과를 보기만 한다 |
 

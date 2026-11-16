@@ -35,9 +35,9 @@ function setup(replies: Record<string, { status?: number; body: unknown }>) {
 }
 
 describe('createSupabaseApi', () => {
-  it('추천 묶음은 아직 저장 방식이 없어서 목 묶음 대신 빈 목록을 준다 (KAN-56)', async () => {
+  it('추천 목록 API가 나오기 전에는 목 추천 대신 빈 목록을 준다 (KAN-74)', async () => {
     const { api, sent } = setup({});
-    expect(await api.listRecommendations()).toEqual([]);
+    expect(await api.listFeatured()).toEqual([]);
     expect(sent).toHaveLength(0);
   });
 

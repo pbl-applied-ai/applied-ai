@@ -146,8 +146,8 @@ export function createSupabaseApi(base: RecipeApi, options: SupabaseOptions): Re
   const demo: RecipeApi = {
     ...base,
 
-    // 추천 묶음은 아직 저장 방식이 없다(KAN-60·73). 목 묶음이 배포 화면에 보이지 않게 빈 목록을 준다.
-    async listRecommendations() {
+    // 추천 목록 API(list_featured)는 KAN-73에서 만든다. 목 추천이 배포 화면에 보이지 않게 그 전까지 빈 목록을 준다.
+    async listFeatured() {
       return [];
     },
 
