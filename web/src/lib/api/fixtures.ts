@@ -1,9 +1,31 @@
 // 목 데이터. 직접 만든 가짜 fixture(pipeline/test/fixtures/sample-gochujang-bowl)의 파이프라인 출력이다.
 // 실제 영상이 아니다. #13의 examples/example-002-pipeline-output/recipe.json과 같은 내용.
-import type { TeamRecipe } from './types';
+import type { RecommendationGroup, TeamRecipe } from './types';
 
 // 목에서만 쓰는 가짜 추정값(KAN-52 amount_estimate 모양). 위 파이프라인 출력에는 없다.
 // 로그인했을 때만 붙인다. 로그인 전 공개 링크에서는 서버가 추정값을 빼는 것과 맞춘다(#45).
+// 홈 추천 묶음 목업. 화면 모양만 보기 위한 가짜 값이다. 실제 묶음은 KAN-60(저장 방식)·KAN-63(영상 고르기) 뒤에 붙인다.
+// 목 getRun은 어떤 runId든 SAMPLE_RECIPE를 돌려주므로 카드를 누르면 요리명이 달라 보인다.
+export const MOCK_RECOMMENDATIONS: RecommendationGroup[] = [
+  {
+    id: 'mock-cheap',
+    title: '자취 가성비',
+    cards: [
+      { runId: 'run-MockReco001', title: '김치볶음밥', creator: '예시 크리에이터 A', ingredientCount: 9 },
+      { runId: 'run-MockReco002', title: '두부 부침', creator: '예시 크리에이터 B', ingredientCount: 8 },
+      { runId: 'run-MockReco003', title: '계란말이', creator: '예시 크리에이터 C', ingredientCount: 7 },
+    ],
+  },
+  {
+    id: 'mock-party',
+    title: '크리스마스·연말 홈파티',
+    cards: [
+      { runId: 'run-MockReco004', title: '감바스', creator: '예시 크리에이터 D', ingredientCount: 6 },
+      { runId: 'run-MockReco005', title: '토마토 카프레제', creator: '예시 크리에이터 E', ingredientCount: 7 },
+    ],
+  },
+];
+
 export const SAMPLE_ESTIMATES: Record<string, { text: string; basis?: string }> = {
   마늘: { text: '4~5쪽', basis: '1인분 덮밥 기준' },
   목살: { text: '200g', basis: '1인분 기준' },

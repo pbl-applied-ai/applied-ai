@@ -110,6 +110,20 @@ export interface RecipeSummary {
   createdAt: string;
 }
 
+// 홈 추천 레시피 묶음(S6). 팀이 미리 변환해 둔 결과(run)를 묶어 둔다. 카드를 누르면 공개 보기(/r/<runId>)
+export interface RecommendationCard {
+  runId: string;
+  title: string;
+  creator: string; // 크리에이터 이름. 원본 링크와 함께 항상 보여 준다(기획안 저작권 기준)
+  ingredientCount: number;
+}
+
+export interface RecommendationGroup {
+  id: string;
+  title: string;
+  cards: RecommendationCard[];
+}
+
 export interface User {
   id: string;
   email: string | null;
@@ -130,6 +144,7 @@ export interface RecipeApi {
   createUploadJob(file: File): Promise<{ jobId: string }>; // 로그인 필요(안 했으면 NotSignedInError). 영상 파일을 올리고 job을 만든다(KAN-49). 원본은 처리 뒤 지운다
   getJob(jobId: string): Promise<Job | null>; // 처리 중 화면이 1~2초마다 부른다
   getRun(runId: string): Promise<Run | null>;
+  listRecommendations(): Promise<RecommendationGroup[]>; // 홈 추천 묶음. 없으면 빈 목록이고 홈은 묶음 칸을 숨긴다
 
   // 로그인
   getUser(): Promise<User | null>;

@@ -6,6 +6,7 @@ import { useEffect, useState, useSyncExternalStore } from "react";
 import { ACTION_LABEL, type FailAction, type Job, UPLOAD_ENABLED, api } from "@/lib/api";
 import { failureView, stageText } from "@/lib/job-display";
 import { recallJobSource, rememberJobSource, sourceFileName } from "@/lib/job-source";
+import { rememberRecentJob } from "@/lib/recent-jobs";
 
 const POLL_MS = 1500;
 const MAX_POLL_ERRORS = 3;
@@ -83,6 +84,7 @@ export function JobProgress() {
     try {
       const { jobId } = await api.createJob(source);
       rememberJobSource(jobId, source);
+      rememberRecentJob(jobId);
       router.replace(`/jobs/${encodeURIComponent(jobId)}`);
     } catch {
       setRetrying(false);
@@ -146,24 +148,15 @@ export function JobProgress() {
       </div>
 
       <div className="flex flex-col gap-2.5 px-5 pb-7">
-        {LOGGED_IN ? (
-          <>
-            <p className="text-center text-sm leading-relaxed text-muted">
-              화면을 나가도 계속 만들어요.
-              <br />
-              다 되면 레시피북에서 볼 수 있어요.
-            </p>
-            <Link href="/book" className="flex h-13 items-center justify-center rounded-xl border-[1.5px] border-foreground text-base font-medium">
-              {ACTION_LABEL.go_book}
-            </Link>
-          </>
-        ) : (
-          <p className="text-center text-sm leading-relaxed text-muted">
-            잠시만 기다려 주세요.
-            <br />
-            다 되면 바로 레시피를 보여 드릴게요.
-          </p>
-        )}
+        {/* 로그인 전에도 떠날 수 있다. 이 브라우저에서 만든 작업은 홈의 "만드는 중" 카드로 돌아온다(KAN-56) */}
+        <p className="text-center text-sm leading-relaxed text-muted">
+          화면을 나가도 계속 만들어요.
+          <br />
+          다 되면 홈에서 볼 수 있어요.
+        </p>
+        <Link href="/" className="flex h-13 items-center justify-center rounded-xl border-[1.5px] border-foreground text-base font-medium">
+          {ACTION_LABEL.go_home}
+        </Link>
       </div>
     </div>
   );
@@ -180,8 +173,8 @@ function toAction(
       return { label: ctx.retrying ? "다시 시도하는 중…" : ACTION_LABEL.retry, onClick: ctx.retryJob, disabled: ctx.retrying };
     case "show_partial":
       return { label: ACTION_LABEL.show_partial, href: `/r/${encodeURIComponent(ctx.runId ?? "")}` };
-    case "go_book":
-      return { label: ACTION_LABEL.go_book, href: "/book" };
+    case "go_home":
+      return { label: ACTION_LABEL.go_home, href: "/" };
     case "upload":
     case "other_file":
     case "other_link":

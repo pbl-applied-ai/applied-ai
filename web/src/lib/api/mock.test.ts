@@ -65,4 +65,14 @@ describe("createMockApi", () => {
     const { api } = setup();
     expect(await api.getJob("nope")).toBeNull();
   });
+
+  it("홈 추천 묶음 목업은 로그인 없이 열리고, 카드는 공개 보기로 열 수 있다 (KAN-56)", async () => {
+    const { api } = setup();
+    const groups = await api.listRecommendations();
+    expect(groups.length).toBeGreaterThan(0);
+    for (const card of groups.flatMap((g) => g.cards)) {
+      expect(card.creator).toBeTruthy();
+      expect(await api.getRun(card.runId)).not.toBeNull();
+    }
+  });
 });

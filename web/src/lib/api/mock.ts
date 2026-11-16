@@ -3,7 +3,7 @@
 //
 // 링크에 따라 결과가 달라진다(MOCK_LINKS: 실패 안내 7종 + 지원 안 하는 링크). 그 밖의 YouTube 링크는 모두 성공하고 SAMPLE_RECIPE를 돌려준다.
 // 시간 흐름: 대기 0.8초 → collect → structure → 끝(약 5초).
-import { PARTIAL_RECIPE, SAMPLE_ESTIMATES, SAMPLE_RECIPE } from './fixtures';
+import { MOCK_RECOMMENDATIONS, PARTIAL_RECIPE, SAMPLE_ESTIMATES, SAMPLE_RECIPE } from './fixtures';
 import { toSummary, withoutEstimates } from './editable';
 import { checkShortsUrl } from '../shorts';
 import { checkUploadFile } from '../upload';
@@ -184,6 +184,11 @@ export function createMockApi(options: MockOptions = {}): RecipeApi {
         !ing.amount_raw && SAMPLE_ESTIMATES[ing.name] ? { ...ing, amount_estimate: SAMPLE_ESTIMATES[ing.name] } : ing,
       );
       return { ...run, recipe: { ...run.recipe, ingredients } };
+    },
+
+    async listRecommendations() {
+      await wait();
+      return MOCK_RECOMMENDATIONS;
     },
 
     async getUser() {

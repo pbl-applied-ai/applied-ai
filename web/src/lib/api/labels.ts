@@ -13,7 +13,7 @@ export const STAGE_LABEL: Record<JobStage, string | null> = {
 };
 
 // other_file은 업로드한 파일이 실패했을 때 [영상 파일로 넣기] 대신 쓴다(UX 플로우 S3)
-export type FailAction = 'retry' | 'upload' | 'other_file' | 'other_link' | 'show_partial' | 'go_book';
+export type FailAction = 'retry' | 'upload' | 'other_file' | 'other_link' | 'show_partial' | 'go_home';
 
 export interface ErrorGuide {
   title: string;
@@ -27,7 +27,7 @@ export const ACTION_LABEL: Record<FailAction, string> = {
   other_file: '다른 파일 올리기',
   other_link: '다른 링크 넣기',
   show_partial: '찾은 만큼 보기',
-  go_book: '레시피북으로',
+  go_home: '홈으로', // 로그인 전에도 홈의 "만드는 중" 카드로 돌아올 수 있다(KAN-56)
 };
 
 // 문구표 7종. 키는 error_code·reason 조합이다
@@ -65,7 +65,7 @@ export const FAIL_GUIDE = {
   internal: {
     title: '서비스에 문제가 생겼어요',
     body: '저희 쪽 문제예요.\n잠시 뒤에 다시 시도해 주세요.',
-    actions: ['retry', 'go_book'],
+    actions: ['retry', 'go_home'],
   },
   // 문구표에 없음. 화면 원본(4-132)의 unsupported_source 문구를 쓴다
   unsupported_source: {
