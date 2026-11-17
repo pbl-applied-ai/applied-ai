@@ -1,8 +1,9 @@
-# 화면별 정보 v0.2 (KAN-72)
+# 화면별 정보 v0.3 (KAN-72)
 
-작성: 김선규 · 2026-11-14 · 팀 검토용
+작성: 김선규 · 2026-11-14 · 수정: 2026-11-16 · 팀 검토용
 기준: **확정 플로우 "applied ai 플로우 v3"**(14장, 앱 이름 pinch, 영어 화면), `web/src/lib/api/types.ts`, `supabase/migrations/`, 스키마 v0.2.
 변경(v0.2): v0.1은 UX v0.7(한 화면 홈)을 기준으로 썼다. 확정 플로우 v3에 맞춰 화면 목록·정보·API를 다시 썼다. v3가 기존 결정과 다른 곳은 [3절](#3-기존-결정과-다른-곳-팀-확인)에 모았다.
+변경(v0.3, 11/16): 7절 응답 타입 추가. 3절 결정 반영(유란 11/15, 수빈 11/16: 로그인 전 추정값은 빼기 그대로, 하루 한도 10/3개 + 로그인 전 전체 상한, 서비스 OCR 켬). 4절·7절 서로 안 맞던 곳 정리, 출처 칩 우선순위, `get_run` 권한 다시 주기, Home [+] 저장 흐름(#57 수빈 리뷰).
 목적: 화면마다 **무엇을 보여 주고, 어느 데이터에서, 어느 API로 가져오는지**. 없는 API·필드는 [KAN-73](#4-kan-73에서-만들-것). 유란은 이 표대로 목업으로 먼저 만들고 월요일에 실제 API로 바꾼다.
 
 > 표기: **있음** = main에 있다 · **바꿈** = 있지만 고친다 · **없음** = 새로 만든다 · **보류 제안** = 월요일 범위에서 빼자는 제안(6절)
@@ -43,6 +44,7 @@ Recipe book 카드 ─▶ 저장한 레시피(R과 같은 배치, 고치기)
 | 검색 "Search recipes or ingredients" | 추천 레시피의 요리명·재료 이름 | 추천 목록을 받아 **웹에서 거름**(20~40편이라 서버 검색 불필요) | 없음 (추천 목록에 재료 이름 포함) |
 | 카테고리 칩 All / Pasta / Dessert / Late night / Vegan | 추천 레시피의 카테고리 태그 | 추천 목록 | 없음 (3절 8번: 11/14 정한 묶음 4개와 맞추기) |
 | Trending now 카드: 사진, ▶Shorts 표시, 요리명, 재료 요약("Ramen, egg, bacon, cheese"), 시간, [+] 바로 저장 | `thumbnail_url`, 플랫폼, `title`, 재료 이름 앞 3~4개, 시간 | `list_featured()` | 없음 |
+| [+] 바로 저장 흐름 | `saveRecipe`는 레시피 전체가 필요해서 `getRun(runId)`를 먼저 부르고 `EditableRecipe`로 바꿔 저장. 로그인 전이면 L 로그인 시트 → K 카테고리 시트. 이미 저장했으면(`myRecipeId`) [+] 대신 저장됨 표시 | `getRun` → `saveRecipe` | 있음(웹 연결만) |
 | "12K saves" | 이 run을 저장한 사람 수 | `list_featured()`의 `save_count` | 없음 (3절 6번) |
 | 카드 누르면 D | `runId` | `/r/<runId>` | 있음 |
 
@@ -55,7 +57,7 @@ Recipe book 카드 ─▶ 저장한 레시피(R과 같은 배치, 고치기)
 | "Saved 12K" | 저장 수 | `get_run` + `save_count` | 없음 (3절 6번) |
 | Cook time "10 min" | **없음.** 스키마·파이프라인에 조리 시간이 없다 | - | 3절 5번 |
 | Servings −1+ | `recipe.servings_raw`(대부분 null → 1로 시작) | 웹 계산 | 3절 3번 |
-| 재료: 이름, 분량 / "≈ 1 pack · Pinch estimate" | `amount_raw`(confirmed), `amount_estimate.text` | `get_run` | **로그인 전에는 서버가 추정값을 뺀다**(#45) → 3절 1번 |
+| 재료: 이름, 분량 / "≈ 1 pack · Pinch estimate" | `amount_raw`(confirmed), `amount_estimate.text` | `get_run` | 있음. **로그인 전에는 서버가 추정값을 뺀다**(#45 그대로, 3절 1번 결정). 로그인 전 화면은 확인 안 된 분량을 빈칸으로 |
 | [Save to recipe book] | - | 로그인 전이면 L, 후면 K → `saveRecipe` | 있음(카테고리는 없음) |
 | "Watch original video" | `Run.sourceUrl` | `get_run` | 있음 |
 
@@ -75,7 +77,7 @@ Recipe book 카드 ─▶ 저장한 레시피(R과 같은 배치, 고치기)
 | 보여 줄 것 | 데이터 | API | 상태 |
 |---|---|---|---|
 | 제목 "Bacon egg & cheese ramen in 10 min" | 미리보기 제목(C에서 받은 것) | 웹 상태 | 미리보기 없으면 "Converting…" |
-| 62%, "Step 3 of 4" + 4단계 목록 | `Job.stage`: `collect`→1 Getting the video, `asr`→2 Listening to the audio, `ocr`→3 Reading on-screen text & captions, `structure`·`finalize`→4 Writing the recipe. %는 단계로 정한 값(예: 15/40/65/90) | `getJob` 1~2초마다 | 있음 (단계 건너뛰면 ✓ 처리. OCR 꺼져 있으면 3단계는 바로 ✓) |
+| 62%, "Step 3 of 4" + 4단계 목록 | `Job.stage`: `collect`→1 Getting the video, `asr`→2 Listening to the audio, `ocr`→3 Reading on-screen text & captions, `structure`·`finalize`→4 Writing the recipe. %는 단계로 정한 값(예: 15/40/65/90) | `getJob` 1~2초마다 | 있음 (단계 건너뛰면 ✓ 처리. 서비스는 OCR을 켠다(3절 11번). 평가 실행처럼 OCR이 꺼진 경우에만 3단계를 바로 ✓) |
 | "You can leave this screen. We'll notify you…", [Keep browsing] | - | 알림은 3절 10번 | 떠나기는 있음, 알림 없음 |
 
 ### F 실패
@@ -94,7 +96,7 @@ Recipe book 카드 ─▶ 저장한 레시피(R과 같은 배치, 고치기)
 | "3 amounts are Pinch estimates. Check them before saving." | 쓰지 않은 추정값 수 | `estimateCount`(#53) | 있음 |
 | Servings −1+ "As shown in the video" / "Scaled from 1 · estimates scale too" | `servings_raw`, 분량 숫자 읽기 | 웹 계산 | 3절 3번 |
 | "13 items · 8 shown" | 재료 수, 처음엔 8개만 | 웹 | 있음 |
-| 재료 줄: 이름, **출처 칩(On-screen / Voice)**, 분량 | 확정 분량이 나온 근거 종류. 근거 ID 접두어(`asr-`→Voice, `ocr-`→On-screen, `desc-`·`comment-`→Description) 중 **분량 글자가 든 구간** | 분량 글자를 찾으려면 bundle 원문이 필요 → 서버가 `amount_source`를 계산해 `get_run`에 넣는다 | 없음 (3절 2번) |
+| 재료 줄: 이름, **출처 칩(On-screen / Voice)**, 분량 | 확정 분량이 나온 근거 종류. 근거 ID 접두어(`asr-`→Voice, `ocr-`→On-screen, `desc-`·`comment-`·`title-`→Description) 중 **분량 글자가 든 구간**. 여러 종류에 다 있으면 **On-screen > Voice > Description** 순으로 하나 | 분량 글자를 찾으려면 bundle 원문이 필요 → 서버가 `amount_source`를 계산해 `get_run`에 넣는다 | 없음 (3절 2번) |
 | 추정 줄: 분홍 칸 "≈ 1 pack · Pinch est." | `amount_estimate` | `get_run` | 있음 (#53 표시만 새 디자인으로) |
 | Steps "3 steps ›" (따로 펼침) | `steps` | `get_run` | 있음 |
 | 고치기(이름·분량·단계) | `EditableRecipe` | 웹 상태 | 있음. 로그인 전 고치기는 3절 4번 |
@@ -145,41 +147,43 @@ v3를 확정으로 보면 아래 결정을 바꾸는 것이다. 바꿀지, v3에
 
 | # | v3 | 지금 결정 | 영향 | 제안 |
 |---|---|---|---|---|
-| 1 | 로그인 전 공개 보기(D)에도 추정값 "≈ … · Pinch estimate" | 로그인 전에는 서버가 추정값을 뺀다(#45 `hide_estimates_public`, #31 리뷰) | 마이그레이션 되돌림 + pgTAP 009 수정 | **v3대로 보여 주기.** 추정 표시가 분명하고(분홍 점선·"estimate") 서비스 차별점이라 로그인 전에도 보이는 게 낫다. 다만 #45를 합의한 팀 결정이라 수빈·유란 확인 |
+| 1 | 로그인 전 공개 보기(D)에도 추정값 "≈ … · Pinch estimate" | 로그인 전에는 서버가 추정값을 뺀다(#45 `hide_estimates_public`, #31 리뷰) | 마이그레이션 되돌림 + pgTAP 009 수정 | **결정(11/16 수빈): 지금처럼 로그인했을 때만 보여 준다.** #45 그대로라 마이그레이션·pgTAP는 안 바꾼다. 로그인 전 공개 보기는 빈칸. "로그인하면 Pinch estimate를 볼 수 있어요" 안내를 넣을지는 유란이 정한다 |
 | 2 | 재료마다 출처 칩 On-screen / Voice | 근거·출처는 화면에 안 보인다(UX v0.7 1절, #8 확정) | 서버가 분량 출처를 계산해 줘야 함. On-screen은 OCR이 켜져 있어야 나온다(지금 꺼짐) | **v3대로 보여 주기**, 칩 종류는 Voice / On-screen / Description 3개. OCR 기본값을 켤지는 11번 |
 | 3 | 인분 조절, "estimates scale too" | 분량은 원문 그대로, 단위·숫자 안 바꿈 | 분량 숫자 읽기(한국어 "1큰술", "반 개", 영어 "1 1/2 cups")를 웹에서 해야 함. 파이프라인 `ingredients.mjs`의 읽기를 웹으로 옮겨야 함 | 조절한 값은 **화면 표시만**, 저장은 원문. "Scaled from 1" 표시 유지. "약간"·"to taste"처럼 숫자 없는 분량은 그대로. 기준 인분이 영상에 없으면 1 |
 | 4 | 로그인 전에도 고치고, 저장할 때 로그인("Your edits stay") | 로그인 전에는 보기만, 고치려면 로그인(10/28 KAN-32) | 고친 초안을 localStorage에 두고 로그인 뒤 이어서 저장 | **v3대로.** 서버 변경 없음, 웹 작업만 |
 | 5 | Cook time "10 min" | 스키마·파이프라인에 조리 시간 없음 | 넣으려면 프롬프트 v9 → 기본 점수·파인튜닝 다시 | **보류 제안**: 시간 자리에 영상 길이 "0:21"을 쓰거나 비움. 프롬프트는 KAN-26·58 끝난 뒤 |
 | 6 | "12K saves", "Saved 12K" | 저장 수 집계 없음 | `user_recipes`를 run별로 세면 됨. 처음엔 수가 작다 | 서버는 `save_count`를 주고, 화면은 **10 미만이면 숨김**. 가짜 숫자는 쓰지 않는다 |
-| 7 | "1 of 3 today" 하루 변환 한도 | 한도 없음 | `create_job`에서 사용자별 하루 개수 검사. 로그인 전은 사람 구분이 안 됨 | 로그인 사용자 하루 **10개**, 로그인 전은 이 브라우저 기준 3개(웹 표시만). 숫자는 수빈(비용) |
+| 7 | "1 of 3 today" 하루 변환 한도 | 한도 없음 | `create_job`에서 사용자별 하루 개수 검사. 로그인 전은 사람 구분이 안 됨 | **결정(11/16 수빈):** 로그인 사용자 하루 **10개**(`create_job`에서 서버가 막음), 로그인 전은 이 브라우저 기준 **3개**(웹 표시). `create_job`은 `anon`도 부를 수 있어 웹 제한은 RPC 직접 호출을 못 막으므로, **로그인 전 전체 합계를 하루 50개**로 서버가 막는다(넘으면 오류). 1건 $0.03~0.04 기준 하루 $2 안쪽. 데모 전까지 |
 | 8 | Home 칩 All / Pasta / Dessert / Late night / Vegan | 11/14 정한 추천 묶음 4개(땡스기빙·크리스마스·가성비·간단하고 맛있는) | 추천 목록의 카테고리 태그 | 칩을 **All / Thanksgiving / Christmas / Budget / Quick & easy**로. 시안의 Pasta 등은 예시로 본다 |
 | 9 | Convert 미리보기(제목·채널·길이) | 없음 | 서버 함수로 YouTube oEmbed. 길이는 oEmbed에 없음 | 제목·채널만. 길이는 변환 뒤 |
 | 10 | "We'll notify you", Alerts 설정 | 알림 없음 | 웹 푸시(서비스 워커·키) 또는 메일 | **보류 제안**: 월요일엔 Recipe book 변환 중 카드로. 문구는 "Find it in your recipe book"으로 |
-| 11 | P 3단계 "Reading on-screen text", 출처 On-screen | OCR 꺼짐(#52, 평가는 OCR 끔) | 켜면 영상당 15~20초·비용 증가 | 서비스는 **OCR 켜기**를 제안(평가 v1.0은 계속 끔). 수빈 결정 |
+| 11 | P 3단계 "Reading on-screen text", 출처 On-screen | OCR 꺼짐(#52, 평가는 OCR 끔) | 켜면 영상당 15~20초·비용 증가 | **결정(11/16 수빈): 서비스는 OCR을 켠다**(데모 워커 `OCR=on`). 평가셋 v1.0은 계속 끄고 잰다. 출처 칩 On-screen도 실제로 나온다 |
 | 12 | 화면 언어 영어, 앱 이름 pinch | UX v0.7은 한국어 문구 | `labels.ts` 문구 전부 | v3대로 영어. 레시피 내용은 영상 언어 그대로 |
 
-**11/15 확인(유란, #57):** 1·2·4·8·12번은 제안대로. 2번 칩은 Voice / On-screen / Description, `amount_source`가 없으면 칩을 숨긴다. 3번 인분 조절은 **월요일엔 보류**(화면에는 "As shown in the video"만, −/+는 다음에). 11번은 수빈 결정을 따른다. 1·7·11번은 수빈 확인 대기.
+**11/15 확인(유란, #57):** 1·2·4·8·12번은 제안대로. 2번 칩은 Voice / On-screen / Description, `amount_source`가 없으면 칩을 숨긴다. 3번 인분 조절은 **월요일엔 보류**(화면에는 "As shown in the video"만, −/+는 다음에). 11번은 수빈 결정을 따른다.
+
+**11/16 결정(수빈, #57):** 1번 추정값은 로그인했을 때만(#45 그대로). 7번 하루 한도 로그인 10개 / 로그인 전 브라우저 3개 + 로그인 전 전체 하루 50개. 11번 서비스 OCR 켬(평가는 끔). 나머지는 유란 정리대로.
 
 ## 4. KAN-73에서 만들 것
 
 | # | 무엇 | 화면 | 내용 |
 |---|---|---|---|
-| 1 | **추천 목록** `list_featured()` | H | `[{ run_id, title, creator, platform, duration_ms, thumbnail_url, ingredient_names[], ingredient_count, step_count, categories[], save_count }]`. 팀이 `featured_runs(run_id, categories text[], position)`에 넣는다. 제목·재료는 `runs.recipe`, 채널·길이는 `runs.bundle.source` |
-| 2 | **`get_run` 응답 늘리기** | D, R | `creator`, `platform`, `duration_ms`, `thumbnail_url`, `save_count`, 재료마다 `amount_source`(voice / on_screen / description, 3절 2번). 로그인 전 추정값 빼기는 3절 1번 결정대로 |
-| 3 | **`list_recipes(p_limit)`** | B | `id, run_id, title, ingredient_count, step_count, unconfirmed_count, source_url, platform, thumbnail_url, category_ids[], created_at, updated_at`. `runs`는 웹에서 직접 못 읽어서 RPC로 |
+| 1 | **추천 목록** `list_featured()` | H | `[{ run_id, title, creator, platform, source_url, duration_ms, thumbnail_url, ingredient_names[], ingredient_count, step_count, categories[], save_count }]`. 팀이 `featured_runs(run_id, categories text[], position)`에 넣는다. 제목·재료는 `runs.recipe`, 채널·길이는 `runs.bundle.source` |
+| 2 | **`get_run` 응답 늘리기** | D, R | `creator`, `platform`, `duration_ms`, `thumbnail_url`, `save_count`, `my_recipe_id`(로그인했고 저장했으면), 재료마다 `amount_source`(voice / on_screen / description, 3절 2번). 로그인 전에는 추정값을 뺀다(#45 그대로) |
+| 3 | **`list_recipes(p_limit, p_category_id)`** | B | `id, run_id, title, ingredient_count, step_count, unconfirmed_count, source_url, platform, thumbnail_url, category_ids[], created_at, updated_at`. `runs`는 웹에서 직접 못 읽어서 RPC로 |
 | 4 | **카테고리** | K, B | 테이블 `categories(id, user_id, name, emoji)`, `recipe_categories(recipe_id, category_id)` + RLS. `list_categories()`(개수 포함), `create_category`, `save_recipe`·`update_recipe`에 `p_category_ids` |
-| 5 | **이 run을 저장했는지** `get_my_recipe_id(p_run_id)` | D, R | 저장 버튼을 "Saved"로 |
+| 5 | **이 run을 저장했는지** | D, R | 따로 RPC를 두지 않고 2번 `get_run`의 `my_recipe_id`로. 저장 버튼을 "Saved"로 |
 | 6 | **사용자 설정** `user_settings(user_id, units, default_servings, alerts)` + `get/set_settings` | T | |
 | 7 | **계정 삭제** `delete_account()` | T | 내 데이터 삭제 + auth 사용자 삭제(Edge Function, service role) |
-| 8 | (3절 7번 정하면) 하루 한도 | C | `create_job` 검사 + `get_quota()` |
+| 8 | 하루 한도 | C | `create_job` 검사: 로그인 사용자 하루 10개, 로그인 전(`auth.uid()` 없음) 전체 합계 하루 50개. 넘으면 `create_job` 오류(웹은 "daily limit" 안내). `get_quota()`는 로그인 사용자의 오늘 개수·한도. 데모 전까지 |
 | 9 | (3절 9번) 링크 미리보기 | C | Edge Function: YouTube oEmbed → `{ title, creator }` |
 | 10 | 웹 타입 v0.2 | 전부 | `TeamRecipe` v0.2(`id`·`partial`), `Run`에 2번 필드, `RecipeSummary`에 3번 필드, `User.name` |
 
-- 순서 제안: **1·2·3·5 → 4 → 6·7** (월요일 연결에 필요한 것 먼저). 8·9는 3절 결정 뒤.
+- 순서 제안: **1·2·3·5 → 4 → 8 → 6·7** (월요일 연결에 필요한 것 먼저, 8번은 데모 전). 9번은 보류.
 - 5번은 따로 RPC를 두지 않고 2번 `get_run` 응답의 `my_recipe_id`로 합쳤다(호출 하나 줄임). 응답 타입은 [7절](#7-응답-타입-kan-73-14번).
 - 모두 pgTAP 테스트 + 배포 DB 적용 목록(`supabase/README.md`)까지. 응답 타입(1·2·3·4번)은 구현 전에 유란에게 먼저 보낸다.
 - 썸네일 주소: YouTube는 `https://i.ytimg.com/vi/<id>/hqdefault.jpg`를 서버가 만들어 준다. Instagram·업로드는 `null` → 요리명 글자 카드.
-- 추천 레시피 데이터: 4묶음 × 5편 ≈ 20편 변환(유료 호출 약 20번, OCR은 11번 결정대로). 평가셋 영상은 쓰지 않는다.
+- 추천 레시피 데이터: 4묶음 × 5편 ≈ 20편 변환(유료 호출 약 20번, 서비스와 같게 OCR 켬). 평가셋 영상은 쓰지 않는다.
 
 ## 5. 정한 것 (11/14)
 
@@ -207,7 +211,8 @@ v3를 확정으로 보면 아래 결정을 바꾸는 것이다. 바꿀지, v3에
 export type Platform = 'youtube' | 'instagram' | 'upload';
 
 // 재료 분량이 나온 곳(3절 2번). 확정 분량의 글자가 든 근거 구간의 종류로 서버가 정한다.
-// asr → voice, ocr → on_screen, desc·comment·title → description. 확정 분량이 아니면 null → 칩을 숨긴다.
+// asr → voice, ocr → on_screen, desc·comment·title → description. 분량 글자가 여러 종류 구간에 다 있으면
+// on_screen > voice > description 순으로 하나. 확정 분량이 아니면 null → 칩을 숨긴다.
 export type AmountSource = 'voice' | 'on_screen' | 'description';
 
 // Home 칩(3절 8번). 칩 글자·이모지는 웹 상수로 둔다: All / Thanksgiving / Christmas / Budget / Quick & easy
@@ -249,7 +254,7 @@ export interface TeamIngredient {
   name_raw?: string;
   amount_raw: string | null;
   amount_status: AmountStatus;
-  amount_estimate?: { text: string; basis?: string }; // 3절 1번 결정대로(로그인 전에도 줄지)
+  amount_estimate?: { text: string; basis?: string }; // 로그인했을 때만 온다(#45 그대로, 3절 1번)
   amount_source?: AmountSource | null; // 새 필드. 저장된 recipe가 아니라 get_run이 계산해서 붙인다
   optional?: boolean;
   evidence: string[];
@@ -283,7 +288,7 @@ export interface Run {
 }
 ```
 
-- `get_run`의 반환 열이 바뀌어서 `create or replace`가 안 되고 함수를 지우고 다시 만든다. 공개 링크·S4가 같이 쓰므로 같은 PR에서 `supabase.ts`를 맞춘다.
+- `get_run`의 반환 열이 바뀌어서 `create or replace`가 안 되고 함수를 지우고 다시 만든다. 다시 만든 뒤 `revoke execute ... from public` + `grant execute on function public.get_run(uuid) to anon, authenticated`를 다시 준다(지우면 권한도 같이 사라진다). 공개 링크·S4가 같이 쓰므로 같은 PR에서 `supabase.ts`를 맞춘다.
 
 ### 3. 레시피북 목록 — `listRecipes(options)` / RPC `list_recipes(p_limit, p_category_id)` (로그인 필요)
 
