@@ -488,6 +488,12 @@ test('adjacent ingredients offered as alternatives are merged into one item', ()
   assert.equal(r.summary.ingredients, 2);
 });
 
+test('English alternatives are merged with "or", not the Korean 또는 (#59)', () => {
+  const segs = normalizeSegments([{ startMs: 0, durMs: 1000, text: 'fry it in butter or oil and add salt' }]);
+  const r = resolveRecipe(draft({ ingredients: [ing('butter', null, [], ['S01']), ing('oil', null, [], ['S01']), ing('salt', null, [], ['S01'])] }), segs);
+  assert.deepEqual(r.ingredients.map((i) => i.name), ['butter or oil', 'salt']);
+});
+
 test('a step that only resembles a tip is kept with a warning', () => {
   const r = resolveRecipe(
     draft({

@@ -32,7 +32,11 @@ const evidenceRefs = (ids, byId) =>
 const escapeRe = (s) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 const ALTERNATIVE = '(?:이나|나|또는|혹은|아니면|or)';
 
-// Adjacent ingredients the evidence offers as alternatives ("쪽파나 대파") become one item.
+// Korean names join with 또는, other names with "or" (rule 7: never translate).
+const HANGUL = /[가-힣]/;
+const orWord = (a, b) => (HANGUL.test(a) || HANGUL.test(b) ? '또는' : 'or');
+
+// Adjacent ingredients the evidence offers as alternatives ("쪽파나 대파", "butter or oil") become one item.
 function mergeAlternatives(list, byId, warnings) {
   const out = [];
   for (const ing of list) {
@@ -44,7 +48,7 @@ function mergeAlternatives(list, byId, warnings) {
         warnings.push(`ingredients "${prev.name}" and "${ing.name}" are alternatives, merged`);
         out[out.length - 1] = {
           ...prev,
-          name: `${prev.name} 또는 ${ing.name}`,
+          name: `${prev.name} ${orWord(prev.name, ing.name)} ${ing.name}`,
           amounts: [...(prev.amounts || []), ...(ing.amounts || [])],
           evidence: shared,
         };
@@ -131,7 +135,7 @@ function amountMatches(hay, amt, from = 0, starts) {
 // The value says whether the spelling is only a head word.
 function nameForms(name) {
   const forms = new Map();
-  for (const part of (name || '').split(/\s+또는\s+/)) {
+  for (const part of (name || '').split(/\s+(?:또는|or)\s+/i)) {
     const words = part.trim().split(/\s+/).filter(Boolean);
     if (!words.length) continue;
     forms.set(fold(part), false);

@@ -1,4 +1,4 @@
-export const PROMPT_VERSION = 'recipe-extract-v8';
+export const PROMPT_VERSION = 'recipe-extract-v9';
 
 const evidence = {
   type: 'array',
@@ -92,8 +92,9 @@ Users rely on this recipe instead of rewatching the video, and every item is sho
 
 4. Ingredients.
    - One item per ingredient. Put preparation such as "얇게 썬" or "다진" in preparation; never make preparation its own item.
+   - When the same ingredient is added separately, in different parts (e.g. 양념 and 소스) or at different steps, list one item per addition with its own amount, in order. Never add the amounts together. If an ingredient list in the description or pinned comment gives it as one line (e.g. "양파 30g"), use that one item.
    - A preparation that is part of how the ingredient is sold or named (e.g. "다진마늘" added as a seasoning) may stay in the name.
-   - Alternatives the cook offers for the same role ("양파나 대파", "A 또는 B") are one item named "A 또는 B".
+   - Alternatives the cook offers for the same role ("양파나 대파", "A 또는 B", "A or B") are one item named "A 또는 B" in Korean, "A or B" in English.
    - Include basics the cook uses (oil, water, rice).
    - Equipment (뚝배기, 팬, 냄비, 휘핑기, 그릇) is not an ingredient; mention it in the step that uses it.
    - When you fix a recognition error in an ingredient name, list only the fixed name (e.g. "참치액", not both "참치" and "참치액").
@@ -102,7 +103,7 @@ Users rely on this recipe instead of rewatching the video, and every item is sho
 
 5. Steps.
    - Each step is one cooking action, or a short sequence on the same food, in the order it happens. Keep consecutive actions on the same pan or food together (e.g. "기름을 두르고 양파를 볶는다" is one step).
-   - Write steps in plain declarative form in the transcript's language (Korean: "~한다").
+   - Write steps in the video's language (rule 7): Korean in plain declarative form ("~한다"), English as short imperatives ("Add the garlic.").
    - Commentary, jokes, opinions, and serving suggestions are not steps. Put advice that changes the result (e.g. "센불이 좋다", "오래 끓이면 짜진다") in tips only; never repeat a tip as a step.
    - Speakers sometimes answer each other; an answer can be an instruction (e.g. "should I add the oil too?" "obviously") and then belongs in a step.
    - For assembly, say what goes on what (e.g. "밥 위에 ~을 올린다"), not that the base is "added".
@@ -112,11 +113,14 @@ Users rely on this recipe instead of rewatching the video, and every item is sho
    - Always include the segment where the item begins. Speech segments overlap and an action often starts at the end of one segment and continues in the next, so check the previous segment.
    - Cite only IDs that exist. Never write times; they are computed from your citations.
 
-7. Language. Write everything in the transcript's language.
+7. Language. Write the title, ingredient names, preparation, steps and tips in the language the video's own evidence is written in. Never translate.
+   - This prompt, the evidence labels (설명, 고정 댓글, 화면) and the example below are partly Korean; that says nothing about the video's language. Judge only from the speech, description, pinned comment and on-screen text.
+   - An English video gets an English recipe: "scallions", not "대파"; "Simmer for 5 minutes.", not "5분간 끓인다.".
+   - English ingredient names are the common lowercase name ("olive oil" for "EVOO").
 
 8. Not a recipe. If the evidence contains no recipe, set not_a_recipe to true, title to a short description of the video, and return empty arrays.
 
-## Example (different video)
+## Example (different video, in Korean)
 Evidence:
 [S01 00:00] 오늘은 간장 계란밥 만들어 볼게요. 밥 한 공기에
 [S02 00:03] 계란 노른자 하나 올리고 간장 한 스푼, 참기름은
@@ -130,7 +134,10 @@ ingredients: {name:"밥", amounts:[{text:"한 공기", evidence:["S01","D01"]}],
              {name:"김가루", amounts:[], evidence:["S03"]}
 steps: {text:"밥 한 공기에 계란 노른자를 올린다.", evidence:["S01","S02"]},
        {text:"간장 한 스푼과 참기름을 취향껏 두른다.", evidence:["S02","S03"]},
-       {text:"김가루를 뿌려 마무리한다.", evidence:["S03"]}`;
+       {text:"김가루를 뿌려 마무리한다.", evidence:["S03"]}
+
+## Before you answer
+Check the language of this video's evidence (rule 7). If it is English, write every title, ingredient name, preparation, step and tip in English, even though the example above is Korean.`;
 
 export function buildUserPrompt(video, evidenceText) {
   return `Video title: ${video.title ?? '(unknown)'}\nChannel: ${video.author ?? '(unknown)'}\n\nEvidence:\n${evidenceText}`;
