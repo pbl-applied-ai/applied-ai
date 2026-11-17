@@ -2,7 +2,7 @@
 // 여기서는 화면 상황(로그인·업로드 지원·다시 시도 가능)에 맞게 고르기만 한다.
 import { type ErrorGuide, type FailAction, type Job, STAGE_LABEL, failGuide } from "@/lib/api";
 
-const WAITING = "곧 시작해요…";
+const WAITING = "Starting soon…";
 
 /** 지금 단계 한 줄. finalize처럼 표시하지 않는 단계는 바로 앞 단계(정리 중) 문구를 쓴다. */
 export function stageText(job: Pick<Job, "status" | "stage">): string {

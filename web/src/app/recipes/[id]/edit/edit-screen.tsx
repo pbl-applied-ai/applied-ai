@@ -51,16 +51,16 @@ export function EditScreen() {
     return (
       <div className="flex flex-1 flex-col items-center justify-center gap-3 px-8 text-center">
         <p role="alert" className="text-lg font-bold">
-          레시피를 찾을 수 없어요
+          We can&apos;t find this recipe
         </p>
-        <Link href="/book" className="mt-4 text-sm text-link underline">
-          레시피북으로
+        <Link href="/book" className="mt-4 text-sm text-muted underline underline-offset-4">
+          Back to recipe book
         </Link>
       </div>
     );
   }
   if (load.kind === "loading" || !draft) {
-    return <div className="flex flex-1 items-center justify-center text-sm text-muted">불러오는 중…</div>;
+    return <div className="flex flex-1 items-center justify-center text-sm text-muted">Loading…</div>;
   }
 
   async function save() {
@@ -74,7 +74,7 @@ export function EditScreen() {
       setSaving(false); // 화면 상태가 남아 있어도(cacheComponents) "저장하는 중…"에 멈추지 않게
     } catch {
       setSaving(false);
-      setSaveError("저장하지 못했어요. 고친 내용은 그대로 있어요. 다시 저장해 주세요.");
+      setSaveError("Couldn't save. Your edits are still here. Please try saving again.");
     }
   }
 
@@ -90,7 +90,7 @@ export function EditScreen() {
       onSave={save}
       saving={saving}
       saveError={saveError}
-      saveLabel="수정 내용 저장"
+      saveLabel="Save changes"
     />
   );
 }

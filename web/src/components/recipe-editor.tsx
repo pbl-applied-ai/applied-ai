@@ -51,43 +51,56 @@ export function RecipeEditor({
     <div className="flex flex-1 flex-col">
       <section className="flex flex-col gap-1.5 px-5 pt-3">
         <label htmlFor="title" className="text-xs text-muted">
-          요리명
+          Recipe name
         </label>
         <input
           id="title"
           value={draft.title}
           onChange={(e) => onChange({ ...draft, title: e.target.value })}
-          className="border-b-[1.5px] border-line pt-1 pb-2 text-2xl font-bold outline-link"
+          className="border-b-[1.5px] border-line bg-transparent pt-1 pb-2 text-[26px] leading-tight font-bold outline-none focus:border-pink"
         />
         {notice && <p className="mt-1 text-[13px] text-muted">ⓘ {notice}</p>}
         {(missing.steps || missing.ingredients) && (
-          <p className="mt-2 rounded-xl bg-subtle px-3.5 py-3 text-[13px] leading-relaxed">
-            ⓘ 영상에서 {missing.steps ? "조리 순서" : "재료"}를 찾지 못했어요.
+          <p className="mt-2 rounded-2xl bg-pink-tint px-3.5 py-3 text-[13px] leading-relaxed text-pink-ink">
+            ⓘ We couldn&apos;t find the {missing.steps ? "steps" : "ingredients"} in the video.
             <br />
-            아래에서 직접 추가하면 저장할 수 있어요.
+            Add them below and you can save.
           </p>
         )}
-        <p className="mt-1 text-[13px] text-muted">틀린 곳은 눌러서 바로 고칠 수 있어요.</p>
+        {estimates > 0 && (
+          <p className="mt-2 flex gap-2.5 rounded-2xl bg-pink-tint px-3.5 py-3 text-[13px] leading-snug text-pink-ink">
+            <span className="font-display text-base leading-none" aria-hidden="true">
+              ≈
+            </span>
+            <span>
+              <b>
+                {estimates} {estimates === 1 ? "amount is a Pinch estimate" : "amounts are Pinch estimates"}.
+              </b>{" "}
+              Check {estimates === 1 ? "it" : "them"} before saving.
+            </span>
+          </p>
+        )}
+        <p className="mt-1 text-[13px] text-muted">Tap anything that looks off to fix it.</p>
       </section>
 
       <section className="flex flex-col px-5 pt-6" aria-labelledby="ing-title">
         <div className="mb-2 flex items-center justify-between gap-3">
-          <h2 id="ing-title" className="text-lg font-bold">
-            재료 {draft.ingredients.length}
+          <h2 id="ing-title" className="flex items-baseline gap-2 text-lg font-bold">
+            Ingredients <span className="text-xs font-medium text-muted">{draft.ingredients.length} items</span>
           </h2>
           {estimates > 0 && (
             <button
               type="button"
               onClick={() => done(acceptAllEstimates(draft))}
-              className="min-h-11 rounded-[10px] border border-line-strong px-3 text-[13px] font-medium"
+              className="min-h-9 rounded-full border-[1.5px] border-foreground bg-card px-3 text-[13px] font-bold"
             >
-              추정 분량 {estimates}개 모두 쓰기
+              Use all {estimates} {estimates === 1 ? "estimate" : "estimates"}
             </button>
           )}
         </div>
         {draft.ingredients.length === 0 && (
-          <p className="rounded-xl border-[1.5px] border-dashed border-line-strong bg-subtle px-4 py-5 text-center text-sm text-muted">
-            영상에서 찾은 재료가 없어요.
+          <p className="rounded-[22px] border-[1.5px] border-dashed border-[#cfc6ba] bg-card px-4 py-5 text-center text-sm text-muted">
+            No ingredients found in the video.
           </p>
         )}
         {draft.ingredients.map((ing) => (
@@ -107,11 +120,11 @@ export function RecipeEditor({
 
       <section className="flex flex-col px-5 pt-8" aria-labelledby="step-title">
         <h2 id="step-title" className="mb-2 text-lg font-bold">
-          조리 순서 {draft.steps.length}
+          Steps <span className="text-xs font-medium text-muted">{draft.steps.length}</span>
         </h2>
         {draft.steps.length === 0 && (
-          <p className="rounded-xl border-[1.5px] border-dashed border-line-strong bg-subtle px-4 py-5 text-center text-sm text-muted">
-            영상에서 찾은 조리 순서가 없어요.
+          <p className="rounded-[22px] border-[1.5px] border-dashed border-[#cfc6ba] bg-card px-4 py-5 text-center text-sm text-muted">
+            No steps found in the video.
           </p>
         )}
         {draft.steps.map((step, i) => (
@@ -130,22 +143,22 @@ export function RecipeEditor({
             onMove={(offset) => onChange(moveStep(draft, step.id, offset))}
           />
         ))}
-        <AddStepForm label={draft.steps.length === 0 ? "+ 첫 단계 추가" : "+ 단계 추가"} onAdd={(text) => onChange(addStep(draft, text))} />
+        <AddStepForm label={draft.steps.length === 0 ? "+ Add the first step" : "+ Add step"} onAdd={(text) => onChange(addStep(draft, text))} />
       </section>
 
       <footer className="mt-auto flex flex-col gap-2.5 px-5 pt-8 pb-8">
         <p className="text-center text-xs leading-relaxed text-muted">
-          고친 내용은 원래 결과와 함께 보관되어
+          We keep your edits next to the original result
           <br />
-          추출 품질을 높이는 데 쓰여요.
+          to make Pinch more accurate.
         </p>
         <button
           type="button"
           onClick={onSave}
           disabled={!canSave(draft) || saving}
-          className="h-13 rounded-xl bg-foreground text-base font-bold text-background disabled:bg-disabled disabled:text-muted"
+          className="btn-primary"
         >
-          {saving ? "저장하는 중…" : saveLabel}
+          {saving ? "Saving…" : saveLabel}
         </button>
         {blocker && <p className="text-center text-xs text-muted">{blocker}</p>}
         {saveError && (

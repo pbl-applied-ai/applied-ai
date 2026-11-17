@@ -85,7 +85,7 @@ export function LinkInputForm() {
       setShowFieldError(false);
       setSubmitting(false);
     } catch {
-      setSubmitError("잠시 문제가 생겼어요. 다시 시도해 주세요.");
+      setSubmitError("Something went wrong. Please try again.");
       setSubmitting(false);
     }
   }
@@ -115,14 +115,14 @@ export function LinkInputForm() {
         goLogin();
         return;
       }
-      setUploadError("파일을 올리지 못했어요. 다시 시도해 주세요.");
+      setUploadError("Couldn't upload the file. Please try again.");
     }
   }
 
   return (
     <form onSubmit={submit} className="flex flex-col px-5 pt-7" noValidate>
       <label htmlFor="link" className="text-[15px] font-medium">
-        YouTube Shorts 요리 영상 링크
+        Cooking video link (YouTube Shorts)
       </label>
       <div className="mt-2 flex gap-2">
         <input
@@ -141,16 +141,16 @@ export function LinkInputForm() {
           onPaste={() => setShowFieldError(true)}
           aria-invalid={fieldError ? true : undefined}
           aria-describedby={fieldError ? "link-error" : undefined}
-          className={`h-13 min-w-0 flex-1 rounded-[10px] border-[1.5px] px-3.5 text-base outline-link ${
-            fieldError ? "border-danger" : "border-line-strong"
+          className={`h-13 min-w-0 flex-1 rounded-2xl border-2 bg-card px-3.5 text-base outline-pink ${
+            fieldError ? "border-danger" : "border-foreground"
           }`}
         />
         <button
           type="button"
           onClick={paste}
-          className="h-13 shrink-0 rounded-[10px] border-[1.5px] border-foreground px-3.5 text-sm font-medium"
+          className="h-13 shrink-0 rounded-full border-[1.5px] border-foreground bg-card px-4 text-sm font-bold"
         >
-          붙여넣기
+          Paste
         </button>
       </div>
       {fieldError && (
@@ -162,9 +162,9 @@ export function LinkInputForm() {
       <button
         type="submit"
         disabled={!canSubmit}
-        className="mt-5 h-13 rounded-xl bg-foreground text-base font-bold text-background disabled:bg-disabled disabled:text-muted"
+        className="btn-primary mt-5"
       >
-        {submitting ? "보내는 중…" : "레시피 만들기"}
+        {submitting ? "Sending…" : "Get the recipe"}
       </button>
       {submitError && (
         <p role="alert" className="mt-2 text-[13px] text-danger">
@@ -174,7 +174,7 @@ export function LinkInputForm() {
 
       <div className="mt-7 flex items-center gap-3">
         <div className="h-px flex-1 bg-line" />
-        <span className="text-[13px] text-muted">링크가 안 되면</span>
+        <span className="text-[13px] text-muted">Link not working?</span>
         <div className="h-px flex-1 bg-line" />
       </div>
       {UPLOAD_ENABLED ? (
@@ -184,9 +184,9 @@ export function LinkInputForm() {
             type="button"
             onClick={pickFile}
             disabled={uploading}
-            className="mt-5 h-13 rounded-xl border-[1.5px] border-foreground text-base font-medium disabled:border-line-strong disabled:text-muted"
+            className="btn-ghost mt-5"
           >
-            {uploading ? "올리는 중…" : "영상 파일로 넣기"}
+            {uploading ? "Uploading…" : "Upload a video file"}
           </button>
           {uploadError && (
             <p role="alert" className="mt-2 text-[13px] text-danger">
@@ -194,7 +194,7 @@ export function LinkInputForm() {
             </p>
           )}
           <p className="mt-2 text-[13px] leading-relaxed text-muted">
-            로그인하면 올릴 수 있어요. 직접 찍었거나 사용 권한이 있는 영상만 올려 주세요. 올린 영상은 레시피를 만든 뒤 지워져요. (25MB까지)
+            Sign in to upload. Only upload videos you made or have the rights to use. We delete the video after making the recipe. (Up to 25 MB)
           </p>
         </>
       ) : (
@@ -202,11 +202,11 @@ export function LinkInputForm() {
           <button
             type="button"
             disabled
-            className="mt-5 h-13 rounded-xl border-[1.5px] border-line-strong text-base font-medium text-muted"
+            className="btn-ghost mt-5"
           >
-            영상 파일로 넣기
+            Upload a video file
           </button>
-          <p className="mt-2 text-[13px] leading-relaxed text-muted">영상 파일 올리기는 준비 중이에요.</p>
+          <p className="mt-2 text-[13px] leading-relaxed text-muted">Video upload is coming soon.</p>
         </>
       )}
     </form>

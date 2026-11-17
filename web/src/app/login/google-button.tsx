@@ -33,12 +33,12 @@ export function GoogleButton() {
           setBusy(false);
         }
       }}
-      className="flex h-13 items-center justify-center gap-2.5 rounded-xl border-[1.5px] border-foreground text-base font-medium disabled:opacity-60"
+      className="btn-ghost disabled:opacity-60"
     >
       <span aria-hidden="true" className="flex size-[22px] items-center justify-center rounded-full border-[1.5px] border-foreground text-xs font-bold">
         G
       </span>
-      {busy ? "로그인하는 중…" : "Google로 계속하기"}
+      {busy ? "Signing in…" : "Continue with Google"}
     </button>
   );
 }

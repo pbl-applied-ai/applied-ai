@@ -32,7 +32,7 @@ describe("jobCards", () => {
       ["b", "failed", "/jobs/b"],
       ["c", "ready", "/r/run-c"],
     ]);
-    expect(cards[0].detail).toBe("레시피 정리 중…");
+    expect(cards[0].detail).toBe("Writing the recipe…");
   });
 
   it("저장했다가 지운 레시피는 준비됐어요 카드로 되살아나지 않는다", () => {

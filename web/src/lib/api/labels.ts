@@ -5,10 +5,10 @@
 import type { Job, JobErrorCode, JobStage } from './types';
 
 export const STAGE_LABEL: Record<JobStage, string | null> = {
-  collect: '영상 정보 가져오는 중',
-  asr: '음성 듣는 중',
-  ocr: '화면 글자 읽는 중',
-  structure: '레시피 정리 중',
+  collect: 'Getting the video',
+  asr: 'Listening to the audio',
+  ocr: 'Reading on-screen text & captions',
+  structure: 'Writing the recipe',
   finalize: null, // 표시하지 않는다
 };
 
@@ -22,71 +22,71 @@ export interface ErrorGuide {
 }
 
 export const ACTION_LABEL: Record<FailAction, string> = {
-  retry: '다시 시도',
-  upload: '영상 파일로 넣기',
-  other_file: '다른 파일 올리기',
-  other_link: '다른 링크 넣기',
-  show_partial: '찾은 만큼 보기',
-  go_home: '홈으로', // 로그인 전에도 홈의 "만드는 중" 카드로 돌아올 수 있다(KAN-56)
+  retry: 'Try again',
+  upload: 'Upload a video file',
+  other_file: 'Upload a different file',
+  other_link: 'Try another link',
+  show_partial: 'See what we found',
+  go_home: 'Back to home', // 로그인 전에도 홈의 "만드는 중" 카드로 돌아올 수 있다(KAN-56)
 };
 
 // 문구표 7종. 키는 error_code·reason 조합이다
 export const FAIL_GUIDE = {
   retryable: {
-    title: '잠시 문제가 생겼어요',
-    body: '몇 번 다시 시도했지만 실패했어요.\n조금 뒤에 다시 시도해 주세요.',
+    title: 'Something went wrong',
+    body: 'We tried a few times, but it didn\'t work.\nPlease try again in a bit.',
     actions: ['retry', 'other_link'],
   },
   not_playable: {
-    title: '이 영상은 열 수 없어요',
-    body: '비공개이거나 삭제된 영상일 수 있어요.\n다른 영상 링크를 넣어 주세요.',
+    title: 'We can\'t open this video',
+    body: 'It may be private or deleted.\nTry a link to a different video.',
     actions: ['upload', 'other_link'],
   },
   no_captions: {
-    title: '이 영상은 자막이 없어서 읽을 수 없어요',
-    body: '지금은 자막이 있는 영상만 레시피로 만들 수 있어요.\n다른 영상을 넣어 주세요.',
+    title: 'This video has no captions we can read',
+    body: 'For now, we can only make recipes from videos with captions.\nTry a different video.',
     actions: ['other_link', 'upload'],
   },
   not_a_recipe: {
-    title: '요리 영상이 아닌 것 같아요',
-    body: '레시피가 담긴 요리 Shorts 링크를\n넣어 주세요.',
+    title: 'This doesn\'t look like a cooking video',
+    body: 'Paste a link to a cooking Short\nthat shows a recipe.',
     actions: ['other_link'],
   },
   partial_recipe: {
-    title: '영상에서 찾은 정보가 적어요',
-    body: '찾은 내용만 보여 드릴게요.\n빠진 부분은 직접 채울 수 있어요.',
+    title: 'We only found part of the recipe',
+    body: 'We\'ll show you what we found.\nYou can fill in the rest yourself.',
     actions: ['show_partial', 'other_link'],
   },
   empty_recipe: {
-    title: '영상에서 레시피를 찾지 못했어요',
-    body: '재료와 조리 순서를 찾지 못했어요.\n다른 영상으로 다시 해 보세요.',
+    title: 'We couldn\'t find a recipe in this video',
+    body: 'We couldn\'t find any ingredients or steps.\nTry a different video.',
     actions: ['other_link', 'upload'],
   },
   internal: {
-    title: '서비스에 문제가 생겼어요',
-    body: '저희 쪽 문제예요.\n잠시 뒤에 다시 시도해 주세요.',
+    title: 'Something went wrong on our end',
+    body: 'It\'s not you, it\'s us.\nPlease try again in a bit.',
     actions: ['retry', 'go_home'],
   },
   // 문구표에 없음. 화면 원본(4-132)의 unsupported_source 문구를 쓴다
   unsupported_source: {
-    title: '이 영상은 링크로 가져올 수 없어요',
-    body: '지금은 YouTube Shorts만 지원해요.',
+    title: 'We can\'t get this video from a link',
+    body: 'For now, we only support YouTube Shorts.',
     actions: ['upload', 'other_link'],
   },
   // 업로드 실패(KAN-49). 화면 원본에 없어 UX 플로우 S3 "업로드한 파일 실패" 기준으로 썼다
   no_speech: {
-    title: '영상에서 말소리를 찾지 못했어요',
-    body: '지금은 말로 설명하는 영상만 읽을 수 있어요.\n화면 글자 읽기는 준비 중이에요.',
+    title: 'We couldn\'t hear anyone talking',
+    body: 'For now, we can only read videos where someone talks through the recipe.\nReading on-screen text is coming soon.',
     actions: ['other_file', 'other_link'],
   },
   upload_too_large: {
-    title: '파일이 너무 커요',
-    body: '25MB 이하 영상만 올릴 수 있어요.',
+    title: 'This file is too big',
+    body: 'Videos must be 25MB or smaller.',
     actions: ['other_file', 'other_link'],
   },
   upload_unreadable: {
-    title: '영상 파일을 읽을 수 없어요',
-    body: '파일이 손상됐거나 소리가 없는 영상일 수 있어요.\n다른 파일로 다시 올려 주세요.',
+    title: 'We can\'t read this video file',
+    body: 'The file may be damaged or have no sound.\nTry uploading a different file.',
     actions: ['other_file', 'other_link'],
   },
 } satisfies Record<string, ErrorGuide>;

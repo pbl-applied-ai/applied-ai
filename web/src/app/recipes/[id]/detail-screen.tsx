@@ -35,18 +35,18 @@ export function DetailScreen() {
     return (
       <main className="flex flex-1 flex-col items-center justify-center gap-3 px-8 text-center">
         <p role="alert" className="text-lg font-bold">
-          레시피를 찾을 수 없어요
+          We can&apos;t find this recipe
         </p>
-        <p className="text-sm text-muted">삭제됐거나 다른 계정의 레시피예요.</p>
-        <Link href="/book" className="mt-4 text-sm text-link underline">
-          레시피북으로
+        <p className="text-sm text-muted">It was deleted or belongs to another account.</p>
+        <Link href="/book" className="mt-4 text-sm text-muted underline underline-offset-4">
+          Back to recipe book
         </Link>
       </main>
     );
   }
 
   if (load.kind === "loading") {
-    return <main className="flex flex-1 items-center justify-center text-sm text-muted">불러오는 중…</main>;
+    return <main className="flex flex-1 items-center justify-center text-sm text-muted">Loading…</main>;
   }
 
   const { recipe } = load;
@@ -54,34 +54,35 @@ export function DetailScreen() {
   return (
     <main className="relative flex flex-1 flex-col">
       <header className="flex items-center justify-between px-2 py-3">
-        <Link href="/book" aria-label="레시피북으로" className="flex size-11 items-center justify-center">
+        <Link href="/book" aria-label="Back to recipe book" className="flex size-11 items-center justify-center">
           <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true">
             <path d="M15 6l-6 6 6 6" />
           </svg>
         </Link>
         <div className="flex gap-1 pr-2">
-          <Link href={`/recipes/${encodeURIComponent(recipe.id)}/edit`} className="flex min-h-11 items-center px-3 text-[15px] font-medium">
-            수정
+          <Link href={`/recipes/${encodeURIComponent(recipe.id)}/edit`} className="flex min-h-11 items-center px-3 text-[15px] font-bold">
+            Edit
           </Link>
-          <button type="button" onClick={() => setConfirming(true)} className="min-h-11 px-3 text-[15px] font-medium text-danger">
-            삭제
+          <button type="button" onClick={() => setConfirming(true)} className="min-h-11 px-3 text-[15px] font-bold text-danger">
+            Delete
           </button>
         </div>
       </header>
 
       <section className="flex flex-col gap-2 px-5 pt-1">
-        <h1 className="text-[26px] font-bold">{recipe.title}</h1>
-        <span className="text-[13px] text-muted">{shortDate(recipe.createdAt)} 저장</span>
+        <div className="photo mb-2 h-48 w-full rounded-[22px]" aria-hidden="true" />
+        <h1 className="text-[26px] leading-tight font-bold">{recipe.title}</h1>
+        <span className="text-[13px] text-muted">Saved {shortDate(recipe.createdAt)}</span>
         {/* 업로드로 만든 레시피는 원본을 보관하지 않아서 sourceUrl이 비어 있다 → 카드 숨김 */}
         {recipe.sourceUrl && (
-          <div className="mt-2 flex items-center gap-3 rounded-xl border border-line p-3">
-            <span className="size-12 shrink-0 rounded-lg bg-disabled" aria-hidden="true" />
+          <div className="mt-2 flex items-center gap-3 rounded-[22px] bg-card p-3">
+            <span className="photo size-12 shrink-0 rounded-xl" aria-hidden="true" />
             <span className="flex min-w-0 flex-1 flex-col gap-0.5">
               <span className="truncate text-sm font-medium">{recipe.title}</span>
               <span className="text-xs text-muted">YouTube Shorts</span>
             </span>
-            <a href={recipe.sourceUrl} target="_blank" rel="noopener noreferrer" className="min-h-11 px-2 text-sm leading-[44px] text-link">
-              원본 영상
+            <a href={recipe.sourceUrl} target="_blank" rel="noopener noreferrer" className="min-h-11 px-2 text-sm leading-[44px] font-bold underline underline-offset-4">
+              ▶ Watch original
             </a>
           </div>
         )}
@@ -90,15 +91,15 @@ export function DetailScreen() {
       <RecipeView recipe={recipe} />
 
       {confirming && (
-        <div className="fixed inset-0 z-10 flex items-end bg-black/45">
-          <div role="dialog" aria-modal="true" aria-labelledby="del-title" className="mx-auto flex w-full max-w-md flex-col gap-3 rounded-t-2xl bg-background px-5 pt-6 pb-8">
+        <div className="fixed inset-0 z-30 flex items-end bg-[rgba(59,31,26,0.45)]">
+          <div role="dialog" aria-modal="true" aria-labelledby="del-title" className="mx-auto flex w-full max-w-md flex-col gap-3 rounded-t-[30px] bg-background px-6 pt-6 pb-8">
             <p id="del-title" className="text-lg font-bold">
-              이 레시피를 삭제할까요?
+              Delete this recipe?
             </p>
-            <p className="text-sm text-muted">삭제하면 되돌릴 수 없어요.</p>
+            <p className="text-sm text-muted">You can&apos;t undo this.</p>
             <div className="mt-2 flex gap-2">
-              <button type="button" onClick={() => setConfirming(false)} className="h-13 flex-1 rounded-xl border-[1.5px] border-foreground text-base font-medium">
-                취소
+              <button type="button" onClick={() => setConfirming(false)} className="btn-ghost flex-1">
+                Cancel
               </button>
               <button
                 type="button"
@@ -114,9 +115,9 @@ export function DetailScreen() {
                     setDeleting(false);
                   }
                 }}
-                className="h-13 flex-1 rounded-xl bg-danger text-base font-bold text-white disabled:opacity-60"
+                className="flex min-h-[52px] flex-1 items-center justify-center rounded-full bg-danger text-[15px] font-bold text-white disabled:opacity-60"
               >
-                {deleting ? "삭제하는 중…" : "삭제"}
+                {deleting ? "Deleting…" : "Delete"}
               </button>
             </div>
           </div>

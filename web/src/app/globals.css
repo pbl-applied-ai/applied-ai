@@ -1,16 +1,29 @@
 @import "tailwindcss";
 
-/* 와이어프레임 색(Figma "Wireframe colors" 변수와 같은 값). 색·폰트 다듬기는 데모 후. */
+/* Pinch 디자인(11/16 확정, 피치소다 키치 스티커 톤). 값은 web/public/design/pinch 시안(#66)과 같다.
+   기존 이름(foreground·muted·line…)은 그대로 두고 값만 Pinch 색으로 바꿨다. */
 :root {
-  --background: #ffffff;
-  --foreground: #1a1a1a;
-  --muted: #5c5c5c;
-  --subtle: #f4f4f2;
-  --line: #e2e2de;
-  --line-strong: #b5b5b0;
-  --disabled: #d6d6d2;
-  --link: #1f5fbf;
-  --danger: #a3290a;
+  --background: #f7f6f2;
+  --foreground: #3b1f1a; /* 짙은 갈색 글자 */
+  --muted: #8a7a72;
+  --subtle: #f0ede7;
+  --card: #ffffff;
+  --line: #e6e0d7;
+  --line-strong: #3b1f1a; /* 입력칸·스티커 테두리 */
+  --disabled: #e2ddd5;
+  --link: #9c2f5b;
+  --danger: #b3261e;
+  --danger-tint: #fbe3e1;
+  --ink: #111111; /* 주요 버튼(화면당 하나) */
+  --pink: #f48fb8;
+  --pink-tint: #fde3ee;
+  --pink-ink: #9c2f5b;
+  --orange: #ffa53d;
+  --orange-tint: #ffe9cc;
+  --lime: #9bdb4d;
+  --lime-tint: #e6f6d2;
+  --lime-ink: #1f3a0a;
+  --photo: repeating-linear-gradient(135deg, #e2ded6 0 12px, #d9d4ca 12px 24px);
 }
 
 @theme inline {
@@ -18,14 +31,110 @@
   --color-foreground: var(--foreground);
   --color-muted: var(--muted);
   --color-subtle: var(--subtle);
+  --color-card: var(--card);
   --color-line: var(--line);
   --color-line-strong: var(--line-strong);
   --color-disabled: var(--disabled);
   --color-link: var(--link);
   --color-danger: var(--danger);
-  --font-sans: var(--font-noto-sans-kr), system-ui, sans-serif;
+  --color-danger-tint: var(--danger-tint);
+  --color-ink: var(--ink);
+  --color-pink: var(--pink);
+  --color-pink-tint: var(--pink-tint);
+  --color-pink-ink: var(--pink-ink);
+  --color-orange: var(--orange);
+  --color-orange-tint: var(--orange-tint);
+  --color-lime: var(--lime);
+  --color-lime-tint: var(--lime-tint);
+  --color-lime-ink: var(--lime-ink);
+  /* 한국어 영상 레시피도 보이게 Noto Sans KR을 뒤에 둔다 */
+  --font-sans: var(--font-dm-sans), var(--font-noto-sans-kr), system-ui, sans-serif;
+  --font-display: var(--font-bagel), var(--font-dm-sans), sans-serif;
 }
 
 body {
   font-family: var(--font-sans);
+}
+
+@layer components {
+  /* 로고·큰 숫자·스티커 글꼴 */
+  .font-display {
+    font-family: var(--font-display);
+    font-weight: 400;
+    letter-spacing: 0.2px;
+  }
+  /* 굵은 갈색 테두리 알약(기울이지 않음) */
+  .sticker {
+    display: inline-flex;
+    align-items: center;
+    border: 2px solid var(--foreground);
+    border-radius: 999px;
+    padding: 2px 12px;
+    font-family: var(--font-display);
+    font-weight: 400;
+  }
+  /* 사진 자리(원본 썸네일을 쓸지는 저작권 기준과 같이 정한다) */
+  .photo {
+    background: var(--photo);
+  }
+  /* 주요 버튼: 검정 알약 */
+  .btn-primary {
+    display: flex;
+    min-height: 52px;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    border-radius: 999px;
+    background: var(--ink);
+    color: #fff;
+    font-weight: 700;
+    font-size: 15px;
+  }
+  .btn-primary:disabled,
+  .btn-primary[aria-disabled="true"] {
+    background: var(--disabled);
+    color: var(--muted);
+  }
+  /* 보조 버튼: 흰 알약 + 갈색 테두리 */
+  .btn-ghost {
+    display: flex;
+    min-height: 52px;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    border-radius: 999px;
+    background: #fff;
+    border: 1.5px solid var(--foreground);
+    color: var(--foreground);
+    font-weight: 700;
+    font-size: 15px;
+  }
+  .btn-ghost:disabled {
+    border-color: var(--line);
+    color: var(--muted);
+  }
+  /* Pinch estimate 배지: 핑크 점선 */
+  .est {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    background: var(--pink-tint);
+    color: var(--pink-ink);
+    border: 1.5px dashed var(--pink);
+    border-radius: 999px;
+    padding: 2px 9px;
+    font-size: 12px;
+    font-weight: 700;
+    white-space: nowrap;
+  }
+  /* 출처 칩(On-screen·Voice·Description) */
+  .src-chip {
+    display: inline-block;
+    background: var(--subtle);
+    color: var(--muted);
+    border-radius: 6px;
+    padding: 2px 7px;
+    font-size: 11px;
+    font-weight: 500;
+  }
 }

@@ -133,7 +133,7 @@ export interface User {
 
 export class NotSignedInError extends Error {
   constructor() {
-    super('로그인이 필요해요');
+    super('Please sign in first');
     this.name = 'NotSignedInError';
   }
 }

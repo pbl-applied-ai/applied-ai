@@ -6,33 +6,33 @@ import type { EditableIngredient, EditableStep } from "@/lib/api";
 import { amountView, isUserAdded } from "@/lib/review";
 import { metricHint } from "@/lib/units";
 
-const input = "h-11 min-w-0 rounded-[10px] border-[1.5px] border-link px-3 text-[15px] outline-none";
-const primary = "h-11 shrink-0 rounded-[10px] bg-foreground px-4 text-sm font-bold text-background disabled:bg-disabled disabled:text-muted";
-const quiet = "min-h-8 px-1 text-xs text-link underline";
+const input = "h-11 min-w-0 rounded-xl border-2 border-foreground bg-card px-3 text-[15px] outline-none focus:border-pink";
+const primary = "h-11 shrink-0 rounded-full bg-ink px-5 text-sm font-bold text-white disabled:bg-disabled disabled:text-muted";
+const quiet = "min-h-8 px-1 text-xs text-muted underline underline-offset-2";
 
 function EditedMark({ onRevert, onRemove, userAdded }: { onRevert: () => void; onRemove: () => void; userAdded: boolean }) {
   return (
     <span className="flex items-center gap-1 text-xs">
-      <span className="font-medium text-[#174a94]">직접 입력</span>
+      <span className="src-chip">You entered</span>
       <span aria-hidden="true" className="text-muted">
         ·
       </span>
       {userAdded ? (
         <button type="button" onClick={onRemove} className={quiet}>
-          삭제
+          Delete
         </button>
       ) : (
         <button type="button" onClick={onRevert} className={quiet}>
-          되돌리기
+          Undo
         </button>
       )}
     </span>
   );
 }
 
-/** 영상 값이 아닌 AI 추정값 표시(KAN-66). 영상에서 확인한 값과 섞이지 않게 칩으로 구분한다. */
+/** 영상 값이 아닌 AI 추정값 표시(KAN-66). 영상에서 확인한 값과 섞이지 않게 Pinch estimate 라벨로 구분한다. */
 export function EstimateChip() {
-  return <span className="rounded-full bg-[#fdf1dc] px-1.5 py-0.5 text-[11px] font-bold text-[#7a4b00]">추정</span>;
+  return <span className="text-[10px] font-bold tracking-wide uppercase">Pinch estimate</span>;
 }
 
 export function IngredientRow({
@@ -69,7 +69,7 @@ export function IngredientRow({
   if (editing) {
     return (
       <form
-        className="flex flex-col gap-2 border-t border-[#ecece8] py-3"
+        className="flex flex-col gap-2 border-t border-line py-3"
         onSubmit={(e) => {
           e.preventDefault();
           if (!name.trim()) return;
@@ -78,31 +78,31 @@ export function IngredientRow({
       >
         <div className="flex gap-2">
           <label className="sr-only" htmlFor={`${item.id}-name`}>
-            재료 이름
+            Ingredient name
           </label>
           <input id={`${item.id}-name`} value={name} onChange={(e) => setName(e.target.value)} className={`${input} flex-[3]`} />
           <label className="sr-only" htmlFor={`${item.id}-amount`}>
-            분량
+            Amount
           </label>
           <input
             id={`${item.id}-amount`}
             value={amount}
             onChange={(e) => setAmount(e.target.value)}
-            placeholder="예: 1큰술, 약간"
+            placeholder="e.g. 1 tbsp, a pinch"
             autoFocus
             className={`${input} flex-[2]`}
           />
         </div>
         <div className="flex items-center justify-between">
           <button type="button" onClick={onRemove} className="min-h-11 px-1 text-sm text-danger">
-            재료 삭제
+            Remove ingredient
           </button>
           <div className="flex gap-2">
             <button type="button" onClick={onCancel} className="h-11 px-3 text-sm text-muted">
-              취소
+              Cancel
             </button>
             <button type="submit" disabled={!name.trim()} className={primary}>
-              확인
+              Done
             </button>
           </div>
         </div>
@@ -111,14 +111,14 @@ export function IngredientRow({
   }
 
   return (
-    <div className="flex flex-col border-t border-[#ecece8] py-2.5">
+    <div className="flex flex-col border-t border-line py-2.5">
       <div className="flex min-h-11 items-center justify-between gap-3">
-        <button type="button" onClick={startEdit} className="min-h-11 text-left text-base font-medium" aria-label={`${item.name} 고치기`}>
+        <button type="button" onClick={startEdit} className="min-h-11 text-left text-base font-medium" aria-label={`Edit ${item.name}`}>
           {item.name}
-          {item.optional && <span className="ml-1.5 rounded-full bg-subtle px-2 py-0.5 text-[11px] text-muted">선택</span>}
+          {item.optional && <span className="ml-1.5 rounded-full bg-subtle px-2 py-0.5 text-[11px] text-muted">optional</span>}
         </button>
         {view.kind === "confirmed" && (
-          <button type="button" onClick={startEdit} aria-label={`${item.name} 분량 ${view.text}, 고치기`} className="min-h-11 px-1 text-[15px]">
+          <button type="button" onClick={startEdit} aria-label={`${item.name}, ${view.text}. Edit`} className="min-h-11 px-1 text-[15px] font-bold">
             {view.text}
           </button>
         )}
@@ -126,11 +126,11 @@ export function IngredientRow({
           <button
             type="button"
             onClick={startEdit}
-            aria-label={`${item.name} 분량 추정 ${view.text}, 쓰거나 고치기`}
-            className="flex min-h-11 items-center gap-1.5 rounded-[10px] border border-dashed border-line-strong bg-[#fafaf8] px-2.5 text-[15px] whitespace-nowrap text-muted"
+            aria-label={`${item.name}, Pinch estimate ${view.text}. Use or edit`}
+            className="flex min-h-9 items-center gap-1.5 rounded-full border-[1.5px] border-dashed border-pink bg-pink-tint px-3 text-[14px] font-bold whitespace-nowrap text-pink-ink"
           >
+            ≈ {view.text}
             <EstimateChip />
-            {view.text}
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true">
               <path d="M4 20h4L19 9l-4-4L4 16v4z" />
             </svg>
@@ -140,17 +140,17 @@ export function IngredientRow({
           <button
             type="button"
             onClick={startEdit}
-            aria-label={`${item.name} 분량 영상에서 확인 안 됨, 입력하기`}
-            className="flex min-h-11 items-center gap-1.5 rounded-[10px] border border-dashed border-line-strong bg-[#fafaf8] px-3 text-[13px] whitespace-nowrap text-muted"
+            aria-label={`${item.name}, amount not in the video. Add it`}
+            className="flex min-h-9 items-center gap-1.5 rounded-full border-[1.5px] border-dashed border-[#cfc6ba] bg-card px-3 text-[13px] whitespace-nowrap text-muted"
           >
-            영상에서 확인 안 됨
+            Not in the video
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true">
               <path d="M4 20h4L19 9l-4-4L4 16v4z" />
             </svg>
           </button>
         )}
         {view.kind === "user" && (
-          <button type="button" onClick={startEdit} aria-label={`${item.name} 분량 ${view.text}, 다시 고치기`} className="min-h-11 rounded-[10px] bg-[#eaf1fb] px-2.5 text-[15px]">
+          <button type="button" onClick={startEdit} aria-label={`${item.name}, ${view.text}. Edit again`} className="min-h-11 rounded-full bg-lime-tint px-3 text-[15px] font-bold">
             {view.text}
           </button>
         )}
@@ -199,8 +199,8 @@ export function StepRow({
   };
 
   return (
-    <div className="flex gap-3 border-t border-[#ecece8] py-3">
-      <span className="mt-2 flex size-[26px] shrink-0 items-center justify-center rounded-full bg-foreground text-[13px] font-bold text-background">
+    <div className="flex gap-3 border-t border-line py-3">
+      <span className="mt-2 flex size-[26px] shrink-0 items-center justify-center rounded-full border-2 border-foreground bg-pink text-[13px] font-bold text-foreground">
         {order}
       </span>
       <div className="flex min-w-0 flex-1 flex-col gap-1.5">
@@ -213,7 +213,7 @@ export function StepRow({
             }}
           >
             <label className="sr-only" htmlFor={`${item.id}-text`}>
-              {order}단계 내용
+              Step {order}
             </label>
             <textarea
               id={`${item.id}-text`}
@@ -221,26 +221,26 @@ export function StepRow({
               onChange={(e) => setText(e.target.value)}
               rows={3}
               autoFocus
-              className="w-full resize-none rounded-[10px] border-[1.5px] border-link px-3 py-2.5 text-[15px] leading-normal outline-none"
+              className="w-full resize-none rounded-xl border-2 border-foreground bg-card px-3 py-2.5 text-[15px] leading-normal outline-none focus:border-pink"
             />
             <div className="flex items-center justify-between">
               <div className="flex">
-                <button type="button" onClick={() => onMove(-1)} disabled={isFirst} aria-label="위로 옮기기" className="size-11 text-muted disabled:opacity-30">
+                <button type="button" onClick={() => onMove(-1)} disabled={isFirst} aria-label="Move up" className="size-11 text-muted disabled:opacity-30">
                   ↑
                 </button>
-                <button type="button" onClick={() => onMove(1)} disabled={isLast} aria-label="아래로 옮기기" className="size-11 text-muted disabled:opacity-30">
+                <button type="button" onClick={() => onMove(1)} disabled={isLast} aria-label="Move down" className="size-11 text-muted disabled:opacity-30">
                   ↓
                 </button>
                 <button type="button" onClick={onRemove} className="min-h-11 px-2 text-sm text-danger">
-                  단계 삭제
+                  Remove step
                 </button>
               </div>
               <div className="flex gap-2">
                 <button type="button" onClick={onCancel} className="h-11 px-3 text-sm text-muted">
-                  취소
+                  Cancel
                 </button>
                 <button type="submit" disabled={!text.trim()} className={primary}>
-                  확인
+                  Done
                 </button>
               </div>
             </div>
@@ -249,8 +249,8 @@ export function StepRow({
           <button
             type="button"
             onClick={startEdit}
-            aria-label={`${order}단계 고치기`}
-            className={`-mx-2 min-h-11 rounded-lg px-2 py-2 text-left text-[15px] leading-relaxed ${item.edited || item.user_entered ? "bg-[#eaf1fb]" : ""}`}
+            aria-label={`Edit step ${order}`}
+            className={`-mx-2 min-h-11 rounded-lg px-2 py-2 text-left text-[15px] leading-relaxed ${item.edited || item.user_entered ? "bg-lime-tint" : ""}`}
           >
             {item.text}
           </button>
@@ -268,14 +268,14 @@ export function AddIngredientForm({ onAdd }: { onAdd: (name: string, amount: str
 
   if (!open) {
     return (
-      <button type="button" onClick={() => setOpen(true)} className="mt-1 min-h-12 rounded-[10px] border-[1.5px] border-dashed border-line-strong text-sm font-medium">
-        + 재료 추가
+      <button type="button" onClick={() => setOpen(true)} className="mt-1 min-h-12 rounded-full border-[1.5px] border-dashed border-foreground bg-card text-sm font-bold">
+        + Add ingredient
       </button>
     );
   }
   return (
     <form
-      className="mt-1 flex flex-col gap-2 border-t border-[#ecece8] pt-3"
+      className="mt-1 flex flex-col gap-2 border-t border-line pt-3"
       onSubmit={(e) => {
         e.preventDefault();
         if (!name.trim()) return;
@@ -287,20 +287,20 @@ export function AddIngredientForm({ onAdd }: { onAdd: (name: string, amount: str
     >
       <div className="flex gap-2">
         <label className="sr-only" htmlFor="new-ing-name">
-          새 재료 이름
+          New ingredient name
         </label>
-        <input id="new-ing-name" value={name} onChange={(e) => setName(e.target.value)} placeholder="재료 이름" autoFocus className={`${input} flex-[3]`} />
+        <input id="new-ing-name" value={name} onChange={(e) => setName(e.target.value)} placeholder="Ingredient" autoFocus className={`${input} flex-[3]`} />
         <label className="sr-only" htmlFor="new-ing-amount">
-          새 재료 분량
+          New ingredient amount
         </label>
-        <input id="new-ing-amount" value={amount} onChange={(e) => setAmount(e.target.value)} placeholder="분량(선택)" className={`${input} flex-[2]`} />
+        <input id="new-ing-amount" value={amount} onChange={(e) => setAmount(e.target.value)} placeholder="Amount (optional)" className={`${input} flex-[2]`} />
       </div>
       <div className="flex justify-end gap-2">
         <button type="button" onClick={() => setOpen(false)} className="h-11 px-3 text-sm text-muted">
-          취소
+          Cancel
         </button>
         <button type="submit" disabled={!name.trim()} className={primary}>
-          추가
+          Add
         </button>
       </div>
     </form>
@@ -313,14 +313,14 @@ export function AddStepForm({ label, onAdd }: { label: string; onAdd: (text: str
 
   if (!open) {
     return (
-      <button type="button" onClick={() => setOpen(true)} className="mt-1 min-h-12 rounded-[10px] border-[1.5px] border-dashed border-line-strong text-sm font-medium">
+      <button type="button" onClick={() => setOpen(true)} className="mt-1 min-h-12 rounded-full border-[1.5px] border-dashed border-foreground bg-card text-sm font-bold">
         {label}
       </button>
     );
   }
   return (
     <form
-      className="mt-1 flex flex-col gap-2 border-t border-[#ecece8] pt-3"
+      className="mt-1 flex flex-col gap-2 border-t border-line pt-3"
       onSubmit={(e) => {
         e.preventDefault();
         if (!text.trim()) return;
@@ -330,23 +330,23 @@ export function AddStepForm({ label, onAdd }: { label: string; onAdd: (text: str
       }}
     >
       <label className="sr-only" htmlFor="new-step">
-        새 조리 단계
+        New step
       </label>
       <textarea
         id="new-step"
         value={text}
         onChange={(e) => setText(e.target.value)}
         rows={3}
-        placeholder="예: 팬에 기름을 두르고 마늘을 볶는다."
+        placeholder="e.g. Heat oil in a pan and cook the garlic."
         autoFocus
-        className="w-full resize-none rounded-[10px] border-[1.5px] border-link px-3 py-2.5 text-[15px] outline-none"
+        className="w-full resize-none rounded-xl border-2 border-foreground bg-card px-3 py-2.5 text-[15px] outline-none focus:border-pink"
       />
       <div className="flex justify-end gap-2">
         <button type="button" onClick={() => setOpen(false)} className="h-11 px-3 text-sm text-muted">
-          취소
+          Cancel
         </button>
         <button type="submit" disabled={!text.trim()} className={primary}>
-          추가
+          Add
         </button>
       </div>
     </form>

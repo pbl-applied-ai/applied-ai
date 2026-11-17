@@ -59,13 +59,13 @@ function format(value: number, to: "ml" | "g"): string {
   return `${round(value)}${to}`;
 }
 
-// 범위는 앞뒤를 같은 단위로 맞춘다. 뒤쪽이 1000 이상이면 둘 다 L·kg("약 0.7~1.2L").
+// 범위는 앞뒤를 같은 단위로 맞춘다. 뒤쪽이 1000 이상이면 둘 다 L·kg("about 0.7–1.2L").
 function formatRange(low: number, high: number, to: "ml" | "g"): string {
-  if (high >= 1000) return `${big(low)}~${big(high)}${to === "ml" ? "L" : "kg"}`;
-  return `${round(low)}~${round(high)}${to}`;
+  if (high >= 1000) return `${big(low)}–${big(high)}${to === "ml" ? "L" : "kg"}`;
+  return `${round(low)}–${round(high)}${to}`;
 }
 
-/** "1 cup" → "약 240ml", "8 oz" → "약 230g", "2-3 cups" → "약 480~720ml". 바꿀 단위가 아니면 null. name은 재료 이름(스틱 판단용). */
+/** "1 cup" → "about 240ml", "8 oz" → "about 230g", "2-3 cups" → "about 480–720ml". 바꿀 단위가 아니면 null. name은 재료 이름(스틱 판단용). */
 export function metricHint(amount: string | null | undefined, name?: string | null): string | null {
   if (!amount) return null;
   const text = amount.trim();
@@ -83,6 +83,6 @@ export function metricHint(amount: string | null | undefined, name?: string | nu
     if (b != null) b += 0.5;
     else a += 0.5;
   }
-  if (b == null) return `약 ${format(a * conv.factor, conv.to)}`;
-  return `약 ${formatRange(a * conv.factor, b * conv.factor, conv.to)}`;
+  if (b == null) return `about ${format(a * conv.factor, conv.to)}`;
+  return `about ${formatRange(a * conv.factor, b * conv.factor, conv.to)}`;
 }
