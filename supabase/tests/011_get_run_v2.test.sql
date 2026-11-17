@@ -2,7 +2,7 @@
 -- 재료마다 분량이 나온 근거 종류(amount_source). 로그인 전 추정값 빼기(#45, 009)는 그대로다.
 begin;
 create extension if not exists pgtap with schema extensions;
-select plan(16);
+select plan(20);
 
 create function pg_temp.login_as(uid uuid) returns void language plpgsql as $$
 begin
@@ -24,7 +24,9 @@ insert into public.runs (id, canonical_key, source_url, extractor_version, bundl
       {"id": "comment-0", "type": "comment", "text": "참기름 약간"},
       {"id": "asr-0", "type": "asr", "start_ms": 0, "end_ms": 2000, "text": "고추장 2큰술 넣고 간장 2큰술"},
       {"id": "ocr-0", "type": "ocr", "start_ms": 1000, "end_ms": 3000, "text": "고추장 2큰술"},
-      {"id": "asr-1", "type": "asr", "start_ms": 2000, "end_ms": 4000, "text": "마늘을 넣어요"}]}',
+      {"id": "asr-1", "type": "asr", "start_ms": 2000, "end_ms": 4000, "text": "마늘을 넣어요"},
+      {"id": "ocr-1", "type": "ocr", "start_ms": 4000, "end_ms": 5000, "text": "10초 동안"},
+      {"id": "asr-2", "type": "asr", "start_ms": 4000, "end_ms": 6000, "text": "달걀 1개 넣고"}]}',
   '{"title": "덮밥", "ingredients": [
      {"id": "ing-1", "name": "고추장", "amount_raw": "2큰술", "amount_status": "confirmed", "evidence": ["asr-0", "ocr-0"]},
      {"id": "ing-2", "name": "간장", "amount_raw": "2 큰술", "amount_status": "confirmed", "evidence": ["desc-0", "asr-0"]},
@@ -32,7 +34,8 @@ insert into public.runs (id, canonical_key, source_url, extractor_version, bundl
      {"id": "ing-4", "name": "참기름", "amount_raw": "약간", "amount_status": "confirmed", "evidence": ["comment-0"]},
      {"id": "ing-5", "name": "마늘", "amount_raw": "한 쪽", "amount_status": "confirmed", "evidence": ["desc-0", "asr-1"]},
      {"id": "ing-6", "name": "소금", "amount_raw": null, "amount_status": "unconfirmed", "evidence": ["asr-0"],
-      "amount_estimate": {"text": "약간", "basis": "2인분 기준"}}],
+      "amount_estimate": {"text": "약간", "basis": "2인분 기준"}},
+     {"id": "ing-7", "name": "달걀", "amount_raw": "1", "amount_status": "confirmed", "evidence": ["ocr-1", "asr-2"]}],
    "steps": [{"id": "step-1", "order": 1, "text": "섞는다", "evidence": ["asr-0"]}]}');
 
 insert into public.user_recipes (id, user_id, run_id, title, ingredients, steps) values
@@ -65,6 +68,12 @@ select is((select recipe -> 'ingredients' -> 5 -> 'amount_source' from public.ge
   'null'::jsonb, '확인 안 된 분량은 null');
 select is((select recipe -> 'ingredients' -> 5 -> 'amount_estimate' from public.get_run('aaaaaaaa-0000-0000-0000-000000000001')),
   null, '로그인 전에는 추정값을 뺀다(#45 그대로)');
+select is((select recipe -> 'ingredients' -> 5 -> 'has_estimate' from public.get_run('aaaaaaaa-0000-0000-0000-000000000001')),
+  'true'::jsonb, '로그인 전에도 추정값이 있다는 표시는 남긴다(잠금 배지, #64)');
+select is((select recipe -> 'ingredients' -> 0 -> 'has_estimate' from public.get_run('aaaaaaaa-0000-0000-0000-000000000001')),
+  null, '추정값이 없는 재료에는 표시가 없다');
+select is((select recipe -> 'ingredients' -> 6 ->> 'amount_source' from public.get_run('aaaaaaaa-0000-0000-0000-000000000001')),
+  'voice', '분량 "1"은 "10초" 안에서 찾지 않는다(숫자 경계, #63 리뷰)');
 reset role;
 
 -- 저장한 사람
@@ -73,6 +82,8 @@ select is((select my_recipe_id from public.get_run('aaaaaaaa-0000-0000-0000-0000
   'bbbbbbbb-0000-0000-0000-000000000001'::uuid, '저장했으면 내 레시피 ID');
 select is((select recipe -> 'ingredients' -> 5 -> 'amount_estimate' ->> 'text' from public.get_run('aaaaaaaa-0000-0000-0000-000000000001')),
   '약간', '로그인하면 추정값이 온다');
+select is((select recipe -> 'ingredients' -> 5 -> 'has_estimate' from public.get_run('aaaaaaaa-0000-0000-0000-000000000001')),
+  'true'::jsonb, '로그인해도 같은 표시');
 reset role;
 
 -- 저장 안 한 사람
