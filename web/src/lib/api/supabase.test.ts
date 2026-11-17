@@ -35,10 +35,27 @@ function setup(replies: Record<string, { status?: number; body: unknown }>) {
 }
 
 describe('createSupabaseApi', () => {
-  it('추천 묶음은 아직 저장 방식이 없어서 목 묶음 대신 빈 목록을 준다 (KAN-56)', async () => {
-    const { api, sent } = setup({});
-    expect(await api.listRecommendations()).toEqual([]);
-    expect(sent).toHaveLength(0);
+  it('home recommendations come from list_featured as one "Trending now" group, in order (#63)', async () => {
+    const rows = [
+      { run_id: RUN_ID, title: 'No Blender Salsa', creator: 'Sample Chef', ingredient_count: 7, step_count: 8 },
+      { run_id: JOB_ID, title: ' ', creator: null, ingredient_count: null, step_count: 0 },
+    ];
+    const { api, sent } = setup({ list_featured: { body: rows } });
+    expect(await api.listRecommendations()).toEqual([
+      {
+        id: 'trending',
+        title: 'Trending now',
+        cards: [
+          { runId: RUN_ID, title: 'No Blender Salsa', creator: 'Sample Chef', ingredientCount: 7 },
+          { runId: JOB_ID, title: 'Untitled recipe', creator: '', ingredientCount: 0 },
+        ],
+      },
+    ]);
+    expect(sent).toEqual([{ name: 'list_featured', args: {}, apikey: 'anon-key' }]);
+  });
+
+  it('no featured runs means no groups, so Home hides the section', async () => {
+    expect(await setup({ list_featured: { body: [] } }).api.listRecommendations()).toEqual([]);
   });
 
   it('creates a job with the anon key and returns its id', async () => {
