@@ -51,15 +51,16 @@ select set_eq(
   $$ select p.proname::text from pg_catalog.pg_proc p
        join pg_catalog.pg_namespace n on n.oid = p.pronamespace
       where n.nspname = 'public' and has_function_privilege('anon', p.oid, 'execute') $$,
-  array['create_job', 'get_job', 'get_run'],
-  'anon이 실행할 수 있는 public 함수 목록(업로드는 로그인 필요)'
+  array['create_job', 'get_job', 'get_run', 'list_featured'],
+  'anon이 실행할 수 있는 public 함수 목록(업로드는 로그인 필요, 추천 목록은 KAN-73)'
 );
 
 select set_eq(
   $$ select p.proname::text from pg_catalog.pg_proc p
        join pg_catalog.pg_namespace n on n.oid = p.pronamespace
       where n.nspname = 'public' and has_function_privilege('authenticated', p.oid, 'execute') $$,
-  array['create_job', 'create_upload_job', 'get_job', 'get_run', 'save_recipe', 'update_recipe', 'get_recipe'],
+  array['create_job', 'create_upload_job', 'get_job', 'get_run', 'save_recipe', 'update_recipe', 'get_recipe',
+        'list_featured', 'list_recipes'],
   'authenticated가 실행할 수 있는 public 함수 목록'
 );
 

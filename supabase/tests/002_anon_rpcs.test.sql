@@ -46,8 +46,9 @@ select is((select proargnames from pg_catalog.pg_proc where oid = 'public.get_jo
           array['p_job_id', 'id', 'status', 'stage', 'error_code', 'reason', 'run_id', 'created_at', 'updated_at'],
           'get_job은 message를 돌려주지 않는다');
 select is((select proargnames from pg_catalog.pg_proc where oid = 'public.get_run(uuid)'::regprocedure),
-          array['p_run_id', 'id', 'source_url', 'recipe', 'partial', 'created_at'],
-          'get_run은 bundle·internal 없이 partial을 돌려준다');
+          array['p_run_id', 'id', 'source_url', 'recipe', 'partial', 'created_at',
+                'platform', 'creator', 'duration_ms', 'thumbnail_url', 'save_count', 'my_recipe_id'],
+          'get_run은 bundle·internal 없이 partial과 카드 정보(KAN-73)를 돌려준다');
 
 select * from finish();
 rollback;
