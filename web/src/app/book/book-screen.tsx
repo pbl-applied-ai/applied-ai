@@ -52,18 +52,18 @@ export function BookScreen() {
   return (
     <main className="flex flex-1 flex-col">
       <header className="flex items-center justify-between px-5 pt-5 pb-3">
-        <h1 className="text-[22px] font-bold">내 레시피북</h1>
+        <h1 className="text-[28px] font-bold">Recipe book</h1>
         <button
           type="button"
-          aria-label="로그아웃"
-          title="로그아웃"
+          aria-label="Sign out"
+          title="Sign out"
           onClick={async () => {
             await api.signOut();
             router.replace("/");
           }}
-          className="flex size-11 items-center justify-center rounded-full border border-line bg-subtle"
+          className="flex size-11 items-center justify-center rounded-full border border-line bg-card"
         >
-          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#5c5c5c" strokeWidth="2" aria-hidden="true">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#8a7a72" strokeWidth="2" aria-hidden="true">
             <circle cx="12" cy="8" r="4" />
             <path d="M4 21c1.5-4 4.5-6 8-6s6.5 2 8 6" />
           </svg>
@@ -71,16 +71,16 @@ export function BookScreen() {
       </header>
 
       <div className="px-5 pb-4">
-        <Link href="/?new=1" className="flex h-13 items-center justify-center gap-2 rounded-xl bg-foreground text-base font-bold text-background">
-          + 영상으로 레시피 만들기
+        <Link href="/?new=1" className="btn-primary">
+          + Convert a video
         </Link>
       </div>
 
-      {loading && <p className="px-5 py-10 text-center text-sm text-muted">불러오는 중…</p>}
+      {loading && <p className="px-5 py-10 text-center text-sm text-muted">Loading…</p>}
 
       {failed && (
         <p role="alert" className="px-5 py-10 text-center text-sm text-danger">
-          레시피북을 불러오지 못했어요. 잠시 뒤에 다시 열어 주세요.
+          Couldn&apos;t load your recipe book. Please try again in a moment.
         </p>
       )}
 
@@ -97,7 +97,7 @@ export function BookScreen() {
 
           {recipes && recipes.length > 0 && (
             <>
-              <h2 className="mt-3 text-sm font-medium text-muted">저장한 레시피 {recipes.length}</h2>
+              <h2 className="mt-3 text-sm font-medium text-muted">{recipes.length} saved {recipes.length === 1 ? "recipe" : "recipes"}</h2>
               {recipes.map((r) => (
                 <RecipeCard key={r.id} recipe={r} />
               ))}
@@ -106,12 +106,12 @@ export function BookScreen() {
 
           {recipes && recipes.length === 0 && cards.length === 0 && (
             <div className="flex flex-col items-center gap-3 px-5 py-16 text-center">
-              <span className="size-[72px] rounded-2xl border border-dashed border-line-strong bg-subtle" aria-hidden="true" />
-              <p className="text-base font-medium">아직 저장한 레시피가 없어요</p>
+              <span className="sticker bg-pink text-2xl" aria-hidden="true">pinch</span>
+              <p className="text-base font-bold">No saved recipes yet</p>
               <p className="text-sm leading-relaxed text-muted">
-                저장해 둔 요리 숏폼,
+                Turn the cooking shorts you saved
                 <br />
-                텍스트 레시피로 바꿔 보세요.
+                into recipes you can follow.
               </p>
             </div>
           )}

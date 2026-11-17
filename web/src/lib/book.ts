@@ -29,15 +29,15 @@ export function jobCards(jobs: Job[], recipes: RecipeSummary[], hidden: BookHidd
     const toJob = `/jobs/${encodeURIComponent(job.id)}`;
     if (hidden.jobs.has(job.id)) return [];
     if (job.status === "queued" || job.status === "running") {
-      return [{ jobId: job.id, kind: "working", title: "레시피 만드는 중", detail: stageText(job), href: toJob }];
+      return [{ jobId: job.id, kind: "working", title: "Making your recipe", detail: stageText(job), href: toJob }];
     }
     if (job.runId && handled(job.runId, job.createdAt)) return [];
     if (job.status === "failed") {
-      return [{ jobId: job.id, kind: "failed", title: "레시피를 만들지 못했어요", detail: "눌러서 이유 보기", href: toJob }];
+      return [{ jobId: job.id, kind: "failed", title: "We couldn't make this recipe", detail: "Tap to see why", href: toJob }];
     }
     if (job.status === "succeeded" && job.runId) {
       return [
-        { jobId: job.id, kind: "ready", title: "레시피가 준비됐어요", detail: "눌러서 확인하고 저장하기", href: `/r/${encodeURIComponent(job.runId)}` },
+        { jobId: job.id, kind: "ready", title: "Your recipe is ready", detail: "Tap to review and save", href: `/r/${encodeURIComponent(job.runId)}` },
       ];
     }
     return [];

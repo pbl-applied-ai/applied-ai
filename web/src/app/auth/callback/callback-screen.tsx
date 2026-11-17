@@ -39,15 +39,15 @@ export function CallbackScreen() {
     return (
       <div className="flex flex-1 flex-col items-center justify-center gap-3 px-8 text-center">
         <p role="alert" className="text-lg font-bold">
-          {cancelled ? "로그인을 취소했어요" : "로그인하지 못했어요"}
+          {cancelled ? "Sign-in canceled" : "Couldn't sign you in"}
         </p>
-        {!cancelled && <p className="text-sm text-muted">잠시 뒤 다시 해 주세요.</p>}
-        <Link href={retryLoginHref(returnTo)} className="mt-4 text-sm text-link underline">
-          다시 로그인하기
+        {!cancelled && <p className="text-sm text-muted">Please try again in a moment.</p>}
+        <Link href={retryLoginHref(returnTo)} className="btn-ghost mt-4 px-6">
+          Sign in again
         </Link>
       </div>
     );
   }
 
-  return <div className="flex flex-1 items-center justify-center text-sm text-muted">로그인하는 중…</div>;
+  return <div className="flex flex-1 items-center justify-center text-sm text-muted">Signing in…</div>;
 }

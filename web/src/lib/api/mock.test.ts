@@ -44,7 +44,7 @@ describe("createMockApi", () => {
 
     await api.signInWithGoogle("/");
     const after = await api.getRun(runId);
-    const garlic = after!.recipe.ingredients.find((i) => i.name === "마늘");
+    const garlic = after!.recipe.ingredients.find((i) => i.name === "Garlic");
     expect(garlic?.amount_estimate?.text).toBeTruthy();
     expect(after!.recipe.ingredients.find((i) => i.amount_raw)?.amount_estimate).toBeUndefined();
 

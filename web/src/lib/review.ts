@@ -22,11 +22,11 @@ function isInstagram(sourceUrl: string): boolean {
  */
 export function descriptionNotice(run: Run): string | null {
   if (!isDescriptionOnly(run)) return null;
-  if (isInstagram(run.sourceUrl)) return "캡션만 보고 만든 레시피예요.";
+  if (isInstagram(run.sourceUrl)) return "Made from the caption only.";
   const ids = [...run.recipe.ingredients, ...run.recipe.steps].flatMap((item) => item.evidence);
   return ids.some((id) => id.startsWith("comment-"))
-    ? "영상 설명란·고정 댓글만 보고 만든 레시피예요."
-    : "영상 설명란만 보고 만든 레시피예요.";
+    ? "Made from the video description and pinned comment only."
+    : "Made from the video description only.";
 }
 
 /** 추출 결과에서 비어 있던 쪽. 부분 결과(partial_recipe) 안내에 쓴다. */
@@ -60,8 +60,8 @@ export function isUserAdded(id: string): boolean {
 
 /** 저장 버튼 아래에 보여 줄, 저장할 수 없는 이유. */
 export function saveBlocker(draft: EditableRecipe): string | null {
-  if (!draft.title.trim()) return "요리명을 입력하면 저장할 수 있어요.";
-  if (!draft.ingredients.some((i) => i.name.trim())) return "재료를 하나 이상 넣으면 저장할 수 있어요.";
-  if (!draft.steps.some((s) => s.text.trim())) return "조리 순서를 하나 이상 넣으면 저장할 수 있어요.";
+  if (!draft.title.trim()) return "Add a dish name to save.";
+  if (!draft.ingredients.some((i) => i.name.trim())) return "Add at least one ingredient to save.";
+  if (!draft.steps.some((s) => s.text.trim())) return "Add at least one step to save.";
   return null;
 }

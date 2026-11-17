@@ -12,7 +12,7 @@ import { useUnsavedWarning } from "@/lib/use-unsaved-warning";
 
 type Load = { kind: "loading" } | { kind: "missing" } | { kind: "ready"; run: Run; user: User | null };
 
-const SAVE_FAILED = "저장하지 못했어요. 고친 내용은 그대로 있어요. 다시 저장해 주세요.";
+const SAVE_FAILED = "Couldn't save. Your edits are still here. Please try saving again.";
 
 // 로그인 안 했으면 보기만 하고, 로그인하면 고치고 저장한다(KAN-32).
 // 공개 링크를 받은 사람과 링크를 넣은 본인을 구분할 수 없어서 로그인 여부로만 나눈다.
@@ -45,18 +45,18 @@ export function ReviewScreen() {
   }, [runId]);
 
   if (load.kind === "loading" || (load.kind === "ready" && !draft)) {
-    return <div className="flex flex-1 items-center justify-center text-sm text-muted">불러오는 중…</div>;
+    return <div className="flex flex-1 items-center justify-center text-sm text-muted">Loading…</div>;
   }
 
   if (load.kind === "missing" || !draft) {
     return (
       <div className="flex flex-1 flex-col items-center justify-center gap-3 px-8 text-center">
         <p role="alert" className="text-lg font-bold">
-          레시피를 찾을 수 없어요
+          We can&apos;t find this recipe
         </p>
-        <p className="text-sm text-muted">주소가 바뀌었거나 없어진 결과예요.</p>
-        <Link href="/" className="mt-4 text-sm text-link underline">
-          다른 링크 넣기
+        <p className="text-sm text-muted">The address changed or the result is gone.</p>
+        <Link href="/" className="mt-4 text-sm text-muted underline underline-offset-4">
+          Try another link
         </Link>
       </div>
     );
@@ -70,13 +70,14 @@ export function ReviewScreen() {
     return (
       <div className="flex flex-1 flex-col">
         <section className="flex flex-col gap-1.5 px-5 pt-3">
-          <h2 className="text-2xl font-bold">{draft.title}</h2>
+          <div className="photo mb-3 h-44 w-full rounded-[22px]" aria-hidden="true" />
+          <h2 className="text-[26px] leading-tight font-bold">{draft.title}</h2>
           {notice && <p className="mt-1 text-[13px] text-muted">ⓘ {notice}</p>}
           {(missing.steps || missing.ingredients) && (
-            <p className="mt-2 rounded-xl bg-subtle px-3.5 py-3 text-[13px] leading-relaxed">
-              ⓘ 영상에서 {missing.steps ? "조리 순서" : "재료"}를 찾지 못했어요.
+            <p className="mt-2 rounded-2xl bg-pink-tint px-3.5 py-3 text-[13px] leading-relaxed text-pink-ink">
+              ⓘ We couldn&apos;t find the {missing.steps ? "steps" : "ingredients"} in the video.
               <br />
-              로그인하면 직접 추가해서 저장할 수 있어요.
+              Sign in to add them yourself and save.
             </p>
           )}
         </section>
@@ -84,12 +85,12 @@ export function ReviewScreen() {
         <RecipeView recipe={draft} />
 
         <footer className="mt-auto flex flex-col gap-2.5 px-5 pt-2 pb-8">
-          <p className="text-center text-xs leading-relaxed text-muted">로그인하면 틀린 곳을 고치고 레시피북에 저장할 수 있어요.</p>
+          <p className="text-center text-xs leading-relaxed text-muted">Sign in to fix anything that&apos;s off and save it to your recipe book.</p>
           <Link
             href={`/login?next=${encodeURIComponent(`/r/${runId}`)}`}
-            className="flex h-13 items-center justify-center rounded-xl bg-foreground text-base font-bold text-background"
+            className="btn-primary"
           >
-            로그인하고 고치기
+            Sign in to edit & save
           </Link>
         </footer>
       </div>
@@ -125,7 +126,7 @@ export function ReviewScreen() {
       onSave={save}
       saving={saving}
       saveError={saveError}
-      saveLabel="레시피북에 저장"
+      saveLabel="Save to recipe book"
     />
   );
 }

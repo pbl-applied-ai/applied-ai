@@ -5,6 +5,7 @@
 import Link from "next/link";
 import { useEffect, useState } from "react";
 import { JobCardList, RecipeCard } from "@/components/book-cards";
+import { Logo } from "@/components/logo";
 import { TabBar } from "@/components/tab-bar";
 import { type Job, type RecipeSummary, type RecommendationGroup, type User, api } from "@/lib/api";
 import { jobCards } from "@/lib/book";
@@ -73,23 +74,19 @@ export function HomeScreen() {
 
   return (
     <main className="flex flex-1 flex-col">
-      <header className="flex items-center py-3 pr-3 pl-5">
-        <span className="text-[15px] font-bold">숏폼 레시피</span>
+      <header className="flex items-center px-5 pt-4 pb-2">
+        <Logo />
       </header>
 
       <section className="flex flex-col gap-3 px-5 pt-4">
-        <h1 className="text-[24px] leading-snug font-bold">
-          저장만 해 둔 요리 숏폼,
-          <br />
-          따라 할 수 있는 레시피로
-        </h1>
-        <p className="text-sm leading-relaxed text-muted">Shorts 링크를 넣으면 재료·분량·조리 순서를 정리해 드려요.</p>
+        <h1 className="text-[28px] leading-[1.15] font-bold">What should I cook today?</h1>
+        <p className="text-sm leading-relaxed text-muted">Paste a cooking Short and get the ingredients, amounts and steps.</p>
       </section>
 
       <LinkInputForm />
 
       {cards.length > 0 && (
-        <section aria-label="레시피 만드는 중" className="flex flex-col gap-3 px-5 pt-8">
+        <section aria-label="Recipes in progress" className="flex flex-col gap-3 px-5 pt-8">
           <JobCardList
             cards={cards}
             onHide={(jobId) => {
@@ -103,19 +100,19 @@ export function HomeScreen() {
 
       {groups.map((group) => (
         <section key={group.id} aria-labelledby={`reco-${group.id}`} className="flex flex-col pt-9">
-          <h2 id={`reco-${group.id}`} className="px-5 text-lg font-bold">
+          <h2 id={`reco-${group.id}`} className="px-5 text-xl font-bold">
             {group.title}
           </h2>
           <ul className="mt-3 flex snap-x snap-mandatory gap-3 overflow-x-auto scroll-px-5 px-5 pb-1 [scrollbar-width:none]">
             {group.cards.map((card) => (
-              <li key={card.runId} className="w-32 shrink-0 snap-start">
-                <Link href={`/r/${encodeURIComponent(card.runId)}`} className="flex flex-col gap-1.5">
+              <li key={card.runId} className="w-40 shrink-0 snap-start">
+                <Link href={`/r/${encodeURIComponent(card.runId)}`} className="flex flex-col gap-2">
                   {/* 원본 썸네일을 쓸지는 저작권 기준과 같이 정한다(docs/ux-flow.md S6 [결정 필요]) */}
-                  <span className="aspect-square w-full rounded-xl bg-[#e9e9e5]" aria-hidden="true" />
+                  <span className="photo aspect-[4/5] w-full rounded-[20px]" aria-hidden="true" />
                   <span className="line-clamp-2 text-[15px] leading-snug font-bold">{card.title}</span>
                   <span className="flex flex-col text-xs text-muted">
                     <span className="truncate">{card.creator}</span>
-                    <span>재료 {card.ingredientCount}</span>
+                    <span>{card.ingredientCount} ingredients</span>
                   </span>
                 </Link>
               </li>
@@ -124,21 +121,21 @@ export function HomeScreen() {
         </section>
       ))}
 
-      <section aria-labelledby="recent" className="flex flex-col gap-3 px-5 pt-9 pb-8">
+      <section aria-labelledby="recent" className="flex flex-col gap-3 px-5 pt-9 pb-4">
         <div className="flex items-center justify-between">
-          <h2 id="recent" className="text-lg font-bold">
-            내 최근 레시피
+          <h2 id="recent" className="text-xl font-bold">
+            Your recent recipes
           </h2>
           {recent.length > 0 && (
             <Link href="/book" className="flex min-h-11 items-center px-1 text-sm font-medium text-muted">
-              전체 보기
+              See all
             </Link>
           )}
         </div>
         {recent.length > 0 ? (
           recent.map((r) => <RecipeCard key={r.id} recipe={r} />)
         ) : (
-          <p className="text-sm text-muted">저장한 레시피가 여기 모여요.</p>
+          <p className="rounded-[22px] bg-card px-4 py-5 text-sm text-muted">Recipes you save show up here.</p>
         )}
       </section>
 

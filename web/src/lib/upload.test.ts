@@ -117,7 +117,7 @@ describe('failureView 업로드', () => {
     const titles = ['no_speech', 'upload_too_large', 'upload_unreadable', 'upload_missing'].map(
       (reason) => failureView({ errorCode: 'unavailable', reason, runId: null }, { ...ctx, fromUpload: true }).title,
     );
-    expect(titles).toEqual(['영상에서 말소리를 찾지 못했어요', '파일이 너무 커요', '영상 파일을 읽을 수 없어요', '영상 파일을 읽을 수 없어요']);
+    expect(titles).toEqual(["We couldn't hear anyone talking", 'This file is too big', "We can't read this video file", "We can't read this video file"]);
   });
 
   it('링크 job에는 [다른 파일 올리기]가 나오지 않는다', () => {

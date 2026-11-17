@@ -32,6 +32,6 @@ export function checkShortsUrl(input: string): ShortsCheck {
 }
 
 export const SHORTS_ERROR_TEXT: Record<"not_shorts" | "unsupported", string> = {
-  not_shorts: "YouTube Shorts 링크가 아니에요. 주소를 다시 확인해 주세요.",
-  unsupported: "아직 YouTube Shorts만 지원해요.",
+  not_shorts: "That's not a YouTube Shorts link. Please check the URL.",
+  unsupported: "For now, we only support YouTube Shorts.",
 };
