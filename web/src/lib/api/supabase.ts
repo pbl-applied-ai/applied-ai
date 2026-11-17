@@ -75,10 +75,6 @@ const publicSource = (sourceUrl: string) => (sourceUrl.startsWith('upload:') ? '
 // 목 레시피북에 저장할 때 원본 링크를 채우려고 runId → 링크를 기억해 둔다(목은 실제 run을 모른다).
 const SOURCE_KEY = 'supabase-run-sources-v1';
 
-// 임시: featured_runs가 채워질 때까지 홈에 목 추천 묶음을 보여 준다(11/18 수빈). 채우면 false로 바꾸거나 지운다.
-const FAKE_RECOMMENDATIONS_UNTIL_FEATURED = true;
-const MOCK_RECO_PREFIX = 'run-MockReco';
-
 // list_featured 한 줄(supabase/migrations/20261117120000_kan73_read_apis.sql). 화면에 쓰는 칸만 적는다.
 interface FeaturedRow {
   run_id: string;
@@ -159,12 +155,11 @@ export function createSupabaseApi(base: RecipeApi, options: SupabaseOptions): Re
     ...base,
 
     // 홈 추천(S6): 운영자가 featured_runs에 넣은 결과를 position 순서대로 받는다(list_featured, #63).
-    // 지금은 한 묶음 "Trending now"로 보여 준다.
-    // 임시(11/18 수빈): featured_runs를 채우기 전까지는 비었거나 못 불러오면 목 묶음을 보여 준다.
-    // 추천 레시피를 넣은 뒤 FAKE_RECOMMENDATIONS_UNTIL_FEATURED를 지우면 빈 목록 → 홈이 칸을 숨긴다.
+    // 지금은 한 묶음 "Trending now"로 보여 준다. 비었거나 못 불러오면 빈 목록 → 홈이 칸을 숨긴다.
+    // 지어낸 추천은 보여 주지 않는다(#69 선규 리뷰: 영상에 있는 것만).
     async listRecommendations() {
       const rows = await rpc<FeaturedRow[]>('list_featured', {}).catch(() => null);
-      if (!rows || rows.length === 0) return FAKE_RECOMMENDATIONS_UNTIL_FEATURED ? base.listRecommendations() : [];
+      if (!rows || rows.length === 0) return [];
       return [
         {
           id: 'trending',
@@ -222,8 +217,6 @@ export function createSupabaseApi(base: RecipeApi, options: SupabaseOptions): Re
     },
 
     async getRun(runId): Promise<Run | null> {
-      // 임시 목 추천 카드(run-MockReco…)를 누르면 목 결과를 보여 준다. 위 listRecommendations와 같이 지운다.
-      if (FAKE_RECOMMENDATIONS_UNTIL_FEATURED && runId.startsWith(MOCK_RECO_PREFIX)) return base.getRun(runId);
       const rows = await rpc<RunRow[]>('get_run', { p_run_id: runId });
       const row = rows?.[0];
       if (!row) return null;
