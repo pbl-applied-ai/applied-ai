@@ -4,6 +4,8 @@
 // ── 추출 결과: schemas/recipe.schema.json v0.1 ──────────────
 
 export type AmountStatus = 'confirmed' | 'unconfirmed';
+// 확정 분량이 나온 근거 종류(get_run이 붙인다, #57 3절). 확인 안 된 분량은 null → 화면은 칩을 숨긴다
+export type AmountSource = 'on_screen' | 'voice' | 'description';
 
 export interface TeamIngredient {
   name: string;
@@ -11,6 +13,7 @@ export interface TeamIngredient {
   amount_raw: string | null; // 미확인이면 null → 화면에서 빈칸
   amount_status: AmountStatus;
   amount_estimate?: { text: string; basis?: string }; // AI 추정값(KAN-52). unconfirmed에만, 로그인 전 공개 링크에서는 서버가 뺀다
+  amount_source?: AmountSource | null;
   optional?: boolean;
   evidence: string[]; // 화면에는 쓰지 않는다
 }
@@ -61,6 +64,11 @@ export interface Run {
   sourceUrl: string;
   recipe: TeamRecipe;
   createdAt: string;
+  // get_run이 주는 카드 정보(#63). 목·예전 결과에는 없을 수 있다
+  creator?: string | null;
+  platform?: string | null;
+  durationMs?: number | null;
+  thumbnailUrl?: string | null; // YouTube만. 이미지를 받아 저장하지 않고 원본 주소로 보여 준다(#57)
 }
 
 // ── 사용자 레시피(레시피북) ─────────────────────────────────
@@ -72,6 +80,7 @@ export interface EditableIngredient {
   amount_raw: string | null;
   amount_status: AmountStatus;
   amount_estimate?: { text: string; basis?: string }; // 아직 쓰지 않은 AI 추정값. 저장할 때는 뺀다
+  amount_source?: AmountSource | null; // 화면 칩(On-screen·Voice·Description). 사용자가 고치면 뺀다
   optional?: boolean;
   edited: boolean; // 추출 결과에서 바뀌었으면 true → "직접 입력" 표시
   user_entered: boolean; // 사용자가 추가한 항목이거나 근거 없이 채운 분량
@@ -116,6 +125,9 @@ export interface RecommendationCard {
   title: string;
   creator: string; // 크리에이터 이름. 원본 링크와 함께 항상 보여 준다(기획안 저작권 기준)
   ingredientCount: number;
+  categories?: string[]; // 홈 카테고리 칩(Pasta·Dessert…)으로 거른다
+  thumbnailUrl?: string | null;
+  saveCount?: number;
 }
 
 export interface RecommendationGroup {

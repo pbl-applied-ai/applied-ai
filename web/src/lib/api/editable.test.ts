@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { editIngredient, editStep, toEditable } from "./editable";
+import { editIngredient, editStep, toEditable, withoutEstimates } from "./editable";
 import { SAMPLE_RECIPE } from "./fixtures";
 import type { Run } from "./types";
 
@@ -39,5 +39,17 @@ describe("editStep", () => {
   it("문장을 그대로 저장하면 수정 표시가 붙지 않는다", () => {
     expect(editStep(draft, "step-1", draft.steps[0].text).steps[0].edited).toBe(false);
     expect(editStep(draft, "step-1", "Edited step").steps[0]).toMatchObject({ text: "Edited step", edited: true });
+  });
+});
+
+describe("amount source chips (#63 get_run)", () => {
+  it("keeps the source of a confirmed amount, drops it when the amount is edited, and never saves it", () => {
+    expect(find(draft, "ing-1").amount_source).toBe("voice"); // Oil
+    expect(find(draft, "ing-2").amount_source).toBeUndefined(); // Garlic, no amount
+    const edited = editIngredient(draft, "ing-1", { amount_raw: "1 tbsp" });
+    expect(find(edited, "ing-1").amount_source).toBeUndefined();
+    const renamed = editIngredient(draft, "ing-1", { name: "Olive oil" });
+    expect(find(renamed, "ing-1").amount_source).toBe("voice");
+    expect(withoutEstimates(draft).ingredients.some((i) => "amount_source" in i)).toBe(false);
   });
 });

@@ -18,6 +18,7 @@ import {
   revertItem,
 } from "@/lib/api";
 import { descriptionNotice, missingParts, saveBlocker } from "@/lib/review";
+import { SourceMeta, SourceThumb } from "./recipe-source";
 import { AddIngredientForm, AddStepForm, IngredientRow, StepRow } from "./recipe-rows";
 
 export function RecipeEditor({
@@ -49,16 +50,22 @@ export function RecipeEditor({
 
   return (
     <div className="flex flex-1 flex-col">
-      <section className="flex flex-col gap-1.5 px-5 pt-3">
-        <label htmlFor="title" className="text-xs text-muted">
-          Recipe name
-        </label>
-        <input
-          id="title"
-          value={draft.title}
-          onChange={(e) => onChange({ ...draft, title: e.target.value })}
-          className="border-b-[1.5px] border-line bg-transparent pt-1 pb-2 text-[26px] leading-tight font-bold outline-none focus:border-pink"
-        />
+      <section className="flex flex-col gap-1.5 px-5 pt-1">
+        <div className="flex gap-3">
+          <SourceThumb run={run} />
+          <div className="flex min-w-0 flex-1 flex-col justify-center gap-0.5">
+            <label htmlFor="title" className="sr-only">
+              Recipe name
+            </label>
+            <input
+              id="title"
+              value={draft.title}
+              onChange={(e) => onChange({ ...draft, title: e.target.value })}
+              className="w-full border-b-[1.5px] border-transparent bg-transparent pb-0.5 text-xl leading-tight font-bold outline-none focus:border-pink"
+            />
+            <SourceMeta run={run} />
+          </div>
+        </div>
         {notice && <p className="mt-1 text-[13px] text-muted">ⓘ {notice}</p>}
         {(missing.steps || missing.ingredients) && (
           <p className="mt-2 rounded-2xl bg-pink-tint px-3.5 py-3 text-[13px] leading-relaxed text-pink-ink">
@@ -69,8 +76,8 @@ export function RecipeEditor({
         )}
         {estimates > 0 && (
           <p className="mt-2 flex gap-2.5 rounded-2xl bg-pink-tint px-3.5 py-3 text-[13px] leading-snug text-pink-ink">
-            <span className="font-display text-base leading-none" aria-hidden="true">
-              ≈
+            <span className="text-lg leading-none" aria-hidden="true">
+              🤏
             </span>
             <span>
               <b>
