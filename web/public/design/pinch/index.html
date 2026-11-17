@@ -1,0 +1,442 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Pinch Flow</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Bagel+Fat+One&family=DM+Sans:opsz,wght@9..40,400;9..40,500;9..40,700&display=swap" rel="stylesheet">
+<style>
+:root{
+  --canvas:#ECEAE4; --screen:#F7F6F2; --card:#FFFFFF;
+  --pink:#F48FB8; --pink-tint:#FDE3EE; --pink-ink:#9C2F5B;
+  --orange:#FFA53D; --orange-tint:#FFE9CC; --orange-ink:#7A4300;
+  --lime:#9BDB4D; --lime-tint:#E6F6D2; --lime-ink:#1F3A0A;
+  --brown:#3B1F1A; --muted:#8A7A72; --line:#E6E0D7; --ink:#111111;
+  --red-ink:#B3261E; --red-tint:#FBE3E1;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+body{background:var(--canvas);font-family:'DM Sans',system-ui,sans-serif;color:var(--brown);padding:40px 24px 80px}
+.bagel{font-family:'Bagel Fat One','DM Sans',sans-serif;font-weight:400;letter-spacing:.2px}
+header.page{max-width:1700px;margin:0 auto 32px;display:flex;align-items:center;gap:16px;flex-wrap:wrap}
+header.page p{color:var(--muted);font-size:14px}
+.board{max-width:1700px;margin:0 auto;display:flex;flex-wrap:wrap;gap:40px 32px}
+.slot{display:flex;flex-direction:column;gap:10px}
+.slot>.label{font-size:12px;color:var(--muted);font-weight:500}
+.phone{width:375px;height:812px;border-radius:44px;background:var(--screen);position:relative;overflow:hidden;outline:1px solid #DDD7CC}
+.status{height:48px;display:flex;justify-content:space-between;align-items:flex-end;padding:0 28px 6px;font-size:13px;font-weight:700}
+.webbar{height:48px;padding:8px 14px 6px;display:flex;align-items:center;gap:10px;background:var(--screen);position:relative;z-index:5}
+.webbar .url{flex:1;height:34px;border-radius:12px;background:#E9E5DD;display:flex;align-items:center;justify-content:center;gap:6px;font-size:13px;font-weight:500;color:var(--brown)}
+.webbar .aa{font-size:12px;font-weight:700;color:var(--muted);width:20px}
+.gbtn{display:flex;align-items:center;justify-content:center;gap:10px;height:52px;border-radius:999px;background:#fff;border:1.5px solid var(--brown);font-weight:700;font-size:15px;color:var(--brown)}
+.gbtn svg{width:20px;height:20px}
+.pad{padding:0 24px}
+.logo{display:inline-block;background:#fff;border:2px solid var(--brown);border-radius:16px;padding:2px 12px 4px}
+.logo span{font-family:'Bagel Fat One';color:var(--pink);font-size:26px;line-height:1}
+.logo.big{border-radius:30px;padding:10px 30px 16px;border-width:3px}
+.logo.big span{font-size:84px}
+.icon-btn{width:40px;height:40px;border-radius:50%;background:#fff;display:grid;place-items:center;border:1px solid var(--line)}
+.row{display:flex;align-items:center}
+.between{justify-content:space-between}
+h1{font-size:28px;line-height:1.15;font-weight:700}
+h2{font-size:20px;font-weight:700}
+.muted{color:var(--muted)}
+.sm{font-size:12px}.xs{font-size:11px}
+.sticker{display:inline-block;border:2px solid var(--brown);border-radius:999px;padding:4px 12px;font-family:'Bagel Fat One';font-size:15px}
+.chip{display:inline-flex;align-items:center;gap:4px;border-radius:999px;padding:6px 14px;font-size:13px;font-weight:500;background:#fff;border:1px solid var(--line);white-space:nowrap}
+.chip.on{background:var(--brown);color:#fff;border-color:var(--brown)}
+.est{display:inline-flex;align-items:center;gap:4px;background:var(--pink-tint);color:var(--pink-ink);border:1.5px dashed var(--pink);border-radius:999px;padding:2px 9px;font-size:11px;font-weight:700;white-space:nowrap}
+.src{display:inline-block;background:#F0EDE7;color:var(--muted);border-radius:6px;padding:2px 7px;font-size:10.5px;font-weight:500}
+.btn{display:flex;align-items:center;justify-content:center;height:52px;border-radius:999px;background:var(--ink);color:#fff;font-weight:700;font-size:15px}
+.btn.ghost{background:#fff;color:var(--brown);border:1.5px solid var(--brown)}
+.link{text-align:center;font-size:13px;color:var(--muted);text-decoration:underline;text-underline-offset:3px}
+.photo{border-radius:20px;background:#E2DED6 center/cover no-repeat}
+.ph-ramen{background-image:url(img/ramen.jpg)}
+.ph-beef{background-image:url(img/beef-bowl.jpg)}
+.ph-bread{background-image:url(img/garlic-bread.jpg)}
+.ph-cookie{background-image:url(img/grinch-cookies.jpg)}
+/* crops matched to the Figma file (11/16) */
+.ph-home-ramen{background-image:url(img/home-ramen.jpg)}
+.ph-home-beef{background-image:url(img/home-beef.jpg)}
+.ph-detail-ramen{background-image:url(img/detail-ramen.jpg)}
+.ph-thumb-ramen{background-image:url(img/thumb-ramen.jpg)}
+.ph-converting-ramen{background-image:url(img/converting-ramen.jpg)}
+.ph-book-ramen{background-image:url(img/book-ramen.jpg)}
+.ph-book-cookie{background-image:url(img/book-cookie.jpg)}
+.ph-book-bread{background-image:url(img/book-bread.jpg)}
+.card{background:var(--card);border-radius:22px}
+.tabbar{position:absolute;left:16px;right:16px;bottom:22px;height:68px;background:#fff;border-radius:34px;border:1px solid var(--line);display:flex;align-items:center;justify-content:space-around;padding:0 18px}
+.tab{display:flex;flex-direction:column;align-items:center;gap:3px;font-size:10.5px;font-weight:500;color:var(--muted);width:76px}
+.tab.on{color:var(--brown);font-weight:700}
+.tab .dot{width:5px;height:5px;border-radius:50%;background:var(--pink);margin-top:1px}
+.fab{width:58px;height:58px;border-radius:50%;background:var(--pink);border:2.5px solid var(--brown);display:grid;place-items:center;margin-top:-30px}
+.cat{display:flex;flex-direction:column;align-items:center;gap:6px;font-size:11.5px;font-weight:500}
+.cat .ball{width:56px;height:56px;border-radius:50%;display:grid;place-items:center;font-size:26px;border:2px solid transparent;background:#fff}
+.cat.on .ball{background:var(--pink-tint);border-color:var(--brown)}
+.stepper{display:flex;align-items:center;gap:12px}
+.stepper b{width:30px;height:30px;border-radius:50%;display:grid;place-items:center;border:1.5px solid var(--line);background:#fff;font-size:16px}
+.stepper b.p{background:var(--ink);color:#fff;border-color:var(--ink)}
+.ing{display:flex;align-items:center;justify-content:space-between;padding:10px 0;border-top:1px solid var(--line);font-size:14px}
+.ing .r{display:flex;align-items:center;gap:8px}
+.ing .amt{font-weight:700}
+.ing.e{background:var(--pink-tint);margin:4px -10px 0;padding:10px;border-radius:12px;border-top:0}
+.banner{display:flex;gap:10px;align-items:flex-start;background:var(--pink-tint);border-radius:16px;padding:12px 14px;color:var(--pink-ink);font-size:12.5px;line-height:1.4}
+.toggle{width:46px;height:28px;border-radius:999px;background:var(--lime);border:2px solid var(--lime-ink);position:relative}
+.toggle::after{content:"";position:absolute;right:3px;top:3px;width:18px;height:18px;border-radius:50%;background:#fff;border:1.5px solid var(--lime-ink)}
+.seg{display:flex;background:#F0EDE7;border-radius:999px;padding:3px}
+.seg span{padding:5px 14px;border-radius:999px;font-size:12.5px;font-weight:500;color:var(--muted)}
+.seg span.on{background:#fff;color:var(--brown);font-weight:700;box-shadow:0 0 0 1px var(--line)}
+.list-item{display:flex;justify-content:space-between;align-items:center;padding:15px 0;border-top:1px solid var(--line);font-size:14px}
+.sec{font-size:11px;font-weight:700;letter-spacing:.8px;color:var(--muted);margin:22px 0 4px}
+.scrim{position:absolute;inset:0;background:rgba(59,31,26,.45)}
+.sheet{position:absolute;left:0;right:0;bottom:0;background:var(--screen);border-radius:30px 30px 44px 44px;padding:12px 24px 30px}
+.grab{width:40px;height:5px;border-radius:9px;background:#D8D1C6;margin:0 auto 18px}
+.check{width:24px;height:24px;border-radius:8px;border:2px solid var(--line);background:#fff;display:grid;place-items:center}
+.check.on{background:var(--pink);border-color:var(--brown)}
+.progress{height:8px;border-radius:9px;background:#F0EDE7;overflow:hidden}
+.progress i{display:block;height:100%;background:var(--orange);border-right:2px solid var(--brown)}
+.step{display:flex;align-items:center;gap:12px;padding:12px 0;font-size:14px}
+.step .s{width:28px;height:28px;border-radius:50%;display:grid;place-items:center;font-size:13px;font-weight:700;flex:none}
+.step.done .s{background:var(--lime);border:2px solid var(--lime-ink);color:var(--lime-ink)}
+.step.now .s{background:var(--pink);border:2px solid var(--brown);color:var(--brown)}
+.step.todo{color:var(--muted)} .step.todo .s{border:2px dashed #CFC6BA}
+.float{position:absolute;display:grid;place-items:center;border-radius:50%;background:#fff;border:2.5px solid var(--brown)}
+svg.i{width:20px;height:20px;fill:none;stroke:currentColor;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round}
+</style>
+</head>
+<body>
+<header class="page">
+  <div class="logo"><span>pinch</span></div>
+  <p>Reels to recipes · Mobile web flow v2.2 (kitsch sticker direction) · 14 screens · sign in only on save · photos from the English training set</p>
+</header>
+
+<div class="board">
+
+<!-- 01 HOME -->
+<div class="slot"><div class="label">01 · Home</div>
+<div class="phone">
+  <div class="status"><span>9:41</span><span>●●● ▲ ▮</span></div>
+  <div class="pad" style="margin-top:14px">
+    <div class="row between"><div class="logo"><span>pinch</span></div>
+      <div class="icon-btn"><svg class="i" viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1A1.7 1.7 0 0 0 9 19.4a1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1A1.7 1.7 0 0 0 4.6 9a1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"/></svg></div></div>
+    <h1 style="margin-top:22px">What should I cook today?</h1>
+    <div class="row" style="margin-top:18px;background:#fff;border:1px solid var(--line);border-radius:999px;height:48px;padding:0 6px 0 18px;justify-content:space-between">
+      <span class="sm muted">Search recipes or ingredients</span>
+      <span style="width:38px;height:38px;border-radius:50%;background:var(--ink);color:#fff;display:grid;place-items:center"><svg class="i" viewBox="0 0 24 24" style="width:17px"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg></span>
+    </div>
+    <div class="row between" style="margin-top:20px">
+      <div class="cat on"><div class="ball">⭐</div>All</div>
+      <div class="cat"><div class="ball">🍝</div>Pasta</div>
+      <div class="cat"><div class="ball">🍰</div>Dessert</div>
+      <div class="cat"><div class="ball">🌙</div>Late night</div>
+      <div class="cat"><div class="ball">🥬</div>Vegan</div>
+    </div>
+    <div class="row between" style="margin-top:24px"><h2>Trending now</h2><span class="sm muted">See all</span></div>
+  </div>
+  <div style="display:flex;gap:12px;margin:12px 0 0 24px">
+    <div style="position:relative">
+      <div class="photo ph-home-ramen" style="width:226px;height:214px"></div>
+      <span class="sticker" style="position:absolute;top:12px;left:12px;background:#fff;font-size:12px">▶ Shorts</span>
+      <span class="sticker" style="position:absolute;bottom:12px;right:12px;background:var(--orange);font-size:14px">12K saves</span>
+    </div>
+    <div class="photo ph-home-beef" style="width:226px;height:214px"></div>
+  </div>
+  <div class="pad" style="margin-top:16px">
+    <div class="row between"><h2>Bacon egg &amp; cheese ramen</h2><span style="width:34px;height:34px;border-radius:50%;background:var(--ink);color:#fff;display:grid;place-items:center;font-size:20px;flex:none">+</span></div>
+    <p class="sm muted" style="margin-top:4px">Ramen, egg, bacon, cheese · 10 min</p>
+  </div>
+  <div class="tabbar"></div>
+</div></div>
+
+<!-- 02 DETAIL -->
+<div class="slot"><div class="label">02 · Recipe detail</div>
+<div class="phone">
+  <div class="status"></div>
+  <div class="photo ph-detail-ramen" style="position:absolute;inset:48px 0 auto 0;height:300px;border-radius:0"></div>
+  <div class="row between pad" style="position:absolute;top:64px;left:0;right:0">
+    <div class="icon-btn" style="border-color:var(--brown);border-width:2px">‹</div>
+    <span class="sticker" style="background:#fff;font-size:13px">▶ 0:21</span>
+  </div>
+  <div style="position:absolute;top:300px;left:0;right:0;bottom:0;background:var(--screen);border-radius:32px 32px 0 0;padding:26px 24px">
+    <span class="sticker" style="position:absolute;top:-18px;right:24px;background:var(--pink);font-size:14px">Saved 12K</span>
+    <h1 style="font-size:24px">Bacon egg &amp; cheese ramen</h1>
+    <p class="sm muted" style="margin-top:4px">YouTube Shorts · @[creator]</p>
+    <div class="row between" style="margin-top:18px">
+      <div><p class="xs muted">Cook time</p><p><span class="bagel" style="font-size:30px">10</span> <span class="sm muted">min</span></p></div>
+      <div style="text-align:center"><p class="xs muted" style="margin-bottom:4px">Servings</p><div class="stepper"><b>−</b><span class="bagel" style="font-size:24px">1</span><b class="p">+</b></div></div>
+      <div style="text-align:right"><p class="xs muted">Video</p><p><span class="bagel" style="font-size:30px">0:21</span></p></div>
+    </div>
+    <h2 style="font-size:17px;margin-top:18px;margin-bottom:4px">Ingredients</h2>
+    <div class="ing"><span>Sriracha</span><span class="amt">2 tbsp</span></div>
+    <div class="ing"><span>Half and half</span><span class="amt">1 cup</span></div>
+    <div class="ing"><span>Ramen noodles</span><span class="est">≈ 1 pack · Pinch estimate</span></div>
+    <div class="ing"><span>Bacon</span><span class="est">≈ 2 strips</span></div>
+    <div class="btn" style="margin-top:16px">Save to recipe book</div>
+    <p class="link" style="margin-top:12px">Watch original video</p>
+  </div>
+</div></div>
+
+<!-- 03 RECIPE BOOK, SIGNED OUT -->
+<div class="slot"><div class="label">03 · Recipe book · signed out</div>
+<div class="phone">
+  <div class="status"></div>
+  <div class="pad" style="margin-top:20px"><h1>My recipe book</h1></div>
+  <div class="pad" style="text-align:center;margin-top:110px">
+    <div style="position:relative;display:inline-block">
+      <div class="float" style="position:static;width:150px;height:150px;font-size:70px;background:var(--pink-tint)">📖</div>
+      <span class="sticker" style="position:absolute;top:-8px;right:-44px;background:var(--orange);font-size:14px">yours</span>
+    </div>
+    <h2 style="margin-top:28px">Sign in to see your recipe book</h2>
+    <p class="sm muted" style="margin-top:8px;line-height:1.5">Your saved recipes live here.<br>You can still convert videos without an account.</p>
+    <div class="gbtn" style="margin-top:24px" data-g="1">Continue with Google</div>
+  </div>
+  <div class="tabbar" data-on="book"></div>
+</div></div>
+
+<!-- 04 EMPTY -->
+<div class="slot"><div class="label">04 · Empty recipe book</div>
+<div class="phone">
+  <div class="status"><span>9:41</span><span>●●● ▲ ▮</span></div>
+  <div class="pad" style="margin-top:20px"><h1>My recipe book</h1></div>
+  <div style="text-align:center;margin-top:120px">
+    <div style="position:relative;display:inline-block">
+      <div class="float" style="position:static;width:150px;height:150px;font-size:72px;background:var(--orange-tint)">🍳</div>
+      <span class="sticker" style="position:absolute;top:-10px;right:-40px;background:var(--pink);font-size:14px">empty!</span>
+    </div>
+    <h2 style="margin-top:28px">No recipes saved yet</h2>
+    <p class="sm muted" style="margin-top:8px">Paste a cooking video link to get a recipe.</p>
+    <div class="btn" style="width:220px;margin:24px auto 0">Convert a video</div>
+  </div>
+  <div class="tabbar" data-on="book"></div>
+</div></div>
+
+<!-- 05 ICONS -->
+<div class="slot"><div class="label">05 · Category stickers</div>
+<div class="phone">
+  <div class="status"><span>9:41</span><span>●●● ▲ ▮</span></div>
+  <div class="pad" style="margin-top:20px"><h1>Category stickers</h1><p class="sm muted" style="margin-top:6px">Selected = pink fill + brown outline</p></div>
+  <div class="pad" style="display:grid;grid-template-columns:repeat(3,1fr);gap:28px 10px;margin-top:40px">
+    <div class="cat on"><div class="ball" style="width:84px;height:84px;font-size:38px">⭐</div>All</div>
+    <div class="cat"><div class="ball" style="width:84px;height:84px;font-size:38px;border-color:var(--brown)">🍝</div>Pasta</div>
+    <div class="cat"><div class="ball" style="width:84px;height:84px;font-size:38px;border-color:var(--brown);background:var(--orange-tint)">🍰</div>Dessert</div>
+    <div class="cat"><div class="ball" style="width:84px;height:84px;font-size:38px;border-color:var(--brown);background:#E9E4F7">🌙</div>Late night</div>
+    <div class="cat"><div class="ball" style="width:84px;height:84px;font-size:38px;border-color:var(--brown);background:var(--lime-tint)">🥬</div>Vegan</div>
+    <div class="cat"><div class="ball" style="width:84px;height:84px;font-size:30px;border-color:var(--brown);background:var(--pink)">＋</div>Convert</div>
+  </div>
+  <div class="pad" style="margin-top:44px">
+    <p class="sec">Stamps</p>
+    <div class="row" style="gap:10px;flex-wrap:wrap;margin-top:10px">
+      <span class="sticker" style="background:var(--orange)">12K saves</span>
+      <span class="sticker" style="background:var(--lime)">Saved!</span>
+      <span class="sticker" style="background:var(--pink)">3 to check</span>
+      <span class="est" style="font-size:12px;padding:4px 12px">≈ a pinch · Pinch estimate</span>
+      <span class="est" style="font-size:12px;padding:4px 12px">🔒 Sign in to see</span>
+    </div>
+  </div>
+</div></div>
+
+<!-- 06 RECIPE BOOK -->
+<div class="slot"><div class="label">06 · Recipe book</div>
+<div class="phone">
+  <div class="status"><span>9:41</span><span>●●● ▲ ▮</span></div>
+  <div class="pad" style="margin-top:20px">
+    <div class="row between"><h1>My recipe book</h1><span class="sticker" style="background:var(--orange);font-size:16px">12</span></div>
+    <div class="row" style="gap:8px;margin-top:16px;overflow:hidden">
+      <span class="chip on">All 12</span><span class="chip">🍝 Pasta 4</span><span class="chip">🍰 Dessert 3</span><span class="chip">🌙 Late night 2</span>
+    </div>
+    <div class="row between" style="margin-top:18px"><span class="sm muted">Recently saved ▾</span><span class="sm muted">▦</span></div>
+  </div>
+  <div class="pad" style="display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-top:12px">
+    <div><div class="photo ph-book-ramen" style="height:150px;position:relative"><span class="sticker" style="position:absolute;top:8px;left:8px;background:var(--pink);font-size:11px;padding:2px 8px">3 to check</span></div>
+      <p style="font-weight:700;font-size:14px;margin-top:8px">Bacon egg &amp; cheese ramen</p><p class="xs muted">10 min · YouTube Shorts</p></div>
+    <div><div class="photo ph-book-cookie" style="height:150px"></div>
+      <p style="font-weight:700;font-size:14px;margin-top:8px">Grinch cookies</p><p class="xs muted">25 min · YouTube Shorts</p></div>
+    <div><div class="card" style="height:150px;border:2px dashed #D8CFC2;padding:14px;display:flex;flex-direction:column;justify-content:flex-end;gap:8px">
+        <span class="bagel" style="font-size:30px;color:var(--orange)">62%</span><div class="progress"><i style="width:62%"></i></div><span class="xs muted">Reading captions…</span></div>
+      <p style="font-weight:700;font-size:14px;margin-top:8px">Beef &amp; mushroom rice bowl</p><p class="xs muted">Converting · YouTube Shorts</p></div>
+    <div><div class="photo ph-book-bread" style="height:150px;position:relative"><span class="sticker" style="position:absolute;top:8px;left:8px;background:var(--pink);font-size:11px;padding:2px 8px">1 to check</span></div>
+      <p style="font-weight:700;font-size:14px;margin-top:8px">Shallot garlic bread</p><p class="xs muted">20 min · YouTube Shorts</p></div>
+  </div>
+  <div class="tabbar" data-on="book"></div>
+</div></div>
+
+<!-- 07 SETTINGS -->
+<div class="slot"><div class="label">07 · Settings</div>
+<div class="phone">
+  <div class="status"><span>9:41</span><span>●●● ▲ ▮</span></div>
+  <div class="pad" style="margin-top:12px">
+    <div class="row" style="gap:10px"><span style="font-size:22px">‹</span><h1 style="font-size:24px">Settings</h1></div>
+    <div class="card row" style="gap:14px;padding:16px;margin-top:18px">
+      <div class="float" style="position:static;width:52px;height:52px;background:var(--pink);font-family:'Bagel Fat One';font-size:20px">S</div>
+      <div><p style="font-weight:700">[Your name]</p><p class="xs muted">Signed in with Google</p></div>
+    </div>
+    <p class="sec">Preferences</p>
+    <div class="list-item" style="border-top:0"><span>Units</span><div class="seg"><span class="on">Metric</span><span>US</span></div></div>
+    <div class="list-item"><span>Default servings</span><div class="stepper"><b>−</b><span class="bagel" style="font-size:18px">2</span><b class="p">+</b></div></div>
+    <div class="list-item"><div><p>Recipe ready alerts</p><p class="xs muted">Get notified when a video finishes converting</p></div><span class="toggle"></span></div>
+    <p class="sec">Support</p>
+    <div class="list-item" style="border-top:0"><span>Send feedback</span><span class="muted">›</span></div>
+    <div class="list-item"><span>Privacy policy</span><span class="muted">›</span></div>
+    <div class="list-item"><span>Terms of service</span><span class="muted">›</span></div>
+    <div class="list-item"><span>About</span><span class="xs muted">Version 0.1.0</span></div>
+    <div class="btn ghost" style="margin-top:18px;height:46px">Sign out</div>
+    <p class="link" style="margin-top:12px;color:var(--red-ink)">Delete account</p>
+  </div>
+</div></div>
+
+<!-- 08 CONVERT -->
+<div class="slot"><div class="label">08 · Convert</div>
+<div class="phone">
+  <div class="status"><span>9:41</span><span>●●● ▲ ▮</span></div>
+  <div class="pad" style="margin-top:12px">
+    <div class="row between"><span style="font-size:22px">‹</span><span class="xs muted">1 of 3 today</span></div>
+    <h1 style="margin-top:14px">Convert a video</h1>
+    <p class="sm muted" style="margin-top:8px">Paste a link from YouTube Shorts or Instagram Reels.</p>
+    <div class="row between" style="margin-top:18px;background:#fff;border:2px solid var(--brown);border-radius:16px;height:52px;padding:0 14px">
+      <span class="sm">youtube.com/shorts/ka28U1wXYQE</span><span class="muted">✕</span></div>
+    <div class="card" style="padding:12px;margin-top:12px">
+      <div class="row" style="gap:12px">
+        <div class="photo ph-thumb-ramen" style="width:64px;height:84px;border-radius:12px;flex:none"></div>
+        <div><p style="font-weight:700;font-size:14px">Bacon egg &amp; cheese ramen</p><p class="xs muted" style="margin-top:2px">YouTube Shorts · @[creator] · 0:21</p></div>
+      </div>
+    </div>
+    <p class="sec">Works with</p>
+    <div class="row" style="gap:8px;margin-top:8px"><span class="chip">▶ YouTube Shorts</span><span class="chip">◎ Instagram Reels</span></div>
+    <div class="card" style="padding:14px;margin-top:18px;font-size:12.5px;line-height:1.6">
+      <p>💬 Recipes spoken or shown in the video work best.</p><p class="muted">⏱ This can take about a minute.</p></div>
+  </div>
+  <div class="pad" style="position:absolute;bottom:40px;left:0;right:0"><div class="btn">Convert to recipe</div><p class="link" style="margin-top:12px">Upload a video file instead</p></div>
+</div></div>
+
+<!-- 09 CONVERTING -->
+<div class="slot"><div class="label">09 · Converting</div>
+<div class="phone">
+  <div class="status"><span>9:41</span><span>●●● ▲ ▮</span></div>
+  <div class="pad" style="margin-top:18px">
+    <p class="sm muted">Converting…</p>
+    <h2 style="margin-top:4px">Bacon egg &amp; cheese ramen in 10 min</h2>
+    <div style="position:relative;margin-top:20px">
+      <div class="photo ph-converting-ramen" style="height:220px"></div>
+      <div class="float" style="width:104px;height:104px;right:12px;bottom:-30px;background:var(--orange)"><span class="bagel" style="font-size:32px">62%</span></div>
+    </div>
+    <p class="xs muted" style="margin-top:22px">Step 3 of 4</p>
+    <div class="progress" style="margin-top:8px;width:62%"><i style="width:62%"></i></div>
+    <div style="margin-top:14px">
+      <div class="step done"><span class="s">✓</span>Getting the video</div>
+      <div class="step done"><span class="s">✓</span>Listening to the audio</div>
+      <div class="step now"><span class="s">3</span><b>Reading on-screen text &amp; captions</b></div>
+      <div class="step todo"><span class="s">4</span>Writing the recipe</div>
+    </div>
+  </div>
+  <div class="pad" style="position:absolute;bottom:40px;left:0;right:0;text-align:center">
+    <p class="sm" style="font-weight:700">You can leave this screen.</p>
+    <p class="xs muted" style="margin:4px 0 14px">We'll notify you when your recipe is ready.</p>
+    <div class="btn ghost">Keep browsing</div></div>
+</div></div>
+
+<!-- 10 / 11 / 12 REVIEW (rendered by script) -->
+<div class="slot"><div class="label">10 · Review recipe</div><div class="phone review" data-serv="1" data-locked="1"></div></div>
+<div class="slot"><div class="label">11 · Review · 2 servings</div><div class="phone review" data-serv="2" data-locked="1"></div></div>
+<div class="slot"><div class="label">12 · Sign in on save (bottom sheet)</div><div class="phone review" data-serv="1" data-login="1" data-locked="1"></div></div>
+<div class="slot"><div class="label">13 · Save to category</div><div class="phone review" data-serv="1" data-sheet="1"></div></div>
+
+<!-- 14 FAILED -->
+<div class="slot"><div class="label">14 · Convert failed</div>
+<div class="phone">
+  <div class="status"><span>9:41</span><span>●●● ▲ ▮</span></div>
+  <div class="pad" style="margin-top:12px"><span style="font-size:22px">‹</span></div>
+  <div class="pad" style="text-align:center;margin-top:90px">
+    <div style="position:relative;display:inline-block">
+      <div class="float" style="position:static;width:140px;height:140px;font-size:64px;background:var(--red-tint)">🫠</div>
+      <span class="sticker" style="position:absolute;bottom:-6px;right:-46px;background:#fff;font-size:13px">oops</span>
+    </div>
+    <h2 style="margin-top:28px">We couldn't open this link</h2>
+    <p class="sm muted" style="margin-top:8px;line-height:1.5">The video may be private, removed,<br>or blocked from being downloaded.</p>
+    <div class="row between card" style="margin-top:22px;padding:12px 14px;text-align:left">
+      <span class="sm">youtube.com/shorts/aB3xY9k…</span>
+      <span style="background:var(--red-tint);color:var(--red-ink);font-size:11px;font-weight:700;padding:3px 9px;border-radius:999px">Couldn't download</span></div>
+  </div>
+  <div class="pad" style="position:absolute;bottom:40px;left:0;right:0"><div class="btn">Upload the video file</div>
+    <div class="btn ghost" style="margin-top:10px">Try another link</div>
+    <p class="xs muted" style="text-align:center;margin-top:12px">Only upload videos you have the right to use.</p></div>
+</div></div>
+
+</div>
+
+<script>
+const tabSvg={
+  home:'<svg class="i" viewBox="0 0 24 24"><path d="M4 11 12 4l8 7v9H4z"/></svg>',
+  book:'<svg class="i" viewBox="0 0 24 24"><rect x="5" y="3" width="14" height="18" rx="2"/><path d="M9 3v18"/></svg>'};
+document.querySelectorAll('.tabbar').forEach(t=>{
+  const on=t.dataset.on||'home';
+  t.innerHTML=`<div class="tab ${on==='home'?'on':''}">${tabSvg.home}Home${on==='home'?'<i class="dot"></i>':''}</div>
+  <div class="tab"><div class="fab"><svg class="i" viewBox="0 0 24 24" style="width:26px;height:26px;stroke:#3B1F1A;stroke-width:2.6"><path d="M12 5v14M5 12h14"/></svg></div><span style="margin-top:2px">Convert</span></div>
+  <div class="tab ${on==='book'?'on':''}">${tabSvg.book}Recipe book${on==='book'?'<i class="dot"></i>':''}</div>`;
+});
+// From en-train T-001 recipe.json: confirmed amounts keep their source, unconfirmed ones become Pinch estimates.
+const ings=[['Sriracha',2,' tbsp','On-screen'],['Mayonnaise',1,' tbsp','Voice'],['Half and half',1,' cup','On-screen'],['Water',1,' cup','Voice'],['Egg yolk',1,'','Voice']];
+const ests=[['Ramen noodles',1,' pack'],['Bacon',2,' strips'],['Cheese',1,' slice']];
+const pl=(n,u)=>n>1&&/(cup|pack|slice)$/.test(u)?u+'s':u;
+document.querySelectorAll('.review').forEach(p=>{
+  const k=+p.dataset.serv;
+  const rows=ings.map(([n,a,u,src])=>`<div class="ing"><span>${n}</span><span class="r"><span class="src">${src}</span><span class="amt">${a*k}${pl(a*k,u)}</span></span></div>`).join('');
+  // v3 (#57): Pinch estimates are shown only to signed-in users; before sign-in the rows are locked.
+  const locked=!!p.dataset.locked;
+  const est=ests.map(([n,a,u])=>locked
+    ?`<div class="ing e"><span>${n}</span><span class="est">🔒 Sign in to see</span></div>`
+    :`<div class="ing e"><span>${n}</span><span class="est">≈ ${a*k}${pl(a*k,u)} · Pinch est.</span></div>`).join('');
+  const banner=locked
+    ?`<b>3 amounts aren't in the video.</b><br>Sign in to see Pinch estimates. <u style="font-weight:700">Sign in</u>`
+    :`<b>3 amounts are Pinch estimates.</b><br>Check them before saving.`;
+  const scaled=k===1?'As shown in the video':locked?'Scaled from 1':'Scaled from 1 · estimates scale too';
+  p.innerHTML=`<div class="status"><span>9:41</span><span>●●● ▲ ▮</span></div>
+  <div class="pad" style="margin-top:8px">
+    <div class="row between"><span style="font-size:22px">‹</span><span class="sm" style="font-weight:700">Review recipe</span><span style="width:22px"></span></div>
+    <div class="row" style="gap:12px;margin-top:12px">
+      <div class="photo ph-thumb-ramen" style="width:58px;height:74px;border-radius:12px;flex:none"></div>
+      <div><h2>Bacon egg &amp; cheese ramen</h2><p class="xs muted" style="margin-top:2px">YouTube Shorts · @[creator]</p><p class="xs" style="margin-top:4px;text-decoration:underline">▶ Watch original · 0:21</p></div></div>
+    <div class="banner" style="margin-top:12px"><span style="font-size:18px;line-height:1">🤏</span><div>${banner}</div></div>
+    <div class="row between" style="margin-top:12px"><div><p style="font-weight:700;font-size:14px">Servings</p><p class="xs muted">${scaled}</p></div>
+      <div class="stepper"><b>−</b><span class="bagel" style="font-size:22px">${k}</span><b class="p">+</b></div></div>
+    <div class="row between" style="margin-top:10px;margin-bottom:2px"><span style="font-weight:700">Ingredients</span><span class="xs muted">13 items · 8 shown</span></div>
+    ${rows}${est}
+    <div class="row between" style="margin-top:10px"><span style="font-weight:700">Steps</span><span class="xs muted">3 steps ›</span></div>
+  </div>
+  <div class="pad" style="position:absolute;bottom:26px;left:0;right:0"><div class="btn">Save to recipe book</div></div>
+  ${p.dataset.sheet?`<div class="scrim"></div><div class="sheet"><div class="grab"></div>
+    <h2>Save to</h2><p class="sm muted" style="margin-top:4px">Pick one or more categories</p>
+    <div style="margin-top:14px">
+      <div class="list-item" style="border-top:0"><span class="row" style="gap:12px"><span style="font-size:22px">🌙</span><span><b>Late night</b><br><span class="xs muted">2 recipes</span></span></span><span class="check on">✓</span></div>
+      <div class="list-item"><span class="row" style="gap:12px"><span style="font-size:22px">🍝</span><span><b>Pasta</b><br><span class="xs muted">4 recipes</span></span></span><span class="check"></span></div>
+      <div class="list-item"><span class="row" style="gap:12px"><span style="font-size:22px">🍰</span><span><b>Dessert</b><br><span class="xs muted">3 recipes</span></span></span><span class="check"></span></div>
+      <div class="list-item" style="color:var(--pink-ink);font-weight:700"><span>＋ New category</span></div>
+    </div>
+    <div class="btn" style="margin-top:10px">Save</div></div>`:''}
+  ${p.dataset.login?`<div class="scrim"></div><div class="sheet" style="text-align:center;padding-bottom:36px"><div class="grab"></div>
+    <div class="logo"><span>pinch</span></div>
+    <h2 style="margin-top:18px">Save it to your recipe book</h2>
+    <p class="sm muted" style="margin-top:8px;line-height:1.5">Sign in to save it and see Pinch estimates<br>for the 3 missing amounts. Your edits stay as they are.</p>
+    <div class="row" style="justify-content:center;gap:6px;margin-top:16px">
+      <span class="chip" style="font-size:12px;padding:5px 10px">📖 Recipe book</span><span class="chip" style="font-size:12px;padding:5px 10px">📱 Any device</span><span class="chip" style="font-size:12px;padding:5px 10px">🔔 Alerts</span></div>
+    <div class="gbtn" style="margin-top:20px" data-g="1">Continue with Google</div>
+    <p class="link" style="margin-top:14px;text-decoration:none">Not now</p>
+    <p class="xs muted" style="margin-top:14px">By continuing you agree to our Terms and Privacy Policy.</p></div>`:''}`;
+});
+const G='<svg viewBox="0 0 48 48"><path fill="#EA4335" d="M24 9.5c3.54 0 6.71 1.22 9.21 3.6l6.85-6.85C35.9 2.38 30.47 0 24 0 14.62 0 6.51 5.38 2.56 13.22l7.98 6.19C12.43 13.72 17.74 9.5 24 9.5z"/><path fill="#4285F4" d="M46.98 24.55c0-1.57-.15-3.09-.38-4.55H24v9.02h12.94c-.58 2.96-2.26 5.48-4.78 7.18l7.73 6c4.51-4.18 7.09-10.36 7.09-17.65z"/><path fill="#FBBC05" d="M10.53 28.59c-.48-1.45-.76-2.99-.76-4.59s.27-3.14.76-4.59l-7.98-6.19C.92 16.46 0 20.12 0 24c0 3.88.92 7.54 2.56 10.78l7.97-6.19z"/><path fill="#34A853" d="M24 48c6.48 0 11.93-2.13 15.89-5.81l-7.73-6c-2.15 1.45-4.92 2.3-8.16 2.3-6.26 0-11.57-4.22-13.47-9.91l-7.98 6.19C6.51 42.62 14.62 48 24 48z"/></svg>';
+document.querySelectorAll('.gbtn[data-g]').forEach(b=>b.insertAdjacentHTML('afterbegin',G));
+const lock='<svg class="i" viewBox="0 0 24 24" style="width:13px;height:13px;stroke-width:2.2"><rect x="5" y="11" width="14" height="10" rx="2"/><path d="M8 11V8a4 4 0 0 1 8 0v3"/></svg>';
+const reload='<svg class="i" viewBox="0 0 24 24" style="width:18px;height:18px;color:#8A7A72"><path d="M20 12a8 8 0 1 1-2.3-5.7"/><path d="M20 4v5h-5"/></svg>';
+// Flow order: browse → convert → review → sign in → save → recipe book → settings; sticker sheet last.
+const flow=['Home','Recipe detail','Convert','Converting','Convert failed','Review recipe','Review · 2 servings','Sign in on save (bottom sheet)','Save to category','Recipe book','Recipe book · signed out','Empty recipe book','Settings','Category stickers'];
+const board=document.querySelector('.board');const slotBy={};
+document.querySelectorAll('.slot').forEach(s=>{const l=s.querySelector('.label');slotBy[l.textContent.replace(/^\d+\s·\s/,'')]=s;});
+flow.forEach((name,i)=>{const s=slotBy[name];s.querySelector('.label').textContent=String(i+1).padStart(2,'0')+' · '+name;board.appendChild(s);});
+// ?only=N shows just screen N at 0,0 (for screenshots / comparing with Figma exports).
+const only=+new URLSearchParams(location.search).get('only');
+if(only){document.body.style.padding='0';document.querySelector('header.page').style.display='none';
+  document.querySelectorAll('.slot').forEach((s,j)=>{s.style.display=j===only-1?'':'none';s.querySelector('.label').style.display='none';});
+  document.querySelectorAll('.phone').forEach(p=>{p.style.outline='none';p.style.borderRadius='0';});}
+document.querySelectorAll('.status').forEach(s=>{s.outerHTML=`<div class="webbar"><span class="aa">aA</span><div class="url">${lock}pinch.app</div>${reload}</div>`;});
+</script>
+</body>
+</html>
