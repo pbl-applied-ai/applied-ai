@@ -1,7 +1,7 @@
 -- 홈 추천 목록(KAN-73, docs/screen-data.md 7절 1번): 팀이 고른 run만, 정한 순서로, 카드에 필요한 값을 준다.
 begin;
 create extension if not exists pgtap with schema extensions;
-select plan(16);
+select plan(17);
 
 insert into auth.users (id, email) values
   ('11111111-1111-1111-1111-111111111111', 'a@example.com'),
@@ -60,6 +60,13 @@ select is((select duration_ms from public.list_featured() where run_id = 'aaaaaa
 select is((select thumbnail_url from public.list_featured() where run_id = 'aaaaaaaa-0000-0000-0000-000000000001'),
   'https://i.ytimg.com/vi/Smpl0Ramen1/hqdefault.jpg', 'YouTube는 썸네일 주소를 만든다');
 select is((select thumbnail_url from public.list_featured() where run_id = 'aaaaaaaa-0000-0000-0000-000000000002'), null, 'Instagram은 썸네일 없음');
+reset role;
+insert into public.featured_runs (run_id, categories, position) values ('aaaaaaaa-0000-0000-0000-000000000003', '{}', 9);
+update public.runs set canonical_key = 'upload:cccccccc-0000-0000-0000-000000000003', source_url = 'upload:cccccccc-0000-0000-0000-000000000003'
+ where id = 'aaaaaaaa-0000-0000-0000-000000000003';
+set local role anon;
+select is((select source_url from public.list_featured() where run_id = 'aaaaaaaa-0000-0000-0000-000000000003'), null,
+  '업로드 원본 주소는 null(#63 리뷰)');
 select is((select ingredient_names from public.list_featured() where run_id = 'aaaaaaaa-0000-0000-0000-000000000001'),
   array['ramen noodles', 'egg yolk', 'bacon'], '재료 이름 전부, 순서대로');
 select is((select array[ingredient_count, step_count] from public.list_featured() where run_id = 'aaaaaaaa-0000-0000-0000-000000000001'),

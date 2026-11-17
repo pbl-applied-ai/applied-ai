@@ -24,7 +24,7 @@ npx supabase@2.118.0 stop
 
 코드는 `NEXT_PUBLIC_RECIPE_BOOK_ENABLED`로 꺼 두었다. 켜는 순서:
 
-1. 배포 DB에 밀린 마이그레이션을 순서대로 적용. 마지막이 `20261117120000_kan73_read_apis.sql`(홈 추천 목록 `list_featured`, `get_run` 카드 정보·분량 출처, 레시피북 목록 `list_recipes`, 카테고리 표)이고, 그 앞에 `20261109130000_hide_estimates_public.sql`(로그인 전 공개 링크에서 추정값 빼기), `20261109120000_upload_login_only.sql`(업로드 로그인 필요), 아직 안 들어간 `20261031120000_upload_path.sql`도 있다
+1. 배포 DB에 밀린 마이그레이션을 순서대로 적용. 마지막이 `20261117130000_kan73_categories.sql`(카테고리 RPC, 로그인 전 잠금 배지용 `has_estimate`)이고, 그 앞에 `20261117120000_kan73_read_apis.sql`(홈 추천 목록 `list_featured`, `get_run` 카드 정보·분량 출처, 레시피북 목록 `list_recipes`, 카테고리 표), `20261109130000_hide_estimates_public.sql`(로그인 전 공개 링크에서 추정값 빼기), `20261109120000_upload_login_only.sql`(업로드 로그인 필요), 아직 안 들어간 `20261031120000_upload_path.sql`도 있다
    - 추천 목록은 비어 있다. 팀이 고른 run을 `featured_runs(run_id, categories, position)`에 넣으면 홈에 보인다(SQL Editor, 웹에서는 못 넣는다). `categories`는 `thanksgiving`·`christmas`·`budget`·`quick` 중에서
 2. Google Cloud에서 OAuth 클라이언트(웹) 만들기. 승인된 리디렉션 URI는 `https://<프로젝트>.supabase.co/auth/v1/callback`
 3. Supabase 대시보드 Authentication → Providers → Google에 클라이언트 ID·비밀번호 넣기

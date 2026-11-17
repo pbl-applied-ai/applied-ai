@@ -1,8 +1,9 @@
-# 화면별 정보 v0.3 (KAN-72)
+# 화면별 정보 v0.4 (KAN-72)
 
-작성: 김선규 · 2026-11-14 · 수정: 2026-11-16 · 팀 검토용
+작성: 김선규 · 2026-11-14 · 수정: 2026-11-17 · 팀 검토용
 기준: **확정 플로우 "applied ai 플로우 v3"**(14장, 앱 이름 pinch, 영어 화면), `web/src/lib/api/types.ts`, `supabase/migrations/`, 스키마 v0.2.
 변경(v0.2): v0.1은 UX v0.7(한 화면 홈)을 기준으로 썼다. 확정 플로우 v3에 맞춰 화면 목록·정보·API를 다시 썼다. v3가 기존 결정과 다른 곳은 [3절](#3-기존-결정과-다른-곳-팀-확인)에 모았다.
+변경(v0.4, 11/17): 구현(#63·후속)에 맞춤. 카테고리 붙이기는 저장 함수 인자 대신 `set_recipe_categories`(저장 뒤 이어서 부름), 재료에 `has_estimate`(로그인 전 잠금 배지, #64 시안), 추천 목록의 업로드 원본 주소는 null.
 변경(v0.3, 11/16): 7절 응답 타입 추가. 3절 결정 반영(유란 11/15, 수빈 11/16: 로그인 전 추정값은 빼기 그대로, 하루 한도 10/3개 + 로그인 전 전체 상한, 서비스 OCR 켬). 4절·7절 서로 안 맞던 곳 정리, 출처 칩 우선순위, `get_run` 권한 다시 주기, Home [+] 저장 흐름(#57 수빈 리뷰).
 목적: 화면마다 **무엇을 보여 주고, 어느 데이터에서, 어느 API로 가져오는지**. 없는 API·필드는 [KAN-73](#4-kan-73에서-만들-것). 유란은 이 표대로 목업으로 먼저 만들고 월요일에 실제 API로 바꾼다.
 
@@ -116,7 +117,7 @@ Recipe book 카드 ─▶ 저장한 레시피(R과 같은 배치, 고치기)
 |---|---|---|---|
 | 내 카테고리 목록: 이모지, 이름, 레시피 수, 체크 | `categories(id, name, emoji)` + 개수 | `list_categories()` | 없음 |
 | + New category | 이름·이모지 | `create_category(name, emoji)` | 없음 |
-| [Save] | 레시피 + 고른 카테고리(0개도 됨) | `save_recipe(..., p_category_ids)` | 바꿈 |
+| [Save] | 레시피 + 고른 카테고리(0개도 됨) | `save_recipe` → 이어서 `set_recipe_categories(recipe_id, category_ids)` | 있음(KAN-73 후속) |
 
 ### B Recipe book
 
@@ -171,7 +172,7 @@ v3를 확정으로 보면 아래 결정을 바꾸는 것이다. 바꿀지, v3에
 | 1 | **추천 목록** `list_featured()` | H | `[{ run_id, title, creator, platform, source_url, duration_ms, thumbnail_url, ingredient_names[], ingredient_count, step_count, categories[], save_count }]`. 팀이 `featured_runs(run_id, categories text[], position)`에 넣는다. 제목·재료는 `runs.recipe`, 채널·길이는 `runs.bundle.source` |
 | 2 | **`get_run` 응답 늘리기** | D, R | `creator`, `platform`, `duration_ms`, `thumbnail_url`, `save_count`, `my_recipe_id`(로그인했고 저장했으면), 재료마다 `amount_source`(voice / on_screen / description, 3절 2번). 로그인 전에는 추정값을 뺀다(#45 그대로) |
 | 3 | **`list_recipes(p_limit, p_category_id)`** | B | `id, run_id, title, ingredient_count, step_count, unconfirmed_count, source_url, platform, thumbnail_url, category_ids[], created_at, updated_at`. `runs`는 웹에서 직접 못 읽어서 RPC로 |
-| 4 | **카테고리** | K, B | 테이블 `categories(id, user_id, name, emoji)`, `recipe_categories(recipe_id, category_id)` + RLS. `list_categories()`(개수 포함), `create_category`, `save_recipe`·`update_recipe`에 `p_category_ids` |
+| 4 | **카테고리** | K, B | 테이블 `categories(id, user_id, name, emoji)`, `recipe_categories(recipe_id, category_id)` + RLS. `list_categories()`(개수 포함), `create_category`, `set_recipe_categories(p_recipe_id, p_category_ids)`(저장·수정 뒤 이어서 부름, 내 레시피·내 카테고리만). 표 트리거가 주인이 다른 연결을 막는다 |
 | 5 | **이 run을 저장했는지** | D, R | 따로 RPC를 두지 않고 2번 `get_run`의 `my_recipe_id`로. 저장 버튼을 "Saved"로 |
 | 6 | **사용자 설정** `user_settings(user_id, units, default_servings, alerts)` + `get/set_settings` | T | |
 | 7 | **계정 삭제** `delete_account()` | T | 내 데이터 삭제 + auth 사용자 삭제(Edge Function, service role) |
@@ -229,7 +230,7 @@ export interface FeaturedRecipe {
   title: string;                 // recipe.title
   creator: string | null;        // bundle.source.channel. 원본 링크와 함께 항상 보여 준다
   platform: Platform;
-  sourceUrl: string;
+  sourceUrl: string | null;      // 업로드면 null(추천에는 거의 없음)
   durationMs: number | null;     // bundle.source.duration_ms. 카드의 "10 min" 자리는 3절 5번 결정 전까지 영상 길이 또는 비움
   thumbnailUrl: string | null;
   ingredientNames: string[];     // 전부. 카드에는 앞 4개("Ramen, egg, bacon, cheese"), 검색은 전부
@@ -255,6 +256,7 @@ export interface TeamIngredient {
   amount_raw: string | null;
   amount_status: AmountStatus;
   amount_estimate?: { text: string; basis?: string }; // 로그인했을 때만 온다(#45 그대로, 3절 1번)
+  has_estimate?: true;                 // 추정값이 있으면 로그인 전에도 온다 → 로그인 전 잠금 배지 "Sign in to see"(#64 시안)
   amount_source?: AmountSource | null; // 새 필드. 저장된 recipe가 아니라 get_run이 계산해서 붙인다
   optional?: boolean;
   evidence: string[];
@@ -324,8 +326,8 @@ export interface Category {
 
 listCategories(): Promise<Category[]>;                                  // RPC list_categories()
 createCategory(input: { name: string; emoji?: string | null }): Promise<Category>; // RPC create_category(p_name, p_emoji). 같은 이름이면 오류
-saveRecipe(draft: EditableRecipe, options?: { categoryIds?: string[] }): Promise<{ id: string }>; // save_recipe(..., p_category_ids)
-updateRecipe(id: string, draft: EditableRecipe, options?: { categoryIds?: string[] }): Promise<void>; // undefined면 카테고리 그대로
+saveRecipe(draft: EditableRecipe, options?: { categoryIds?: string[] }): Promise<{ id: string }>; // save_recipe → set_recipe_categories(id, categoryIds)
+updateRecipe(id: string, draft: EditableRecipe, options?: { categoryIds?: string[] }): Promise<void>; // update_recipe → categoryIds가 있으면 set_recipe_categories. undefined면 카테고리 그대로
 ```
 
 - 카테고리 이름 바꾸기·지우기는 v3에 없어서 이번엔 만들지 않는다.
