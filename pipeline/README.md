@@ -34,6 +34,19 @@ node scripts/repeat-model.mjs <transcript.json> gpt-4.1 3
 - `OPENAI_API_KEY` 또는 `ANTHROPIC_API_KEY`
 - `LLM_PROVIDER` (`openai` | `anthropic`, 기본: 설정된 키 쪽)
 - `LLM_MODEL` (기본 모델 대신 쓸 모델)
+- `FEWSHOT_INDEX` (선택) 예시 색인 파일 경로. 있으면 영상마다 근거가 가장 비슷한 골드 예시를 프롬프트 앞에 넣는다. 영상 한 편에 임베딩 1번(OpenAI 키 필요, 없으면 꺼짐)
+  - 켜면 `extractor_version`에 `fewshot: { index: <색인 파일 해시>, k }`가 붙어서 예시 없이 만든 결과와 캐시가 섞이지 않는다.
+  - 색인을 못 읽거나 임베딩이 실패하면 예시 없이 계속하고 `warnings`에 남긴다. 그 결과는 `fewshot: "lost"`라 캐시에서 다시 쓰지 않는다.
+- `FEWSHOT_K` (기본 2) 넣을 예시 수. 0이면 끔
+
+예시 색인 만들기 (학습 JSONL → 임베딩, 몇 센트). 남의 자막이 들어 있어서 레포 밖에 둔다:
+
+```bash
+node src/train-cli.mjs <골드 폴더>... --not-in <평가셋 폴더> --holdout 10 --out train.jsonl --holdout-out val.jsonl --report report.csv
+node src/fewshot-cli.mjs train.jsonl --out fewshot-index.json --report report.csv
+```
+
+빠른 확인용 채점(예시 없음·예시 넣음·오픈 모델 LoRA를 같은 방식으로): `node scripts/score-answers.mjs prompts.jsonl answers-*.jsonl`. 이름·분량 비교는 `scripts/evaluate.py`와 같은 규칙이지만, 정답이 학습 답 모양(근거 없는 항목을 뺀 것)이라 KAN-26 기본 점수와 비교할 수 없다. **발표용 비교는 답을 `runPipeline({ transcriptFile, llmOutput })`으로 팀 레시피로 바꿔 `scripts/evaluate.py`로 낸다.** 오픈 모델 학습은 `../finetune/lora_colab.ipynb`.
 
 `compare/`, `dev-candidates/`, `out/`, `*.transcript.json`(테스트 fixture 제외)은 `.gitignore` 대상이다. 실제 영상의 자막·실행 결과는 레포에 올리지 않는다.
 

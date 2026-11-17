@@ -2,6 +2,7 @@ import { readFileSync } from 'node:fs';
 import { ASR_MODEL } from './asr.mjs';
 import { PipelineError } from './errors.mjs';
 import { estimateEnabled, ESTIMATE_PROMPT_VERSION } from './estimate.mjs';
+import { fewshotEnabled, fewshotVersion } from './fewshot.mjs';
 import { parseReelCode } from './instagram.mjs';
 import { resolveProvider } from './llm.mjs';
 import { runPipeline } from './pipeline.mjs';
@@ -52,6 +53,8 @@ export function extractorVersion(env = process.env) {
     ...(ocrEnabled(env) && { ocr: env.OCR_MODEL || OCR_MODEL }),
     // A run without suggestions must not be reused once they are on, and the other way round.
     ...(estimateEnabled(env) && { estimate: ESTIMATE_PROMPT_VERSION }),
+    // Runs with and without few-shot examples (or with another index or k) are kept apart too.
+    ...(fewshotEnabled(env) && { fewshot: fewshotVersion(env) }),
   };
 }
 
@@ -154,6 +157,7 @@ export async function runJob(input, { onStage = () => {}, env = process.env, fet
         ...version,
         ...(result.meta.speech_lost && { speech: 'lost' }),
         ...(result.meta.ocr_lost && { ocr: 'lost' }),
+        ...(result.meta.fewshot_lost && { fewshot: 'lost' }),
       },
       ...run,
       description_only: descriptionOnly,
