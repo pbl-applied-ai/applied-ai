@@ -1,9 +1,25 @@
 // Suggested amounts for ingredients the video never gives (KAN-52). A separate call after extraction, so the
 // extraction prompt (v7) and its scores stay as they are. A suggestion never becomes a video amount:
-// amount_status is untouched and the suggestion goes to its own field, shown as "추정".
+// amount_status is untouched and the suggestion goes to its own field, shown as an estimate.
 import { callStructured, resolveProvider } from './llm.mjs';
 
-export const ESTIMATE_PROMPT_VERSION = 'amount-estimate-v1';
+// v2: the recipe's language is decided here and stated in the prompt. v1 left it to the model, which wrote
+// Korean units ("3큰술") for English videos because the prompt's only examples were Korean.
+export const ESTIMATE_PROMPT_VERSION = 'amount-estimate-v2';
+
+const HANGUL = /[가-힣]/;
+
+// The extraction already writes the recipe in the video's language (schema.mjs rule 7), so any Hangul in
+// the title, names or steps means a Korean recipe; anything else is written in English.
+export const recipeLanguage = (recipe) => {
+  const text = [recipe.title, ...recipe.ingredients.map((i) => i.name), ...recipe.steps.map((s) => s.text)].join(' ');
+  return HANGUL.test(text) ? 'ko' : 'en';
+};
+
+const LANGUAGE_LINE = {
+  ko: 'Recipe language: Korean. Write every amount and basis in Korean (1큰술, 1/2작은술, 200ml, 1개, 한 줌, 약간).',
+  en: 'Recipe language: English. Write every amount and basis in English with US units (1 tbsp, 1/2 tsp, 1 cup, 200g, 1 clove, a pinch). No Korean.',
+};
 
 // On unless AMOUNT_ESTIMATE=off (e.g. to compare extraction alone, or to save the extra call).
 export const estimateEnabled = (env = process.env) => env.AMOUNT_ESTIMATE?.trim().toLowerCase() !== 'off';
@@ -33,13 +49,15 @@ const ESTIMATE_SCHEMA = {
 };
 
 const SYSTEM_PROMPT = `You suggest amounts for the ingredients of a recipe whose amounts the cooking video never stated.
-The app shows each suggestion labelled "추정" (estimate), apart from amounts that came from the video, and the user decides whether to use it.
+The app shows each suggestion labelled as an estimate, apart from amounts that came from the video, and the user decides whether to use it.
 
 - Suggest only for the numbered ingredients marked "(amount unknown)". Never change or repeat the amounts the video gave.
 - Base each guess on the dish, the stated servings, the amounts that are known, and the steps. Keep the guesses consistent with the known amounts (a seasoning for 2 servings stays in proportion to the other seasonings).
-- Write the amount the way a home cook would, in the recipe's language and its units (Korean: 1큰술, 1/2작은술, 200ml, 1개, 한 줌, 약간).
+- Write the amount the way a home cook would, in the language the prompt names under "Recipe language" and that language's usual units. Never translate into another language.
+  - Korean: 1큰술, 1/2작은술, 200ml, 1개, 한 줌, 약간
+  - English: 1 tbsp, 1/2 tsp, 1 cup, 200g, 1 clove, a pinch
 - Use null when a guess would not help: water or oil for boiling or deep-frying, garnish to taste, or anything you cannot judge.
-- basis is a few words in the recipe's language, e.g. "2인분 찌개 기준".`;
+- basis is a few words in the same language, e.g. "2인분 찌개 기준" or "for 4 servings of pasta".`;
 
 // The ingredients worth a suggestion: not group headers, and no amount confirmed from the video.
 export const unknownAmounts = (recipe) =>
@@ -53,6 +71,7 @@ export function buildEstimatePrompt(recipe) {
   });
   const steps = recipe.steps.filter((s) => !s.is_group_header).map((s, i) => `${i + 1}. ${s.text}`);
   return [
+    LANGUAGE_LINE[recipeLanguage(recipe)],
     `Dish: ${recipe.title}`,
     `Servings: ${recipe.servings_text ?? '(not stated)'}`,
     '',
@@ -69,15 +88,19 @@ const clip = (value, max) => {
   return text && text.length <= max ? text : null;
 };
 
-// Puts each usable suggestion on its ingredient as amount_estimate. Anything else in the reply is dropped.
+// Puts each usable suggestion on its ingredient as amount_estimate. Anything else in the reply is dropped,
+// including Korean on an English recipe: an English screen would show "3큰술" as it is.
 export function applyEstimates(recipe, data) {
   const items = recipe.ingredients.filter((ing) => !ing.is_group_header);
+  const english = recipeLanguage(recipe) === 'en';
   let applied = 0;
   for (const entry of data?.estimates ?? []) {
     const ing = items[Number(entry?.number) - 1];
     const text = clip(entry?.amount, MAX_TEXT);
     if (!ing || ing.amount_status === 'confirmed' || ing.amount_estimate || !text) continue;
-    ing.amount_estimate = { text, basis: clip(entry.basis, MAX_BASIS) };
+    if (english && HANGUL.test(text)) continue;
+    const basis = clip(entry.basis, MAX_BASIS);
+    ing.amount_estimate = { text, basis: english && basis && HANGUL.test(basis) ? null : basis };
     applied++;
   }
   return applied;

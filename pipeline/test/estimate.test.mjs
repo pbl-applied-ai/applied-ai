@@ -2,7 +2,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
-import { applyEstimates, buildEstimatePrompt, estimateAmounts, unknownAmounts } from '../src/estimate.mjs';
+import { applyEstimates, buildEstimatePrompt, estimateAmounts, recipeLanguage, unknownAmounts } from '../src/estimate.mjs';
 import { extractorVersion, runJob } from '../src/job.mjs';
 import { toTeamRecipe } from '../src/team-schema.mjs';
 
@@ -36,6 +36,39 @@ test('the prompt numbers items without group headers and marks only unknown amou
   assert.match(prompt, /3\. 소금: \(amount unknown\)/);
   assert.doesNotMatch(prompt, /양념/);
   assert.deepEqual(unknownAmounts(recipe()).map((i) => i.name), ['설탕', '소금']);
+});
+
+const englishRecipe = () => ({
+  status: 'ok',
+  title: 'Easy Skillet Lasagna',
+  servings_text: null,
+  warnings: [],
+  ingredients: [
+    { name: 'crushed tomatoes', preparation: null, amount_text: '14 oz.', amount_status: 'confirmed', is_group_header: false },
+    { name: 'onion', preparation: 'chopped', amount_text: null, amount_status: 'not_in_video', is_group_header: false },
+    { name: 'garlic', preparation: null, amount_text: null, amount_status: 'not_in_video', is_group_header: false },
+  ],
+  steps: [{ text: 'Sauté the onion and garlic.', is_group_header: false }],
+});
+
+test('the prompt names the recipe language, decided from the recipe text', () => {
+  assert.match(buildEstimatePrompt(recipe()), /^Recipe language: Korean\./);
+  assert.match(buildEstimatePrompt(englishRecipe()), /^Recipe language: English\..*No Korean\./);
+  assert.equal(recipeLanguage(recipe()), 'ko');
+  assert.equal(recipeLanguage(englishRecipe()), 'en');
+});
+
+test('Korean suggestions are dropped on an English recipe, English ones kept', () => {
+  const r = englishRecipe();
+  const applied = applyEstimates(r, {
+    estimates: [
+      { number: 2, amount: '1/2개', basis: '파스타 2컵 기준' },
+      { number: 3, amount: '2 cloves', basis: '1인분 기준' },
+    ],
+  });
+  assert.equal(applied, 1);
+  assert.equal(r.ingredients[1].amount_estimate, undefined);
+  assert.deepEqual(r.ingredients[2].amount_estimate, { text: '2 cloves', basis: null });
 });
 
 test('suggestions land only on unknown amounts and drop anything unusable', () => {
@@ -96,6 +129,6 @@ test('replaying a saved extraction makes no estimate call, and the version says 
   });
   assert.equal(out.status, 'succeeded', out.message);
   assert.equal(out.internal.meta.estimate, undefined);
-  assert.equal(extractorVersion(ENV).estimate, 'amount-estimate-v1');
+  assert.equal(extractorVersion(ENV).estimate, 'amount-estimate-v2');
   assert.equal(extractorVersion({ ...ENV, AMOUNT_ESTIMATE: 'off' }).estimate, undefined);
 });
