@@ -6,6 +6,30 @@ const optional = (s) => {
   return t && !/^(null|none|n\/a)$/i.test(t) ? t : null;
 };
 
+// The model sometimes copies the whole evidence label ("D06 설명", "[O4 00:09 화면]") instead of the id.
+// The id is the first word, so a known id there still counts; dropping it lost every caption amount.
+export function citedId(raw, byId) {
+  if (typeof raw !== 'string') return raw;
+  const id = raw.trim();
+  if (byId.has(id)) return id;
+  const first = id.replace(/^\[/, '').split(/[\s\]]/)[0];
+  return byId.has(first) ? first : id;
+}
+
+const cleanIds = (ids, byId) => (Array.isArray(ids) ? ids.map((id) => citedId(id, byId)) : ids);
+
+// Every evidence list in the model output, read once with citedId before anything checks it.
+function cleanCitations(llm, byId) {
+  const item = (x) => ({ ...x, evidence: cleanIds(x.evidence, byId) });
+  return {
+    ...llm,
+    servings_evidence: cleanIds(llm.servings_evidence, byId),
+    ingredients: (llm.ingredients || []).map((ing) => ({ ...item(ing), amounts: (ing.amounts || []).map(item) })),
+    steps: (llm.steps || []).map(item),
+    tips: (llm.tips || []).map(item),
+  };
+}
+
 function citations(ids, byId, label, warnings) {
   const valid = [];
   for (const id of ids || []) {
@@ -337,8 +361,9 @@ function dropStepsDuplicatingTips(steps, tips, byId, warnings) {
 
 // Turns the model's cited evidence IDs into times, amount status and a confidence summary.
 // The model never supplies times, and an amount without valid evidence is never shown as confirmed.
-export function resolveRecipe(llm, segments) {
+export function resolveRecipe(rawLlm, segments) {
   const byId = new Map(segments.map((s) => [s.id, s]));
+  const llm = cleanCitations(rawLlm, byId);
   const warnings = [];
 
   const speech = segments.filter((s) => s.kind === 'speech');
