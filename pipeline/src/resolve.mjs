@@ -30,6 +30,26 @@ function cleanCitations(llm, byId) {
   };
 }
 
+// True when the evidence is written in English: Hangul is under 30% of its letters (the same share asr.mjs uses).
+export function englishEvidence(segments) {
+  const text = segments.map((s) => s.text ?? '').join(' ');
+  const hangul = (text.match(/[가-힣]/g) ?? []).length;
+  const latin = (text.match(/[a-z]/gi) ?? []).length;
+  return latin > 0 && hangul < (hangul + latin) * 0.3;
+}
+
+// The model sometimes carries a Korean "또는" into an English recipe ("Grinch face decals 또는 permanent marker"),
+// which then made the whole recipe count as Korean downstream. English evidence gets English joining words.
+function englishJoins(llm, warnings) {
+  const fix = (text) => (typeof text === 'string' && /또는/.test(text) ? text.replace(/\s*또는\s*/g, ' or ') : text);
+  const ingredients = (llm.ingredients || []).map((ing) => {
+    const name = fix(ing.name);
+    if (name !== ing.name) warnings.push(`ingredient "${ing.name}": Korean "또는" in an English recipe, written as "or"`);
+    return { ...ing, name, preparation: fix(ing.preparation) };
+  });
+  return { ...llm, title: fix(llm.title), ingredients, steps: (llm.steps || []).map((s) => ({ ...s, text: fix(s.text) })), tips: (llm.tips || []).map((t) => ({ ...t, text: fix(t.text) })) };
+}
+
 function citations(ids, byId, label, warnings) {
   const valid = [];
   for (const id of ids || []) {
@@ -312,6 +332,9 @@ const EQUIPMENT = new Set([
   '뚝배기', '팬', '프라이팬', '웍', '냄비', '솥', '압력솥', '휘핑기', '거품기', '그릇', '볼', '접시', '도마', '칼', '가위', '뚜껑',
   '체', '채반', '국자', '주걱', '집게', '계량컵', '계량스푼', '오븐', '에어프라이어', '전자레인지', '믹서', '믹서기', '랩', '호일',
   '종이호일', '키친타월', 'pan', 'pot', 'bowl', 'whisk', 'knife', 'lid', 'oven',
+  // Serving items and tools English reels list with the food (11/20 Grinch Floats: "Clear cups", "Straws").
+  'cup', 'cups', 'glass', 'glasses', 'clear', 'plastic', 'wooden', 'straw', 'straws', 'skewer', 'skewers', 'tray',
+  'trays', 'spatula', 'tongs', 'ladle', 'foil', 'parchment', 'paper', 'baking', 'sheet',
 ]);
 
 // Drops items whose name is only equipment words ("뚝배기 뚜껑"); "팬케이크" or "냄비밥" stay.
@@ -363,8 +386,9 @@ function dropStepsDuplicatingTips(steps, tips, byId, warnings) {
 // The model never supplies times, and an amount without valid evidence is never shown as confirmed.
 export function resolveRecipe(rawLlm, segments) {
   const byId = new Map(segments.map((s) => [s.id, s]));
-  const llm = cleanCitations(rawLlm, byId);
   const warnings = [];
+  const cited = cleanCitations(rawLlm, byId);
+  const llm = englishEvidence(segments) ? englishJoins(cited, warnings) : cited;
 
   const speech = segments.filter((s) => s.kind === 'speech');
   const prevSpeech = new Map(speech.map((s, i) => [s.id, speech[i - 1]]));

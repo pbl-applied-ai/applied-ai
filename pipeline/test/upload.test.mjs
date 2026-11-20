@@ -236,3 +236,19 @@ test('a file the worker could not read is kept even when the job fails for good'
   assert.equal(r.outcome, 'failed');
   assert.ok(!kinds(db).includes('delete'));
 });
+
+test('outro lines said in other words are dropped too', () => {
+  assert.ok(isFiller('구독과 좋아요를 눌러주세요'));
+  assert.ok(isFiller('Please like and subscribe to my channel!'));
+  assert.ok(isFiller('Thank you so much for watching'));
+  assert.ok(!isFiller('좋아요 많이 먹어요'), 'a real sentence with 좋아요 stays');
+  assert.ok(!isFiller('Add the sugar and butter'));
+});
+
+test('a sparse transcript in the other language than the caption is music, not speech', () => {
+  const body = (language, text, duration = 10) => ({ language, duration, segments: [{ start: 0, end: 2, text }] });
+  assert.deepEqual(readTranscript(body('korean', '맛있게 드세요'), { expected: 'en' }).segments, [], 'English reel, one Korean line over music');
+  assert.equal(readTranscript(body('korean', '맛있게 드세요')).segments.length, 1, 'without a caption language it stays');
+  assert.equal(readTranscript(body('english', 'Add the honey')).segments.length, 1);
+  assert.equal(readTranscript(body('english', 'Add the honey'), { expected: 'en' }).segments.length, 1, 'same language stays even when short');
+});

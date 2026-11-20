@@ -108,3 +108,8 @@ test('extractRecipe sends examples as earlier turns before the prompt', async ()
   assert.deepEqual(bodies[0].messages.map((m) => [m.role, m.content]).slice(1), [['user', 'ex-u'], ['assistant', 'ex-a'], ['user', 'real']]);
   assert.deepEqual(bodies[1].messages.map((m) => [m.role, m.content]), [['user', 'ex-u'], ['assistant', 'ex-a'], ['user', 'real']]);
 });
+
+test('examples from an index built with the old Korean labels use the English labels', async () => {
+  const { englishLabels } = await import('../src/fewshot.mjs');
+  assert.equal(englishLabels('[D01 설명] 1 tbsp soy\n[C02 고정 댓글] eggs\n[O03 00:09 화면] 1 cup'), '[D01 description] 1 tbsp soy\n[C02 pinned] eggs\n[O03 00:09 on screen] 1 cup');
+});
