@@ -6,16 +6,17 @@ import type { RecommendationGroup, TeamRecipe } from './types';
 // 로그인했을 때만 붙인다. 로그인 전 공개 링크에서는 서버가 추정값을 빼는 것과 맞춘다(#45).
 // 홈 추천 묶음 목업. 화면 모양만 보기 위한 가짜 값이다. 실제 묶음은 KAN-60(저장 방식)·KAN-63(영상 고르기) 뒤에 붙인다.
 // 목 getRun은 어떤 runId든 SAMPLE_RECIPE를 돌려주므로 카드를 누르면 요리명이 달라 보인다.
+// 저장 수는 넣지 않는다(가짜 숫자 금지, #70 리뷰). categories는 취향 태그 id(src/lib/featured.ts).
 export const MOCK_RECOMMENDATIONS: RecommendationGroup[] = [
   {
     id: 'trending',
     title: 'Trending now',
     cards: [
-      { runId: 'run-MockReco001', title: 'Kimchi Fried Rice', creator: 'Sample Creator A', ingredientCount: 9, categories: ['Late night'], saveCount: 1240 },
-      { runId: 'run-MockReco002', title: 'Crispy Pan-Fried Tofu', creator: 'Sample Creator B', ingredientCount: 8, categories: ['Vegan'], saveCount: 860 },
-      { runId: 'run-MockReco003', title: 'Garlic Butter Shrimp Pasta', creator: 'Sample Creator C', ingredientCount: 7, categories: ['Pasta'], saveCount: 2310 },
-      { runId: 'run-MockReco004', title: 'Brown Butter Cookies', creator: 'Sample Creator D', ingredientCount: 6, categories: ['Dessert'], saveCount: 540 },
-      { runId: 'run-MockReco005', title: 'Rolled Omelet', creator: 'Sample Creator E', ingredientCount: 7, categories: ['Late night'], saveCount: 410 },
+      { runId: 'run-MockReco001', title: 'Kimchi Fried Rice', creator: 'Sample Creator A', ingredientCount: 9, categories: ['late_night'] },
+      { runId: 'run-MockReco002', title: 'Crispy Pan-Fried Tofu', creator: 'Sample Creator B', ingredientCount: 8, categories: ['vegan', 'high_protein'] },
+      { runId: 'run-MockReco003', title: 'Garlic Butter Shrimp Pasta', creator: 'Sample Creator C', ingredientCount: 7, categories: [] },
+      { runId: 'run-MockReco004', title: 'Brown Butter Cookies', creator: 'Sample Creator D', ingredientCount: 6, categories: ['dessert'] },
+      { runId: 'run-MockReco005', title: 'Rolled Omelet', creator: 'Sample Creator E', ingredientCount: 7, categories: ['late_night'] },
     ],
   },
 ];

@@ -15,6 +15,7 @@ export function toEditable(run: Run): EditableRecipe {
       amount_status: ing.amount_status,
       // 추정값은 영상에서 확인 안 된 분량에만 붙인다(KAN-52). 로그인 전 공개 링크에서는 서버가 빼서 안 온다.
       ...(ing.amount_estimate && !ing.amount_raw ? { amount_estimate: ing.amount_estimate } : {}),
+      ...((ing.has_estimate || ing.amount_estimate) && !ing.amount_raw ? { has_estimate: true as const } : {}),
       ...(ing.amount_source && ing.amount_raw ? { amount_source: ing.amount_source } : {}),
       ...(ing.optional ? { optional: true } : {}),
       edited: false,
@@ -51,6 +52,7 @@ export function editIngredient(
         next.user_entered = Boolean(next.amount_raw);
         // 추정값을 쓰거나 고치면 사용자가 채운 분량이 된다. 추정값은 [되돌리기]로 다시 나온다.
         delete next.amount_estimate;
+        delete next.has_estimate;
         delete next.amount_source;
       }
       return next;
@@ -80,7 +82,7 @@ export function estimateCount(draft: Pick<EditableRecipe, 'ingredients'>): numbe
 export function withoutEstimates<T extends Pick<EditableRecipe, 'ingredients'>>(draft: T): T {
   return {
     ...draft,
-    ingredients: draft.ingredients.map(({ amount_estimate: _estimate, amount_source: _source, ...ing }) => ing),
+    ingredients: draft.ingredients.map(({ amount_estimate: _estimate, has_estimate: _has, amount_source: _source, ...ing }) => ing),
   };
 }
 

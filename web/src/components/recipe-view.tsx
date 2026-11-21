@@ -4,7 +4,8 @@ import { amountView } from "@/lib/review";
 import { metricHint } from "@/lib/units";
 import { SourceChip } from "./recipe-source";
 
-// locked: 로그인 전 결과 화면. 영상에 없는 분량은 추정값 대신 "Sign in to see" 잠금 배지를 보여 준다(플로우 v3, #57).
+// locked: 로그인 전 결과 화면. 추정값이 있는 재료(has_estimate)에만 "Sign in to see" 잠금 배지를 보여 준다(플로우 v3 #57, #68).
+// 추정값이 없는 재료는 로그인해도 볼 게 없으니 "Not in the video".
 export function RecipeView({ recipe, locked = false }: { recipe: Pick<EditableRecipe, "ingredients" | "steps">; locked?: boolean }) {
   return (
     <>
@@ -30,7 +31,7 @@ export function RecipeView({ recipe, locked = false }: { recipe: Pick<EditableRe
               )}
               {/* 읽기 전용 화면에는 추정값이 오지 않는다(저장할 때 빼고, 로그인 전에는 서버가 뺀다) */}
               {(view.kind === "missing" || view.kind === "estimate") &&
-                (locked ? (
+                (locked && ing.has_estimate ? (
                   <span className="est">🔒 Sign in to see</span>
                 ) : (
                   <span className="shrink-0 text-[13px] whitespace-nowrap text-muted">Not in the video</span>

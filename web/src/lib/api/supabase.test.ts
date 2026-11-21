@@ -54,17 +54,9 @@ describe('createSupabaseApi', () => {
     expect(sent).toEqual([{ name: 'list_featured', args: {}, apikey: 'anon-key' }]);
   });
 
-  it('until featured runs are added, an empty or failing list_featured shows the mock groups (temporary, 11/18)', async () => {
-    const mock = await createMockApi({ latencyMs: 0, storage: memoryStorage(), navigate: () => {} }).listRecommendations();
-    expect(await setup({ list_featured: { body: [] } }).api.listRecommendations()).toEqual(mock);
-    expect(await setup({ list_featured: { status: 404, body: 'missing' } }).api.listRecommendations()).toEqual(mock);
-  });
-
-  it('a mock recommendation card opens the mock result without calling get_run (temporary, 11/18)', async () => {
-    const { api, sent } = setup({});
-    const run = await api.getRun('run-MockReco001');
-    expect(run?.recipe.title).toBeTruthy();
-    expect(sent).toHaveLength(0);
+  it('an empty or failing list_featured gives no groups, so Home hides the section (no made-up recipes)', async () => {
+    expect(await setup({ list_featured: { body: [] } }).api.listRecommendations()).toEqual([]);
+    expect(await setup({ list_featured: { status: 404, body: 'missing' } }).api.listRecommendations()).toEqual([]);
   });
 
   it('creates a job with the anon key and returns its id', async () => {

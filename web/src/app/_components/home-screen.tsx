@@ -11,6 +11,7 @@ import { TabBar } from "@/components/tab-bar";
 import { Thumb } from "@/components/thumb";
 import { type Job, type RecipeSummary, type RecommendationCard, type RecommendationGroup, type User, api } from "@/lib/api";
 import { jobCards } from "@/lib/book";
+import { FEATURED_CHIPS, type FeaturedChipId, saveCountText } from "@/lib/featured";
 import { type BookHidden, hideJob, readBookHidden } from "@/lib/book-hidden";
 import { recentJobIds } from "@/lib/recent-jobs";
 
@@ -18,15 +19,6 @@ const POLL_MS = 3000;
 const RECENT_COUNT = 3;
 // 로그인 전 실패 카드 [닫기]는 이 브라우저에만 남긴다
 const GUEST = "guest";
-
-// 홈 카테고리 칩(시안 05). 추천 카드의 categories와 이름으로 맞춘다.
-const CATEGORIES = [
-  { name: "All", emoji: "⭐" },
-  { name: "Pasta", emoji: "🍝" },
-  { name: "Dessert", emoji: "🍰" },
-  { name: "Late night", emoji: "🌙" },
-  { name: "Vegan", emoji: "🥬" },
-] as const;
 
 interface Mine {
   jobs: Job[];
@@ -39,7 +31,7 @@ export function HomeScreen() {
   const [mine, setMine] = useState<Mine | null>(null);
   const [groups, setGroups] = useState<RecommendationGroup[]>([]);
   const [query, setQuery] = useState("");
-  const [category, setCategory] = useState<string>("All");
+  const [category, setCategory] = useState<FeaturedChipId>("all");
 
   useEffect(() => {
     let alive = true;
@@ -89,13 +81,13 @@ export function HomeScreen() {
         ...g,
         cards: g.cards.filter(
           (c) =>
-            (category === "All" || (c.categories ?? []).includes(category)) &&
+            (category === "all" || (c.categories ?? []).includes(category)) &&
             (!q || c.title.toLowerCase().includes(q) || c.creator.toLowerCase().includes(q)),
         ),
       }))
       .filter((g) => g.cards.length > 0);
   }, [groups, query, category]);
-  const filtering = query.trim() !== "" || category !== "All";
+  const filtering = query.trim() !== "" || category !== "all";
 
   const cards = mine ? jobCards(mine.jobs, mine.recipes, mine.hidden) : [];
   const recent = mine?.recipes.slice(0, RECENT_COUNT) ?? [];
@@ -133,14 +125,14 @@ export function HomeScreen() {
       </section>
 
       <nav aria-label="Categories" className="mt-5 flex justify-between gap-1 overflow-x-auto px-6 [scrollbar-width:none]">
-        {CATEGORIES.map((c) => {
-          const on = category === c.name;
+        {FEATURED_CHIPS.map((c) => {
+          const on = category === c.id;
           return (
             <button
-              key={c.name}
+              key={c.id}
               type="button"
               aria-pressed={on}
-              onClick={() => setCategory(c.name)}
+              onClick={() => setCategory(c.id)}
               className="flex shrink-0 flex-col items-center gap-1.5 text-[11.5px] font-medium"
             >
               <span
@@ -151,7 +143,7 @@ export function HomeScreen() {
               >
                 {c.emoji}
               </span>
-              {c.name}
+              {c.label}
             </button>
           );
         })}
@@ -213,15 +205,14 @@ export function HomeScreen() {
 }
 
 function TrendingCard({ card }: { card: RecommendationCard }) {
+  const saves = saveCountText(card.saveCount);
   return (
     <li className="w-[226px] shrink-0 snap-start">
       <Link href={`/r/${encodeURIComponent(card.runId)}`} className="flex flex-col gap-2">
         <span className="relative block">
           <Thumb src={card.thumbnailUrl} className="h-[214px] w-full rounded-[20px]" />
           <span className="sticker absolute top-3 left-3 bg-card text-xs">▶ Shorts</span>
-          {card.saveCount ? (
-            <span className="sticker absolute right-3 bottom-3 bg-orange text-sm">{formatCount(card.saveCount)} saves</span>
-          ) : null}
+          {saves && <span className="sticker absolute right-3 bottom-3 bg-orange text-sm">{saves}</span>}
         </span>
         <span className="flex items-start justify-between gap-2">
           <span className="flex min-w-0 flex-col">
@@ -238,11 +229,6 @@ function TrendingCard({ card }: { card: RecommendationCard }) {
       </Link>
     </li>
   );
-}
-
-function formatCount(n: number): string {
-  if (n >= 1000) return `${(n / 1000).toFixed(n >= 10000 ? 0 : 1).replace(/\.0$/, "")}K`;
-  return String(n);
 }
 
 async function loadSignedIn(): Promise<Pick<Mine, "jobs" | "recipes">> {

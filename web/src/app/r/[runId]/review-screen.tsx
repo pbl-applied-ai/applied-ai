@@ -68,7 +68,8 @@ export function ReviewScreen() {
   if (!user) {
     const missing = missingParts(run);
     const notice = descriptionNotice(run);
-    const unseen = draft.ingredients.filter((i) => !i.amount_raw).length;
+    // 로그인하면 볼 수 있는 추정값 수. 추정값이 없는 재료는 세지 않는다(#70 리뷰)
+    const unseen = draft.ingredients.filter((i) => !i.amount_raw && i.has_estimate).length;
     const loginHref = `/login?next=${encodeURIComponent(`/r/${runId}`)}`;
     return (
       <div className="flex flex-1 flex-col">

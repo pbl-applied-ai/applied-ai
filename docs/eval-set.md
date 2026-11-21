@@ -1,6 +1,7 @@
-# 평가셋 선정 기준 v0.6
+# 평가셋 선정 기준 v0.7
 
-수정일: 2026-11-16 · 팀 검토용 (KAN-10)
+수정일: 2026-11-20 · 팀 검토용 (KAN-10)
+변경(v0.7, 11/19): 영어 평가셋에 12편(YouTube 8 + Instagram 4)을 더해 **v1.1-en 25편**(KAN-76, 9번 "v1.1-en"). 대표 점수는 v1.1-en. v1.0-en 13편 점수는 지난 결과와 비교할 때만 쓴다. 정답 규칙 변경은 [라벨링 가이드](labeling-guide.md) v0.6. 11/20 #72 리뷰: 대표 점수는 서비스와 같은 OCR 켬으로 내고 OCR 끔은 참고로 같이 낸다. 화면 글자 규칙은 v1.0-en에도 소급(바뀐 정답 없음), EI-07 감자는 원문 "2 Ib." 그대로.
 변경(v0.6, 11/16): 영어 중심 결정(기획안 v1.0)에 맞춰 대표 점수를 영어 v1.0-en으로 바꿈. 한국어 v1.0은 참고 점수(9번).
 변경(v0.5, 11/14): 영어 평가셋에서 EY-03을 뺌(레시피가 아니라 요리 소개 영상, 수빈 검토). v1.0-en은 YouTube 9 + Instagram 4 = 13편. 정답 규칙 변경은 [라벨링 가이드](labeling-guide.md) v0.5. 11/17 #62 리뷰: "a splash"를 분량으로 되돌려 정답 3줄을 고침(EY-05 cream, EI-03 hot sauce, EI-04 water → `confirmed`).
 변경(v0.4, 11/12): 영어 평가셋은 분량이 어디에도 없는 영상도 재료·단계만으로 넣는다(지어낸 분량 측정용).
@@ -205,6 +206,32 @@
 - 수집·정답 작성 순서는 아래 "정답 작성·교차 확인 순서"와 같다. 초안 모델 조건(평가 대상과 다른 모델)도 같다. 영어 정답 규칙은 [라벨링 가이드](labeling-guide.md) 7번을 따른다.
 - Instagram은 v1.0과 같은 캡션 기준선 조건으로 만든다. 수집기(#40)로 받은 bundle을 쓰면 표 메모에 적고 YouTube와 따로 보고한다.
 - 밀리면 Instagram 4편부터 뺀다(8번과 같은 순서). YouTube 10편을 못 끝내면 고정일을 미룬다.
+
+### v1.1-en (11/19, 25편)
+
+13편은 채점 12편이라 발표 대표 점수로 쓰기엔 적어서(11/16 영어 중심 결정) 12편을 더했다. v1.0-en 13편(`eval-set-en-v1/`)은 그대로 두고, 더한 12편은 `eval-set-en-add-1118/`에 따로 둔다. 평가 때는 두 폴더를 같이 넘긴다.
+
+| 번호 | 요리 | 채널 | 길이 | 분량 출처 | 메모 |
+|---|---|---|---|---|---|
+| EY-11 | Soy & Honey Chicken Stir Fry | Donal Skehan | 59초 | 설명란 | |
+| EY-12 | Korean Cabbage and Beef Doenjang Soup | Basic Sunday Cooking | 35초 | 설명란+고정 댓글 | 말소리에 레시피 없음 |
+| EY-13 | Honey Garlic Shrimp and Broccoli | HomeCook Rican | 60초 | 고정 댓글 | 글·말소리 시간이 다름(글 우선) |
+| EY-14 | Classic Tuna Casserole | Chef Boyd Brown III | 48초 | 설명란 | |
+| EY-15 | Crockpot Beef Tips and Gravy | Easy Eats Kitchen | 28초 | 고정 댓글 | |
+| EY-16 | 5 Min Chickpea Wrap | Fitgreenmind | 36초 | 설명란 | |
+| EY-17 | Slow Cooker Chicken Taco Bowls | Stealth Health Life | 44초 | 설명란 | 분량이 "g (oz)" 두 가지 |
+| EY-18 | Gambas al Ajillo | Capri Lilly | 58초 | 화면 글자 | 글에 레시피 없음 → 화면 분량 `confirmed`(가이드 v0.6) |
+| EI-05 | Easy Skillet Lasagna | thepastatable | 19초 | 캡션 | 만드는 법은 말소리 |
+| EI-06 | Sheet Pan Butternut Squash and Sausage Gnocchi | dishingouthealth | 29초 | 캡션 | 만드는 법은 말소리 |
+| EI-07 | Jumbo Baked Potato Stacks | kalejunkie | 29초 | 캡션 | 재료·만드는 법 모두 캡션. 감자 "2 Ib."는 캡션 오타 그대로 |
+| EI-08 | Chickpea Curry | budgetbytes | 37초 | 없음 | 지어낸 분량 측정용. 화면 글자는 말소리 자막 |
+
+- 수집: YouTube는 main 수집기, Instagram은 Apify 수집기(#40)로 받았다(말소리 Whisper, 화면 글자 OCR 켬). 초안은 claude-opus-5-5(평가 대상 gpt-4.1과 다른 모델), 수빈이 영상을 보며 고침(11/19). `validate.py` 오류 0개.
+- 채널: 학습셋·평가셋·개발용에 이미 쓴 채널은 뺐다. Instagram 후보 중 레시피 원작자가 EY-01과 같은 채널(sivanskitchen)인 영상도 뺐다. 새 채널 12곳은 "제외 목록" 탭에 넣는다.
+- 다양성: 볶음·국·구이·캐서롤·슬로쿠커·파스타·카레·사이드 요리, 채널당 1편. 지어낸 분량 측정용은 v1.1-en 전체에서 EI-01·EI-08 2편(EY-18은 화면 분량을 쓰게 돼서 빠짐).
+- 점수: 대표 점수는 **OCR 켬**(서비스와 같음, 화면 분량이 정답에 들어가서). OCR 끔 점수는 참고로 같이 적는다(11/20 #72 리뷰).
+- 교차 확인: 선규가 2편(EY-13·EY-17, 출처 충돌·표기 문제 영상).
+- 고정: 선규 교차 확인이 끝나는 날. 그 뒤로는 바꾸지 않는다.
 
 ## 정답 작성·교차 확인 순서
 

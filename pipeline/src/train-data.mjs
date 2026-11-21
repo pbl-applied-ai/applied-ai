@@ -7,7 +7,7 @@ import { buildUserPrompt, PROMPT_VERSION, SYSTEM_PROMPT } from './schema.mjs';
 
 const PREFIX = { asr: 'S', description: 'D', comment: 'C' };
 const TEAM_TYPE = { asr: 'asr', desc: 'description', comment: 'comment' };
-const UNTIMED_LABEL = { description: '설명', comment: '고정 댓글' };
+const UNTIMED_LABEL = { description: 'description', comment: 'pinned' };
 const pad = (n, total) => String(n).padStart(Math.max(2, String(total).length), '0');
 
 // Bundle segment IDs (asr-0, desc-0, comment-0) -> the IDs the model sees. The title is in the prompt header,

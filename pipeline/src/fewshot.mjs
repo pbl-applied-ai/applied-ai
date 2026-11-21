@@ -43,8 +43,12 @@ export function pickExamples(index, queryEmbedding, k = DEFAULT_K) {
     .map((ex) => ({ ex, score: cosine(ex.embedding, queryEmbedding) }))
     .sort((a, b) => b.score - a.score)
     .slice(0, k)
-    .map(({ ex, score }) => ({ id: ex.id, user: ex.user, assistant: ex.assistant, score }));
+    .map(({ ex, score }) => ({ id: ex.id, user: englishLabels(ex.user), assistant: ex.assistant, score }));
 }
+
+// Indexes built before prompt v10 hold the old Korean evidence labels; examples should look like the real prompt.
+export const englishLabels = (text) =>
+  text.replace(/\[(\w+) 설명\]/g, '[$1 description]').replace(/\[(\w+) 고정 댓글\]/g, '[$1 pinned]').replace(/\[(\w+ \d\d:\d\d) 화면\]/g, '[$1 on screen]');
 
 // Training JSONL (system, user, assistant per line) -> index file with one embedding per example.
 export async function buildIndex(jsonlText, { apiKey, fetchImpl = fetch, ids = [] }) {

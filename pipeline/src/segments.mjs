@@ -42,13 +42,13 @@ export const descriptionSegments = (description, { maxLines = 80 } = {}) => line
 // The creator's pinned comment, which some Shorts use instead of the description for the recipe.
 export const commentSegments = (comment, { maxLines = 80 } = {}) => lineSegments(comment, 'C', 'comment', maxLines);
 
-const UNTIMED_LABEL = { description: '설명', comment: '고정 댓글' };
+const UNTIMED_LABEL = { description: 'description', comment: 'pinned' };
 
 export function renderForPrompt(segments) {
   return segments
     .map((s) => {
       if (UNTIMED_LABEL[s.kind]) return `[${s.id} ${UNTIMED_LABEL[s.kind]}] ${s.text}`;
-      return `[${s.id} ${formatClock(s.startMs)}${s.kind === 'ocr' ? ' 화면' : ''}] ${s.text}`;
+      return `[${s.id} ${formatClock(s.startMs)}${s.kind === 'ocr' ? ' on screen' : ''}] ${s.text}`;
     })
     .join('\n');
 }

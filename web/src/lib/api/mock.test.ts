@@ -41,6 +41,11 @@ describe("createMockApi", () => {
     const runId = "run-Smpl0Gochu1";
     const before = await api.getRun(runId);
     expect(before!.recipe.ingredients.some((i) => i.amount_estimate)).toBe(false);
+    // 로그인 전: 추정값이 있는 재료에만 has_estimate(잠금 배지), 없는 재료에는 없다(#70 리뷰)
+    const guest = toEditable(before!).ingredients;
+    expect(guest.find((i) => i.name === "Garlic")?.has_estimate).toBe(true);
+    expect(guest.filter((i) => !i.amount_raw && !i.has_estimate).length).toBeGreaterThan(0);
+    expect(guest.filter((i) => i.amount_raw).every((i) => !i.has_estimate)).toBe(true);
 
     await api.signInWithGoogle("/");
     const after = await api.getRun(runId);
@@ -52,6 +57,7 @@ describe("createMockApi", () => {
     const [card] = await api.listRecipes();
     const saved = await api.getRecipe(card.id);
     expect(saved!.ingredients.some((i) => "amount_estimate" in i)).toBe(false);
+    expect(saved!.ingredients.some((i) => "has_estimate" in i)).toBe(false);
   });
 
   it("Shorts가 아닌 YouTube 링크는 unsupported_source", async () => {

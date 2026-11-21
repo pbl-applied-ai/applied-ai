@@ -111,7 +111,7 @@ test('an upload with only on-screen text makes a recipe from it, with ocr segmen
   assert.deepEqual(events.slice(0, 6), ['collect:started', 'collect:done', 'asr:started', 'asr:done', 'ocr:started', 'ocr:done']);
   assert.equal(result.recipe.ingredients[0].amount_status, 'confirmed');
   assert.equal(result.recipe.steps[0].start_ms, 3000);
-  assert.match(renderForPrompt(result.evidence), /\[O01 00:01 화면\] 1\/2 cup mozzarella/);
+  assert.match(renderForPrompt(result.evidence), /\[O01 00:01 on screen\] 1\/2 cup mozzarella/);
   const bundle = toEvidenceBundle(result);
   assert.deepEqual(bundle.segments.find((s) => s.id === 'ocr-0'), { id: 'ocr-0', type: 'ocr', start_ms: 1000, end_ms: 3000, text: '1/2 cup mozzarella' });
   assert.equal(bundle.run.stages.ocr.version, 'gpt-4.1-mini');

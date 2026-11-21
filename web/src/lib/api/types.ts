@@ -14,6 +14,7 @@ export interface TeamIngredient {
   amount_status: AmountStatus;
   amount_estimate?: { text: string; basis?: string }; // AI 추정값(KAN-52). unconfirmed에만, 로그인 전 공개 링크에서는 서버가 뺀다
   amount_source?: AmountSource | null;
+  has_estimate?: true; // 추정값이 있으면 로그인 전에도 온다(값은 서버가 뺌) → 잠금 배지(#68)
   optional?: boolean;
   evidence: string[]; // 화면에는 쓰지 않는다
 }
@@ -80,6 +81,7 @@ export interface EditableIngredient {
   amount_raw: string | null;
   amount_status: AmountStatus;
   amount_estimate?: { text: string; basis?: string }; // 아직 쓰지 않은 AI 추정값. 저장할 때는 뺀다
+  has_estimate?: true; // 추정값이 있다는 표시. 로그인 전 잠금 배지 "Sign in to see"는 이 재료에만(#68). 저장할 때는 뺀다
   amount_source?: AmountSource | null; // 화면 칩(On-screen·Voice·Description). 사용자가 고치면 뺀다
   optional?: boolean;
   edited: boolean; // 추출 결과에서 바뀌었으면 true → "직접 입력" 표시
@@ -125,7 +127,7 @@ export interface RecommendationCard {
   title: string;
   creator: string; // 크리에이터 이름. 원본 링크와 함께 항상 보여 준다(기획안 저작권 기준)
   ingredientCount: number;
-  categories?: string[]; // 홈 카테고리 칩(Pasta·Dessert…)으로 거른다
+  categories?: string[]; // 취향 태그 id(vegan·late_night·dessert·high_protein). 홈 칩으로 거른다
   thumbnailUrl?: string | null;
   saveCount?: number;
 }

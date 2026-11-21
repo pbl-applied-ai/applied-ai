@@ -36,7 +36,7 @@ test('bundle IDs map to the IDs the pipeline shows the model', () => {
   assert.deepEqual([...modelIdMap(bundle)], [['asr-0', 'S01'], ['asr-1', 'S02'], ['comment-0', 'C01'], ['desc-0', 'D01']]);
   assert.equal(
     renderBundle(bundle),
-    ['[S01 00:00] boil the eggs for 7 minutes', '[S02 01:05] then 2 tbsp soy sauce', '[D01 설명] soy sauce 2 tbsp', '[C01 고정 댓글] eggs 4'].join('\n'),
+    ['[S01 00:00] boil the eggs for 7 minutes', '[S02 01:05] then 2 tbsp soy sauce', '[D01 description] soy sauce 2 tbsp', '[C01 pinned] eggs 4'].join('\n'),
   );
 });
 
