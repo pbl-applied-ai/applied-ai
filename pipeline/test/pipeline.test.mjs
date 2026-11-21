@@ -69,7 +69,7 @@ test('descriptionSegments keeps one line per unit and skips links and hashtags',
     ['D02', 'description', '목살 200g'],
     ['D03', 'description', '고추장 2스푼'],
   ]);
-  assert.equal(renderForPrompt(d.slice(1, 2)), '[D02 설명] 목살 200g');
+  assert.equal(renderForPrompt(d.slice(1, 2)), '[D02 description] 목살 200g');
 });
 
 test('parseAmount reads verbatim amounts without converting units', () => {
@@ -884,4 +884,17 @@ test('an id that is not in the evidence is still dropped', () => {
   const r = resolveRecipe(draft({ ingredients: [ing('salt', '2 tsp', ['D09 설명'])] }), segs);
   assert.equal(r.ingredients[0].amount_text, null);
   assert.ok(r.warnings.some((w) => /dropped unknown evidence D09 설명/.test(w)));
+});
+
+test('a Korean "또는" in an English recipe is written as "or"', () => {
+  const segs = normalizeSegments([{ startMs: 0, durMs: 1000, text: 'add a grinch face decal or use a permanent marker' }]);
+  const r = resolveRecipe(draft({ ingredients: [ing('grinch face decals 또는 permanent marker', null, [], ['S01'])] }), segs);
+  assert.equal(r.ingredients[0].name, 'grinch face decals or permanent marker');
+  assert.ok(r.warnings.some((w) => /또는/.test(w)));
+});
+
+test('serving items listed with the food are dropped as equipment', () => {
+  const segs = normalizeSegments([{ startMs: 0, durMs: 1000, text: 'clear cups, straws and lime sherbet' }]);
+  const r = resolveRecipe(draft({ ingredients: [ing('Clear cups', null, [], ['S01']), ing('Straws', null, [], ['S01']), ing('lime sherbet', null, [], ['S01'])] }), segs);
+  assert.deepEqual(r.ingredients.map((i) => i.name), ['lime sherbet']);
 });

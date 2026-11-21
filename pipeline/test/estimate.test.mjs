@@ -132,3 +132,9 @@ test('replaying a saved extraction makes no estimate call, and the version says 
   assert.equal(extractorVersion(ENV).estimate, 'amount-estimate-v2');
   assert.equal(extractorVersion({ ...ENV, AMOUNT_ESTIMATE: 'off' }).estimate, undefined);
 });
+
+test('one stray Korean word does not make an English recipe Korean', () => {
+  const r = englishRecipe();
+  r.ingredients.push({ name: 'decals 또는 marker', preparation: null, amount_text: null, amount_status: 'not_in_video', is_group_header: false });
+  assert.equal(recipeLanguage(r), 'en');
+});

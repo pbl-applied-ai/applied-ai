@@ -28,9 +28,18 @@ const FILLER = [
   'thanksforwatching', 'thankyouforwatching', 'pleasesubscribe', 'seeyounexttime', 'ifyoulikemyvideopleasesubscribe',
 ];
 const squash = (text) => text.toLowerCase().replace(/[^\p{L}\p{N}]/gu, '');
+// The same outro said in other words ("구독과 좋아요를 눌러주세요", "please like and subscribe to my channel"):
+// a segment built only from these pieces is filler too. 11/20 a music-only reel came back as the first one.
+const KO_OUTRO = /^(?:구독|좋아요|알림설정|알림|설정|와|과|를|을|및|그리고|꼭|눌러|주세요|해주세요|부탁|드립니다|드려요|해요)+$/;
+const EN_OUTRO_WORDS = new Set(['please', 'like', 'and', 'subscribe', 'to', 'my', 'the', 'channel', 'dont', 'forget', 'hit', 'bell', 'thanks', 'thank', 'you', 'for', 'watching', 'so', 'much', 'see', 'next', 'time', 'bye']);
+const enOutro = (text) => {
+  const words = text.toLowerCase().replace(/[^a-z\s]/g, '').split(/\s+/).filter(Boolean);
+  return words.length > 0 && words.every((w) => EN_OUTRO_WORDS.has(w)) && words.some((w) => w === 'subscribe' || w === 'watching');
+};
 export const isFiller = (text) => {
   const t = squash(text);
-  return t.length > 0 && FILLER.some((f) => t === f || (t.includes(f) && f.length / t.length >= 0.6));
+  if (!t.length) return false;
+  return FILLER.some((f) => t === f || (t.includes(f) && f.length / t.length >= 0.6)) || KO_OUTRO.test(t) || enOutro(text);
 };
 
 // 'ko' when Hangul is a real share of the letters (a Korean caption or transcript), else null.
@@ -57,28 +66,31 @@ export function toSegments(body) {
 
 // True when the transcript is not speech: nothing left, too little text in an unexpected language,
 // or a sparse run of syllables Whisper itself was very unsure of. meanLogprob is the average avg_logprob.
-export function looksLikeNoSpeech(segments, language, durationMs, { meanLogprob = null } = {}) {
+// expected: 'en' or 'ko' when the reel's caption tells us its language. A sparse transcript in the other
+// language is music Whisper wrote words over (an English reel came back as one Korean outro line, 11/20).
+export function looksLikeNoSpeech(segments, language, durationMs, { meanLogprob = null, expected = null } = {}) {
   if (!segments.length) return true;
   if (!durationMs) return false;
   const text = segments.map((s) => s.text).join(' ');
   const sparse = text.replace(/\s/g, '').length / (durationMs / 1000) < MIN_CHARS_PER_SECOND;
   if (sparse && meanLogprob != null && meanLogprob < GIBBERISH_LOGPROB) return true;
+  if (sparse && expected && (hangulLanguage(text) ?? 'en') !== expected) return true;
   if (!language || EXPECTED_LANGUAGES.has(language.toLowerCase()) || hangulLanguage(text)) return false;
   return sparse;
 }
 
 // Whisper verbose_json -> what the collectors use. No speech comes back as no segments.
-export function readTranscript(body) {
+export function readTranscript(body, { expected = null } = {}) {
   const segments = toSegments(body);
   const language = body?.language ?? null;
   const durationMs = body?.duration != null ? Math.round(body.duration * 1000) : null;
   const probs = (body?.segments ?? []).map((s) => Number(s.avg_logprob)).filter(Number.isFinite);
   const meanLogprob = probs.length ? probs.reduce((a, b) => a + b, 0) / probs.length : null;
-  return { segments: looksLikeNoSpeech(segments, language, durationMs, { meanLogprob }) ? [] : segments, language, durationMs };
+  return { segments: looksLikeNoSpeech(segments, language, durationMs, { meanLogprob, expected }) ? [] : segments, language, durationMs };
 }
 
 // upload: { bytes: Uint8Array, filename, mime }
-export async function transcribeUpload(upload, { env = process.env, fetchImpl = fetch, language } = {}) {
+export async function transcribeUpload(upload, { env = process.env, fetchImpl = fetch, language, expected = null } = {}) {
   const apiKey = env.OPENAI_API_KEY;
   if (!apiKey) throw asrError('Set OPENAI_API_KEY to transcribe uploads.', 'internal', 'asr_config');
   if (upload.bytes.byteLength > MAX_UPLOAD_BYTES) {
@@ -117,5 +129,5 @@ export async function transcribeUpload(upload, { env = process.env, fetchImpl = 
     if (res.status === 400) throw asrError(message, 'unavailable', 'upload_unreadable');
     throw asrError(message, 'internal', 'asr_config');
   }
-  return readTranscript(body);
+  return readTranscript(body, { expected });
 }

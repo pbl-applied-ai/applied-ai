@@ -9,11 +9,13 @@ export const ESTIMATE_PROMPT_VERSION = 'amount-estimate-v2';
 
 const HANGUL = /[가-힣]/;
 
-// The extraction already writes the recipe in the video's language (schema.mjs rule 7), so any Hangul in
-// the title, names or steps means a Korean recipe; anything else is written in English.
+// The extraction already writes the recipe in the video's language (schema.mjs rule 7). A recipe is Korean when
+// most of its title, names and steps have Hangul: one stray Korean word ("A 또는 B", 11/20 Grinch Floats) used to
+// flip a whole English recipe to Korean estimates.
 export const recipeLanguage = (recipe) => {
-  const text = [recipe.title, ...recipe.ingredients.map((i) => i.name), ...recipe.steps.map((s) => s.text)].join(' ');
-  return HANGUL.test(text) ? 'ko' : 'en';
+  const fields = [recipe.title, ...recipe.ingredients.map((i) => i.name), ...recipe.steps.map((s) => s.text)].filter(Boolean);
+  const korean = fields.filter((f) => HANGUL.test(f)).length;
+  return fields.length && korean * 2 > fields.length ? 'ko' : 'en';
 };
 
 const LANGUAGE_LINE = {

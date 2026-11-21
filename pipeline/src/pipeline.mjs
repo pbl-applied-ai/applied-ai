@@ -95,7 +95,9 @@ async function collectInstagram(code, { env, fetchImpl, onStage }) {
       try {
         // Whisper guesses the language from the first seconds and often gets Korean wrong over music,
         // which garbles the whole transcript. A Korean caption tells us the language instead.
-        const asr = await transcribeUpload(media, { env, fetchImpl, language: hangulLanguage(reel.caption) ?? undefined });
+        // The caption's language also tells a sparse transcript in the other language apart as music (asr.mjs).
+        const captionLanguage = hangulLanguage(reel.caption) ?? (/[a-z]{3,}/i.test(reel.caption) ? 'en' : null);
+        const asr = await transcribeUpload(media, { env, fetchImpl, language: captionLanguage === 'ko' ? 'ko' : undefined, expected: captionLanguage });
         source.segments = asr.segments;
         source.caption.language = asr.language;
         source.video.durationMs ??= asr.durationMs;

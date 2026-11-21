@@ -129,7 +129,7 @@ test('loadSource adds the pinned comment, and a comment failure keeps the captio
 test('comment lines become C01.. evidence, labeled in the prompt, skipping links and hashtags', () => {
   const segs = commentSegments(RECIPE_COMMENT);
   assert.deepEqual(segs.map((s) => [s.id, s.kind, s.text]), [['C01', 'comment', '<재료>'], ['C02', 'comment', '고추장 2스푼, 설탕 1스푼']]);
-  assert.equal(renderForPrompt(segs), '[C01 고정 댓글] <재료>\n[C02 고정 댓글] 고추장 2스푼, 설탕 1스푼');
+  assert.equal(renderForPrompt(segs), '[C01 pinned] <재료>\n[C02 pinned] 고추장 2스푼, 설탕 1스푼');
   assert.deepEqual(commentSegments(null), []);
 });
 
