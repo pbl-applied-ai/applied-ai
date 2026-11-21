@@ -2,6 +2,7 @@
 
 import { useSearchParams } from "next/navigation";
 import { useState } from "react";
+import { GoogleMark } from "@/components/google-mark";
 import { api } from "@/lib/api";
 
 /** 로그인 뒤 돌아갈 주소. 다른 사이트로 보내지 않도록 우리 사이트 안의 경로만 받는다. */
@@ -17,8 +18,9 @@ export function safeNext(next: string | null): string {
   }
 }
 
-export function GoogleButton() {
-  const next = safeNext(useSearchParams().get("next"));
+export function GoogleButton({ returnTo }: { returnTo?: string } = {}) {
+  const fromQuery = safeNext(useSearchParams().get("next"));
+  const next = returnTo ? safeNext(returnTo) : fromQuery;
   const [busy, setBusy] = useState(false);
 
   return (
@@ -33,11 +35,9 @@ export function GoogleButton() {
           setBusy(false);
         }
       }}
-      className="btn-ghost disabled:opacity-60"
+      className="btn-ghost w-full disabled:opacity-60"
     >
-      <span aria-hidden="true" className="flex size-[22px] items-center justify-center rounded-full border-[1.5px] border-foreground text-xs font-bold">
-        G
-      </span>
+      <GoogleMark />
       {busy ? "Signing in…" : "Continue with Google"}
     </button>
   );

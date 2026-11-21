@@ -7,6 +7,7 @@ import { ACTION_LABEL, type FailAction, type Job, type JobStage, UPLOAD_ENABLED,
 import { failureView, stageText } from "@/lib/job-display";
 import { recallJobSource, rememberJobSource, sourceFileName } from "@/lib/job-source";
 import { rememberRecentJob } from "@/lib/recent-jobs";
+import { EmojiHero } from "@/components/emoji-hero";
 
 const POLL_MS = 1500;
 const MAX_POLL_ERRORS = 3;
@@ -232,13 +233,10 @@ function Failure({ title, body, actions }: { title: string; body: string; action
   return (
     <div className="flex flex-1 flex-col">
       <div className="flex flex-1 flex-col items-center justify-center gap-3 px-8 text-center">
-        <div className="flex size-16 items-center justify-center rounded-full border-2 border-foreground bg-pink-tint" aria-hidden="true">
-          <svg width="30" height="30" viewBox="0 0 24 24" fill="none" stroke="#9c2f5b" strokeWidth="2">
-            <circle cx="12" cy="12" r="9" />
-            <path d="M12 7v6M12 16.5v.5" />
-          </svg>
+        <div className="mb-4">
+          <EmojiHero emoji="🫠" sticker="oops" circle="bg-danger-tint" stickerColor="bg-card" />
         </div>
-        <p role="alert" className="text-lg font-bold">
+        <p role="alert" className="text-xl font-bold">
           {title}
         </p>
         {body && <p className="text-sm leading-relaxed whitespace-pre-line text-muted">{body}</p>}

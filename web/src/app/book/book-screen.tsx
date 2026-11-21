@@ -1,24 +1,35 @@
 "use client";
 
+// S1 레시피북(Pinch 시안 03·04·06). 로그인 전에는 로그인 화면으로 보내지 않고 이 화면 안에서 로그인을 권한다.
 import Link from "next/link";
-import { useRouter } from "next/navigation";
-import { useEffect, useState } from "react";
-import { type Job, type RecipeSummary, api } from "@/lib/api";
+import { Suspense, useEffect, useState } from "react";
+import { type Job, type RecipeSummary, type User, api } from "@/lib/api";
 import { type JobCard, jobCards } from "@/lib/book";
 import { type BookHidden, hideJob, readBookHidden } from "@/lib/book-hidden";
-import { useRequireUser } from "@/lib/use-require-user";
-import { JobCardList, RecipeCard } from "@/components/book-cards";
+import { JobCardList, RecipeGridCard } from "@/components/book-cards";
+import { EmojiHero } from "@/components/emoji-hero";
 import { TabBar } from "@/components/tab-bar";
+import { GoogleButton } from "../login/google-button";
 
 const POLL_MS = 3000;
 
 export function BookScreen() {
-  const router = useRouter();
-  const user = useRequireUser("/book");
+  const [user, setUser] = useState<User | null | undefined>(undefined); // undefined = 아직 모름
   const [jobs, setJobs] = useState<Job[] | null>(null);
   const [recipes, setRecipes] = useState<RecipeSummary[] | null>(null);
   const [failed, setFailed] = useState(false);
   const [hidden, setHidden] = useState<BookHidden | null>(null);
+
+  useEffect(() => {
+    let alive = true;
+    api.getUser().then(
+      (u) => alive && setUser(u),
+      () => alive && setUser(null),
+    );
+    return () => {
+      alive = false;
+    };
+  }, []);
 
   useEffect(() => {
     if (!user) return;
@@ -47,49 +58,46 @@ export function BookScreen() {
   }, [user]);
 
   const cards: JobCard[] = jobs && recipes && hidden ? jobCards(jobs, recipes, hidden) : [];
-  const loading = !user || ((jobs === null || recipes === null) && !failed);
+  const loading = user === undefined || (user !== null && (jobs === null || recipes === null) && !failed);
+  const count = recipes?.length ?? 0;
 
   return (
     <main className="flex flex-1 flex-col">
-      <header className="flex items-center justify-between px-5 pt-5 pb-3">
-        <h1 className="text-[28px] font-bold">Recipe book</h1>
-        <button
-          type="button"
-          aria-label="Sign out"
-          title="Sign out"
-          onClick={async () => {
-            await api.signOut();
-            router.replace("/");
-          }}
-          className="flex size-11 items-center justify-center rounded-full border border-line bg-card"
-        >
-          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#8a7a72" strokeWidth="2" aria-hidden="true">
-            <circle cx="12" cy="8" r="4" />
-            <path d="M4 21c1.5-4 4.5-6 8-6s6.5 2 8 6" />
-          </svg>
-        </button>
+      <header className="flex items-center justify-between px-6 pt-6 pb-2">
+        <h1 className="text-[28px] leading-[1.15] font-bold">My recipe book</h1>
+        {user && count > 0 && <span className="sticker bg-orange text-base">{count}</span>}
       </header>
 
-      <div className="px-5 pb-4">
-        <Link href="/?new=1" className="btn-primary">
-          + Convert a video
-        </Link>
-      </div>
+      {loading && <p className="px-6 py-10 text-center text-sm text-muted">Loading…</p>}
 
-      {loading && <p className="px-5 py-10 text-center text-sm text-muted">Loading…</p>}
+      {user === null && (
+        <section className="flex flex-col items-center px-6 pt-20 text-center">
+          <EmojiHero emoji="📖" sticker="yours" circle="bg-pink-tint" stickerColor="bg-orange" />
+          <h2 className="mt-7 text-xl font-bold">Sign in to see your recipe book</h2>
+          <p className="mt-2 text-sm leading-relaxed text-muted">
+            Your saved recipes live here.
+            <br />
+            You can still convert videos without an account.
+          </p>
+          <div className="mt-6 w-full">
+            <Suspense fallback={null}>
+              <GoogleButton returnTo="/book" />
+            </Suspense>
+          </div>
+        </section>
+      )}
 
-      {failed && (
-        <p role="alert" className="px-5 py-10 text-center text-sm text-danger">
+      {user && failed && (
+        <p role="alert" className="px-6 py-10 text-center text-sm text-danger">
           Couldn&apos;t load your recipe book. Please try again in a moment.
         </p>
       )}
 
-      {!loading && !failed && (
-        <div className="flex flex-col gap-3 px-5 pb-8">
+      {user && !loading && !failed && (
+        <div className="flex flex-col gap-3 px-6 pt-2 pb-4">
           <JobCardList
             cards={cards}
             onHide={(jobId) => {
-              if (!user) return;
               hideJob(user.id, jobId);
               setHidden(readBookHidden(user.id));
             }}
@@ -97,23 +105,24 @@ export function BookScreen() {
 
           {recipes && recipes.length > 0 && (
             <>
-              <h2 className="mt-3 text-sm font-medium text-muted">{recipes.length} saved {recipes.length === 1 ? "recipe" : "recipes"}</h2>
-              {recipes.map((r) => (
-                <RecipeCard key={r.id} recipe={r} />
-              ))}
+              <p className="mt-2 text-sm text-muted">Recently saved</p>
+              <div className="grid grid-cols-2 gap-x-3.5 gap-y-5">
+                {recipes.map((r) => (
+                  <RecipeGridCard key={r.id} recipe={r} />
+                ))}
+              </div>
             </>
           )}
 
           {recipes && recipes.length === 0 && cards.length === 0 && (
-            <div className="flex flex-col items-center gap-3 px-5 py-16 text-center">
-              <span className="sticker bg-pink text-2xl" aria-hidden="true">pinch</span>
-              <p className="text-base font-bold">No saved recipes yet</p>
-              <p className="text-sm leading-relaxed text-muted">
-                Turn the cooking shorts you saved
-                <br />
-                into recipes you can follow.
-              </p>
-            </div>
+            <section className="flex flex-col items-center pt-20 text-center">
+              <EmojiHero emoji="🍳" sticker="empty!" circle="bg-orange-tint" stickerColor="bg-pink" />
+              <h2 className="mt-7 text-xl font-bold">No recipes saved yet</h2>
+              <p className="mt-2 text-sm text-muted">Paste a cooking video link to get a recipe.</p>
+              <Link href="/convert?new=1" className="btn-primary mt-6 w-[220px]">
+                Convert a video
+              </Link>
+            </section>
           )}
         </div>
       )}
