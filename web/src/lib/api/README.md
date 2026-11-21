@@ -4,7 +4,7 @@
 
 ## 위치
 
-`web/src/lib/api` (PR #17의 `shared/api`를 옮김). 링크 형식 검사는 이 모듈의 `url.ts` 대신 `@/lib/shorts`(`checkShortsUrl`)를 쓴다. MVP는 Shorts 링크만 받는다(docs/ux-flow.md S2).
+`web/src/lib/api` (PR #17의 `shared/api`를 옮김). 링크 형식 검사는 이 모듈의 `url.ts` 대신 `@/lib/shorts`(`checkShortsUrl`)를 쓴다. YouTube Shorts와 Instagram 릴스 링크를 받는다(docs/ux-flow.md S2, KAN-62).
 
 ```ts
 'use client';
@@ -52,7 +52,9 @@ import { checkShortsUrl } from '@/lib/shorts';
 | `MOCK_LINKS.partialRecipe` | `insufficient`·`partial_recipe` → 찾은 정보가 적어요. `runId`가 있어 S4 부분 결과(조리 순서 0개)를 열 수 있다 |
 | `MOCK_LINKS.emptyRecipe` | `insufficient`·`empty_recipe` → 레시피를 찾지 못했어요 |
 | `MOCK_LINKS.internal` | `internal` → 서비스에 문제가 생겼어요 |
-| `MOCK_LINKS.unsupported` | `unsupported_source` → 링크로 가져올 수 없어요(문구표에 없어 원본 문구) |
+| `MOCK_LINKS.unsupported` | `unsupported_source` → 링크로 가져올 수 없어요(TikTok 링크) |
+| `MOCK_LINKS.reel` | Instagram 릴스. 약 5초 뒤 성공 |
+| `MOCK_LINKS.igPhoto` · `MOCK_LINKS.igDown` | `ig_not_video` 사진 게시물 · `vendor_transient` Instagram 장애 안내 |
 
 로그인은 `signInWithGoogle`을 부르면 바로 로그인된 상태로 `returnTo`를 다시 연다. 실제 구글 로그인처럼 페이지가 새로 열린다. 데이터를 지우려면 브라우저 저장소의 `mock-api-v1`을 지운다.
 

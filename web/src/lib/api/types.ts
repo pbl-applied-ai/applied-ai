@@ -128,6 +128,7 @@ export interface RecommendationCard {
   creator: string; // 크리에이터 이름. 원본 링크와 함께 항상 보여 준다(기획안 저작권 기준)
   ingredientCount: number;
   categories?: string[]; // 취향 태그 id(vegan·late_night·dessert·high_protein). 홈 칩으로 거른다
+  platform?: string | null; // youtube · instagram · upload. 카드 스티커 "▶ Shorts" / "◎ Reels"
   thumbnailUrl?: string | null;
   saveCount?: number;
 }
