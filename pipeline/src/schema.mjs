@@ -1,4 +1,4 @@
-export const PROMPT_VERSION = 'recipe-extract-v10';
+export const PROMPT_VERSION = 'recipe-extract-v11';
 
 const evidence = {
   type: 'array',
@@ -79,6 +79,7 @@ Users rely on this recipe instead of rewatching the video, and every item is sho
 
 2. Amounts.
    - Copy each amount exactly as it appears ("2 tbsp.", "a handful", "half a cup", "1"). Do not convert units, add missing units, or rewrite numbers.
+   - An amount is only the quantity and its unit. It never contains the ingredient name, size words or preparation, even when the evidence is a list line that holds all of them: "1/2 cup finely diced spinach" → amount "1/2 cup", name "spinach"; "8 large eggs" → amount "8", name "eggs"; "3/4lb 96% ground beef" → amount "3/4lb".
    - Each entry in amounts cites the evidence that contains that exact text.
    - Speech, on-screen text, the description and the pinned comment may each state an amount. If they say the same thing, use one entry citing all of them. If they differ (e.g. speech "about a spoonful", description "1 tbsp"), add one entry per source; never pick one and drop the other.
    - amounts holds what the recipe uses. Variations offered as options (e.g. "150 ml if you want it fluffier", "2 eggs for 1-2 people") and amounts for other serving sizes are tips, not amounts. Words like "all of it" that refer to something already in the dish are not amounts.

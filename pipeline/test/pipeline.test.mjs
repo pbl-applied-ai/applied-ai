@@ -8,7 +8,7 @@ import { fileURLToPath } from 'node:url';
 import { decodeCaptionText, fetchTranscript, parseCaptionXml, parseVideoId, watchUrl } from '../src/youtube.mjs';
 import { descriptionSegments, normalizeSegments, renderForPrompt } from '../src/segments.mjs';
 import { parseAmount } from '../src/ingredients.mjs';
-import { resolveRecipe } from '../src/resolve.mjs';
+import { amountOnly, resolveRecipe } from '../src/resolve.mjs';
 import { extractRecipe, resolveProvider } from '../src/llm.mjs';
 import { runPipeline } from '../src/pipeline.mjs';
 import { PROMPT_VERSION, RECIPE_SCHEMA } from '../src/schema.mjs';
@@ -897,4 +897,29 @@ test('serving items listed with the food are dropped as equipment', () => {
   const segs = normalizeSegments([{ startMs: 0, durMs: 1000, text: 'clear cups, straws and lime sherbet' }]);
   const r = resolveRecipe(draft({ ingredients: [ing('Clear cups', null, [], ['S01']), ing('Straws', null, [], ['S01']), ing('lime sherbet', null, [], ['S01'])] }), segs);
   assert.deepEqual(r.ingredients.map((i) => i.name), ['lime sherbet']);
+});
+
+test('an amount copied with its whole list line keeps only the quantity and unit (#73 dev check)', () => {
+  const segs = descriptionSegments('3/4lb 96% ground beef\n8 large eggs\n1/2 cup finely diced spinach\n1 (16-oz.) pkg. cream cheese\n2 tbsp olive oil');
+  const r = resolveRecipe(
+    draft({
+      ingredients: [
+        ing('ground beef', '3/4lb 96% ground beef', ['D01']),
+        ing('eggs', '8 large eggs', ['D02']),
+        ing('spinach', '1/2 cup finely diced spinach', ['D03']),
+        ing('cream cheese', '1 (16-oz.) pkg. cream cheese', ['D04']),
+        ing('olive oil', '2 tbsp', ['D05']),
+      ],
+    }),
+    segs,
+  );
+  assert.deepEqual(r.ingredients.map((i) => i.amount_text), ['3/4lb', '8', '1/2 cup', '1 (16-oz.) pkg.', '2 tbsp']);
+  assert.equal(r.warnings.filter((w) => /held the ingredient line/.test(w)).length, 4);
+});
+
+test('amountOnly leaves amounts without the name, or with nothing countable before it, as they are', () => {
+  assert.equal(amountOnly('a handful of basil', 'basil'), 'a handful');
+  assert.equal(amountOnly('some fresh basil', 'basil'), 'some fresh basil');
+  assert.equal(amountOnly('간장 2큰술', '간장'), '간장 2큰술');
+  assert.equal(amountOnly('2큰술', '간장'), '2큰술');
 });
