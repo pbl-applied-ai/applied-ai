@@ -855,3 +855,33 @@ test('an English amount followed by the ingredient name is confirmed; one cut in
   assert.equal(check('1/2 cup mozzarella', '1/2 cup', 'mozzarella'), 'confirmed');
   assert.equal(check('2 cups flour', '2 c', 'flour'), 'needs_review');
 });
+
+test('evidence cited with its label ("D02 설명", "[S01 00:00]") still counts, so caption amounts are kept', () => {
+  const segs = [
+    ...normalizeSegments([{ startMs: 0, durMs: 1000, text: 'stack the potatoes in a muffin tin' }]),
+    { id: 'D01', kind: 'description', startMs: null, endMs: null, text: 'Makes 8 jumbo potato stacks' },
+    { id: 'D02', kind: 'description', startMs: null, endMs: null, text: '1 1/4 cups half-and-half' },
+  ];
+  const r = resolveRecipe(
+    draft({
+      ingredients: [ing('half-and-half', '1 1/4 cups', ['D02 설명'])],
+      steps: [{ text: 'Stack the potatoes.', evidence: ['[S01 00:00]'], is_group_header: false }],
+      servings: '8 jumbo potato stacks',
+      servings_evidence: ['D01 설명'],
+    }),
+    segs,
+  );
+  assert.equal(r.ingredients[0].amount_text, '1 1/4 cups');
+  assert.equal(r.ingredients[0].amount_status, 'confirmed');
+  assert.deepEqual(r.ingredients[0].evidence.map((e) => e.segment_id), ['D02']);
+  assert.deepEqual(r.steps[0].evidence.map((e) => e.segment_id), ['S01']);
+  assert.equal(r.servings_text, '8 jumbo potato stacks');
+  assert.ok(!r.warnings.some((w) => /unknown evidence/.test(w)), r.warnings.join('\n'));
+});
+
+test('an id that is not in the evidence is still dropped', () => {
+  const segs = [{ id: 'D01', kind: 'description', startMs: null, endMs: null, text: '2 tsp salt' }];
+  const r = resolveRecipe(draft({ ingredients: [ing('salt', '2 tsp', ['D09 설명'])] }), segs);
+  assert.equal(r.ingredients[0].amount_text, null);
+  assert.ok(r.warnings.some((w) => /dropped unknown evidence D09 설명/.test(w)));
+});
