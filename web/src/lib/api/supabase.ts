@@ -75,6 +75,14 @@ const publicSource = (sourceUrl: string) => (sourceUrl.startsWith('upload:') ? '
 // 목 레시피북에 저장할 때 원본 링크를 채우려고 runId → 링크를 기억해 둔다(목은 실제 run을 모른다).
 const SOURCE_KEY = 'supabase-run-sources-v1';
 
+// list_featured 한 줄(supabase/migrations/20261117120000_kan73_read_apis.sql). 화면에 쓰는 칸만 적는다.
+interface FeaturedRow {
+  run_id: string;
+  title: string | null;
+  creator: string | null;
+  ingredient_count: number | null;
+}
+
 export function createSupabaseApi(base: RecipeApi, options: SupabaseOptions): RecipeApi {
   const apiBase = options.url.replace(/\/$/, '');
   const endpoint = `${apiBase}/rest/v1/rpc`;
@@ -146,9 +154,24 @@ export function createSupabaseApi(base: RecipeApi, options: SupabaseOptions): Re
   const demo: RecipeApi = {
     ...base,
 
-    // 추천 묶음은 아직 저장 방식이 없다(KAN-60·73). 목 묶음이 배포 화면에 보이지 않게 빈 목록을 준다.
+    // 홈 추천(S6): 운영자가 featured_runs에 넣은 결과를 position 순서대로 받는다(list_featured, #63).
+    // 지금은 한 묶음 "Trending now"로 보여 준다. 비었거나 못 불러오면 빈 목록 → 홈이 칸을 숨긴다.
+    // 지어낸 추천은 보여 주지 않는다(#69 선규 리뷰: 영상에 있는 것만).
     async listRecommendations() {
-      return [];
+      const rows = await rpc<FeaturedRow[]>('list_featured', {}).catch(() => null);
+      if (!rows || rows.length === 0) return [];
+      return [
+        {
+          id: 'trending',
+          title: 'Trending now',
+          cards: rows.map((r) => ({
+            runId: r.run_id,
+            title: r.title?.trim() || 'Untitled recipe',
+            creator: r.creator?.trim() || '',
+            ingredientCount: r.ingredient_count ?? 0,
+          })),
+        },
+      ];
     },
 
     async createJob(sourceUrl) {
