@@ -1,17 +1,20 @@
 "use client";
 
 // S6 한 화면 홈(Pinch 시안 01). 로그인 전·후 같은 홈을 쓴다.
-// 위에서부터 로고·설정 → 제목 → 검색 → 카테고리 → Trending 카드 → "만드는 중" 카드 → 내 최근 레시피.
+// 위에서부터 로고·설정 → 제목 → 검색 → 카테고리 → Trending 카드 → 시즌 특집 → 주제별 줄 → "만드는 중" 카드 → 내 최근 레시피.
 // 링크 넣기는 하단 탭 가운데 Convert(/convert)로 옮겼다.
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import { JobCardList, RecipeCard } from "@/components/book-cards";
 import { Logo } from "@/components/logo";
 import { TabBar } from "@/components/tab-bar";
-import { Thumb } from "@/components/thumb";
-import { type Job, type RecipeSummary, type RecommendationCard, type RecommendationGroup, type User, api } from "@/lib/api";
+import { RecipeRow } from "@/components/recipe-tile";
+import { HOME_EDITORIAL } from "@/content/home";
+import { type Job, type RecipeSummary, type RecommendationGroup, type User, api } from "@/lib/api";
 import { jobCards } from "@/lib/book";
-import { FEATURED_CHIPS, type FeaturedChipId, saveCountText } from "@/lib/featured";
+import { FEATURED_CHIPS, type FeaturedChipId } from "@/lib/featured";
+import { resolveEditorial } from "@/lib/home-editorial";
+import { IssueHero } from "./issue-hero";
 import { type BookHidden, hideJob, readBookHidden } from "@/lib/book-hidden";
 import { recentJobIds } from "@/lib/recent-jobs";
 
@@ -30,6 +33,7 @@ export function HomeScreen() {
   const [user, setUser] = useState<User | null | undefined>(undefined); // undefined = 아직 모름
   const [mine, setMine] = useState<Mine | null>(null);
   const [groups, setGroups] = useState<RecommendationGroup[]>([]);
+  const [today, setToday] = useState<Date | null>(null); // 특집 기한 비교용. 미리 렌더링 때는 읽지 않는다
   const [query, setQuery] = useState("");
   const [category, setCategory] = useState<FeaturedChipId>("all");
 
@@ -41,7 +45,11 @@ export function HomeScreen() {
     );
     // 추천을 못 불러오면 묶음 칸만 숨긴다. 홈의 다른 부분은 그대로 쓴다
     api.listRecommendations().then(
-      (g) => alive && setGroups(g),
+      (g) => {
+        if (!alive) return;
+        setGroups(g);
+        setToday(new Date());
+      },
       () => {},
     );
     return () => {
@@ -73,20 +81,30 @@ export function HomeScreen() {
     };
   }, [user]);
 
+  // 시즌 특집·주제별 줄(content/home.ts). 칩·검색과 상관없이 고정이다(screen-data H).
+  const editorial = useMemo(
+    () => (today ? resolveEditorial(HOME_EDITORIAL, groups, today) : { issue: null, shelves: [], usedRunIds: new Set<string>() }),
+    [groups, today],
+  );
+
   // 검색은 추천 목록 안에서만 거른다(웹에서, #64 리뷰). 요리명·크리에이터로 찾는다.
+  // 거르지 않을 때 Trending은 편집 영역에 나온 레시피를 빼고 보여 준다(같은 카드가 두 번 안 나오게).
+  // 칩·검색을 쓰면 편집 영역 레시피까지 모두에서 찾는다
   const shown = useMemo(() => {
     const q = query.trim().toLowerCase();
+    const searching = q !== "" || category !== "all";
     return groups
       .map((g) => ({
         ...g,
         cards: g.cards.filter(
           (c) =>
+            (searching || !editorial.usedRunIds.has(c.runId)) &&
             (category === "all" || (c.categories ?? []).includes(category)) &&
             (!q || c.title.toLowerCase().includes(q) || c.creator.toLowerCase().includes(q)),
         ),
       }))
       .filter((g) => g.cards.length > 0);
-  }, [groups, query, category]);
+  }, [groups, query, category, editorial]);
   const filtering = query.trim() !== "" || category !== "all";
 
   const cards = mine ? jobCards(mine.jobs, mine.recipes, mine.hidden) : [];
@@ -150,20 +168,16 @@ export function HomeScreen() {
       </nav>
 
       {shown.map((group) => (
-        <section key={group.id} aria-labelledby={`reco-${group.id}`} className="flex flex-col pt-6">
-          <h2 id={`reco-${group.id}`} className="px-6 text-xl font-bold">
-            {group.title}
-          </h2>
-          <ul className="mt-3 flex snap-x snap-mandatory gap-3 overflow-x-auto scroll-px-6 px-6 pb-1 [scrollbar-width:none]">
-            {group.cards.map((card) => (
-              <TrendingCard key={card.runId} card={card} />
-            ))}
-          </ul>
-        </section>
+        <RecipeRow key={group.id} id={`reco-${group.id}`} title={group.title} cards={group.cards} />
       ))}
       {filtering && shown.length === 0 && groups.length > 0 && (
         <p className="px-6 pt-6 text-sm text-muted">No recipes match. Try another word or category.</p>
       )}
+
+      {editorial.issue && <IssueHero issue={editorial.issue} />}
+      {editorial.shelves.map((shelf, i) => (
+        <RecipeRow key={shelf.title} id={`shelf-${i}`} title={shelf.title} cards={shelf.cards} />
+      ))}
 
       {cards.length > 0 && (
         <section aria-label="Recipes in progress" className="flex flex-col gap-3 px-6 pt-8">
@@ -201,33 +215,6 @@ export function HomeScreen() {
 
       <TabBar />
     </main>
-  );
-}
-
-function TrendingCard({ card }: { card: RecommendationCard }) {
-  const saves = saveCountText(card.saveCount);
-  return (
-    <li className="w-[226px] shrink-0 snap-start">
-      <Link href={`/r/${encodeURIComponent(card.runId)}`} className="flex flex-col gap-2">
-        <span className="relative block">
-          <Thumb src={card.thumbnailUrl} className="h-[214px] w-full rounded-[20px]" />
-          <span className="sticker absolute top-3 left-3 bg-card text-xs">{card.platform === "instagram" ? "◎ Reels" : "▶ Shorts"}</span>
-          {saves && <span className="sticker absolute right-3 bottom-3 bg-orange text-sm">{saves}</span>}
-        </span>
-        <span className="flex items-start justify-between gap-2">
-          <span className="flex min-w-0 flex-col">
-            <span className="line-clamp-2 text-[17px] leading-snug font-bold">{card.title}</span>
-            <span className="mt-0.5 truncate text-xs text-muted">
-              {card.creator ? `${card.creator} · ` : ""}
-              {card.ingredientCount} ingredients
-            </span>
-          </span>
-          <span className="flex size-[34px] shrink-0 items-center justify-center rounded-full bg-ink text-xl text-white" aria-hidden="true">
-            +
-          </span>
-        </span>
-      </Link>
-    </li>
   );
 }
 
