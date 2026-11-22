@@ -115,6 +115,29 @@ const UNIT_FAMILY = {
   clove: 'clove', cloves: 'clove', 쪽: 'clove',
 };
 const unitFamily = (u) => (u ? UNIT_FAMILY[u.toLowerCase()] ?? u.toLowerCase() : null);
+
+// The model sometimes copies a whole list line ("8 large eggs", "1/2 cup finely diced spinach") as the amount.
+// When the amount holds the ingredient's name after some text, keep what comes before the name and drop trailing
+// words that are neither numbers nor units: "8", "1/2 cup", "3/4lb", "1 (16-oz.) pkg.". If nothing is left, keep it.
+const LIST_UNITS = new Set([
+  ...Object.keys(UNIT_FAMILY), 'c', 'pkg', 'package', 'packages', 'can', 'cans', 'jar', 'jars', 'bag', 'bags', 'box',
+  'boxes', 'bottle', 'bottles', 'container', 'containers', 'stick', 'sticks', 'slice', 'slices', 'piece', 'pieces',
+  'bunch', 'bunches', 'handful', 'handfuls', 'head', 'heads', 'sprig', 'sprigs', 'dash', 'dashes', 'scoop', 'scoops',
+  'block', 'blocks', 'fillet', 'fillets', 'cube', 'cubes', 'sheet', 'sheets', 'stalk', 'stalks', 'drop', 'drops',
+  'qt', 'quart', 'quarts', 'pint', 'pints', 'gallon', 'gallons',
+]);
+export function amountOnly(text, name) {
+  const at = text && name ? text.toLowerCase().indexOf(name.trim().toLowerCase()) : -1;
+  if (at <= 0) return text;
+  const words = text.slice(0, at).trim().split(/\s+/);
+  while (words.length) {
+    const w = words.at(-1);
+    const number = /[\d½⅓⅔¼¾⅛]/.test(w) && !/%$/.test(w); // "96%" in "96% ground beef" is part of the name
+    if (number || /[()]/.test(w) || LIST_UNITS.has(w.toLowerCase().replace(/[.,]+$/, ''))) break;
+    words.pop();
+  }
+  return words.length ? words.join(' ') : text;
+}
 const ENGLISH_BEFORE = /(?:twenty|thirty|forty|fifty|sixty|seventy|eighty|ninety|hundred|half|and|-)$/;
 const NUMBER_ONLY = /^[\d.,/\s~\-–½⅓⅔¼¾]+$/;
 
@@ -270,8 +293,10 @@ function linkedTo(seg, prev, next, amt, owner, names) {
 // it is not tied to this ingredient there, or it is a bare number.
 function amountEntry(a, ctx, label, warnings) {
   const { byId, prevSpeech, nextSpeech, owner, names } = ctx;
-  const text = optional(a?.text);
-  if (!text) return null;
+  const copied = optional(a?.text);
+  if (!copied) return null;
+  const text = amountOnly(copied, ctx.name);
+  if (text !== copied) warnings.push(`${label}: amount "${copied}" held the ingredient line, kept "${text}"`);
   const ids = citations(a.evidence, byId, `${label} amount "${text}"`, warnings);
   if (!ids.length) {
     warnings.push(`${label}: amount "${text}" has no valid evidence, dropped`);
@@ -399,7 +424,7 @@ export function resolveRecipe(rawLlm, segments) {
   const ingredients = merged.map((ing, i) => {
     const label = `ingredient ${i + 1} (${ing.name})`;
     const ids = citations(ing.evidence, byId, label, warnings);
-    const ctx = { byId, prevSpeech, nextSpeech, owner: i, names };
+    const ctx = { byId, prevSpeech, nextSpeech, owner: i, names, name: ing.name };
     const amounts = ing.is_group_header
       ? []
       : (ing.amounts || []).map((a) => amountEntry(a, ctx, label, warnings)).filter(Boolean);
