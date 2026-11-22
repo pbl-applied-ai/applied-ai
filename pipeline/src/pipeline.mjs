@@ -72,6 +72,8 @@ async function collectUpload(upload, { env, fetchImpl, onStage }) {
 // Longer videos get a 500 after about a minute every time (a 17 MB one did, 6 MB ones did not), so with a
 // caption to fall back on, a video is not worth retrying. The audio file has not shown this.
 // Speech lost to a passing failure is marked (speechLost): the result is shown but not reused from the cache.
+// Apify sometimes leaves out the audio file it gave before, and its video can come without a sound track,
+// which the recognizer rejects as unreadable. That loss is passing too: the next read may carry the audio.
 async function collectInstagram(code, { env, fetchImpl, onStage }) {
   const { reel, media, speechLost: mediaLost } = await inStage(onStage, 'collect', async () => {
     if (!instagramEnabled(env)) {
@@ -104,8 +106,9 @@ async function collectInstagram(code, { env, fetchImpl, onStage }) {
       } catch (err) {
         const rejected = ['upload_too_large', 'upload_unreadable'].includes(err?.reason);
         const videoStuck = err?.reason === 'asr_transient' && media.filename === 'video.mp4' && reel.caption.trim();
+        const silentVideo = err?.reason === 'upload_unreadable' && media.filename === 'video.mp4' && reel.vendor === 'apify';
         if (!rejected && !videoStuck) throw err;
-        if (videoStuck) source.speechLost = true;
+        if (videoStuck || silentVideo) source.speechLost = true;
       }
     });
   } else {
