@@ -1,8 +1,9 @@
-# 화면별 정보 v0.5 (KAN-72)
+# 화면별 정보 v0.6 (KAN-72)
 
-작성: 김선규 · 2026-11-14 · 수정: 2026-11-20 · 팀 검토용
+작성: 김선규 · 2026-11-14 · 수정: 2026-11-21 · 팀 검토용
 기준: **확정 플로우 "applied ai 플로우 v3"**(14장, 앱 이름 pinch, 영어 화면), `web/src/lib/api/types.ts`, `supabase/migrations/`, 스키마 v0.2.
 변경(v0.2): v0.1은 UX v0.7(한 화면 홈)을 기준으로 썼다. 확정 플로우 v3에 맞춰 화면 목록·정보·API를 다시 썼다. v3가 기존 결정과 다른 곳은 [3절](#3-기존-결정과-다른-곳-팀-확인)에 모았다.
+변경(v0.6, 11/21): 홈 편집 파일 `web/src/content/home.ts`와 시즌 특집·특집 페이지 `/issue/<slug>`·주제별 줄을 만듦(크리스마스 특집 5편, "One pot, zero mess" 5편 — Nutrient Matters 1편은 #79 병합 뒤 추가). 거르지 않을 때 Trending은 편집 영역에 나온 레시피를 빼고 보여 주고, 칩·검색은 편집 영역 레시피까지 찾는다. 편집 파일 타입은 `web/src/lib/home-editorial.ts`에 둠. 2절 H·7절 5번 고침.
 변경(v0.5, 11/20): Home을 에디토리얼 구성으로 바꿈(수빈 결정, NYT Cooking 홈의 순서만 참고하고 디자인은 Pinch). 칩은 시즌 묶음이 아니라 **취향 칩**(All / Vegan / Late night / Dessert / High protein), 시즌(크리스마스 등)은 홈을 내리면 나오는 **시즌 특집**으로. 편집 내용(특집·에디터 노트·줄·컬렉션)은 웹 정적 파일, 레시피 자체는 `list_featured()`. 3절 8번, 4절 1·11번, 5절, 7절 1·5번 같이 고침. #74 리뷰(선규): Halal 칩은 영상만으로 판단할 수 없어서 **Dessert**로 바꿈, 취향 태그를 붙이는 기준과 조회수 배지 기준을 2절 H에 적음.
 변경(v0.4, 11/17): 구현(#63·후속)에 맞춤. 카테고리 붙이기는 저장 함수 인자 대신 `set_recipe_categories`(저장 뒤 이어서 부름), 재료에 `has_estimate`(로그인 전 잠금 배지, #64 시안), 추천 목록의 업로드 원본 주소는 null.
 변경(v0.3, 11/16): 7절 응답 타입 추가. 3절 결정 반영(유란 11/15, 수빈 11/16: 로그인 전 추정값은 빼기 그대로, 하루 한도 10/3개 + 로그인 전 전체 상한, 서비스 OCR 켬). 4절·7절 서로 안 맞던 곳 정리, 출처 칩 우선순위, `get_run` 권한 다시 주기, Home [+] 저장 흐름(#57 수빈 리뷰).
@@ -48,10 +49,10 @@ Recipe book 카드 ─▶ 저장한 레시피(R과 같은 배치, 고치기)
 | 검색 "Search recipes or ingredients" | 추천 레시피의 요리명·재료 이름 | 추천 목록을 받아 **웹에서 거름**(20~40편이라 서버 검색 불필요) | 없음 (추천 목록에 재료 이름 포함) |
 | 취향 칩 All / Vegan / Late night / Dessert / High protein | 추천 레시피의 취향 태그 | 추천 목록 | 없음 (3절 8번, 11/20). 배포 DB `featured_runs.categories` 제약을 이 4개로 바꾸는 마이그레이션 필요(선규) |
 | Trending now 카드: 사진, ▶Shorts 표시, 요리명, 크리에이터 @계정, 재료 요약("Ramen, egg, bacon, cheese"), 시간, 조회수 배지, [+] 바로 저장 | `thumbnail_url`, 플랫폼, `title`, `creator`, 재료 이름 앞 3~4개, 시간, 편집 파일의 `viewsLabel` | `list_featured()` + 편집 파일 | 없음 |
-| **시즌 특집**(대표 기사): 큰 사진, "Holiday issue" 스티커, 헤드라인, 한두 줄 설명, "Open the issue" | 편집 파일의 `issue`(제목·설명·커버 run) | 편집 파일 + `list_featured()` | 없음 (4절 11번) |
-| 특집 페이지(Open the issue): 호 표지, 커버 스토리 1편(큰 사진·기사형 헤드라인·설명), 나머지 레시피 카드, 인용구 한 줄 | 편집 파일의 `issue.stories[]` | 같음 | 없음. 새 화면 `/issue/<slug>` |
+| **시즌 특집**(대표 기사): 큰 사진, "Holiday issue" 스티커, 헤드라인, 한두 줄 설명, "Open the issue" | 편집 파일의 `issue`(제목·설명·커버 run) | 편집 파일 + `list_featured()` | 있음 (4절 11번) |
+| 특집 페이지(Open the issue): 호 표지, 커버 스토리 1편(큰 사진·기사형 헤드라인·설명), 나머지 레시피 카드, 인용구 한 줄 | 편집 파일의 `issue.stories[]` | 같음 | 있음. `/issue/<slug>` |
 | **This week on Pinch**(에디터 노트): 짧은 글, 번호 붙은 추천 3개, "— 이름, Pinch editor" | 편집 파일의 `note` | 편집 파일 | 없음. 발표 전까지 수빈이 한 번 쓴다 |
-| **주제별 줄**(예: "Christmas cookies") + See all, 옆으로 넘기는 카드 | 편집 파일의 `shelves[]`(제목 + run 목록) | 편집 파일 + `list_featured()` | 없음 |
+| **주제별 줄**(예: "Christmas cookies") + See all, 옆으로 넘기는 카드 | 편집 파일의 `shelves[]`(제목 + run 목록) | 편집 파일 + `list_featured()` | 있음 (See all은 아직 없음) |
 | **Collections** 타일(예: "Party dips and bites · 8 recipes") | 편집 파일의 `collections[]` | 같음 | 없음. See all은 줄과 같은 목록 화면 |
 | [+] 바로 저장 흐름 | `saveRecipe`는 레시피 전체가 필요해서 `getRun(runId)`를 먼저 부르고 `EditableRecipe`로 바꿔 저장. 로그인 전이면 L 로그인 시트 → K 카테고리 시트. 이미 저장했으면(`myRecipeId`) [+] 대신 저장됨(라임 체크). 편집 영역 카드도 같다 | `getRun` → `saveRecipe` | 있음(웹 연결만) |
 | "12K saves" | 이 run을 저장한 사람 수 | `list_featured()`의 `save_count` | 없음 (3절 6번). 처음엔 숨겨지니 조회수 배지가 그 자리를 대신한다 |
@@ -347,7 +348,7 @@ updateRecipe(id: string, draft: EditableRecipe, options?: { categoryIds?: string
 - 카테고리 이름 바꾸기·지우기는 v3에 없어서 이번엔 만들지 않는다.
 - 사용자 한 명당 카테고리 최대 20개.
 
-### 5. 홈 편집 파일 — `web/src/content/home.ts` (11/20, 서버 없음)
+### 5. 홈 편집 파일 — `web/src/content/home.ts` (11/20, 서버 없음. 타입은 `web/src/lib/home-editorial.ts`)
 
 ```ts
 export interface HomeStory {
@@ -377,7 +378,8 @@ export interface HomeEditorial {
 }
 ```
 
-- run이 `list_featured()`에 없으면 그 카드는 빼고 그린다(편집 파일과 DB가 어긋나도 화면은 안 깨지게).
+- run이 `list_featured()`에 없으면 그 카드는 빼고 그린다(편집 파일과 DB가 어긋나도 화면은 안 깨지게). 커버 run이 없으면 남은 첫 이야기를 커버로 올린다.
+- 그래서 편집 파일에 넣은 run은 배포 DB `featured_runs`에도 넣어야 보인다(태그 없이 `{}`도 된다).
 
 ### 같이 바뀌는 것
 
