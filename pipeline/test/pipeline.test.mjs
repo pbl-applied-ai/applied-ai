@@ -8,7 +8,7 @@ import { fileURLToPath } from 'node:url';
 import { decodeCaptionText, fetchTranscript, parseCaptionXml, parseVideoId, watchUrl } from '../src/youtube.mjs';
 import { descriptionSegments, normalizeSegments, renderForPrompt } from '../src/segments.mjs';
 import { parseAmount } from '../src/ingredients.mjs';
-import { amountOnly, resolveRecipe } from '../src/resolve.mjs';
+import { amountOnly, isNotAnAmount, resolveRecipe } from '../src/resolve.mjs';
 import { extractRecipe, resolveProvider } from '../src/llm.mjs';
 import { runPipeline } from '../src/pipeline.mjs';
 import { PROMPT_VERSION, RECIPE_SCHEMA } from '../src/schema.mjs';
@@ -922,4 +922,16 @@ test('amountOnly leaves amounts without the name, or with nothing countable befo
   assert.equal(amountOnly('some fresh basil', 'basil'), 'some fresh basil');
   assert.equal(amountOnly('간장 2큰술', '간장'), '간장 2큰술');
   assert.equal(amountOnly('2큰술', '간장'), '2큰술');
+});
+
+test('a possessive or article copied as an amount ("add in your rice") is dropped, not confirmed', () => {
+  const segs = normalizeSegments([{ startMs: 0, durMs: 1000, text: 'add in your rice cover with some broth' }]);
+  const r = resolveRecipe(draft({ ingredients: [ing('rice', 'your', ['S01']), ing('broth', 'some', ['S01'])] }), segs);
+  assert.equal(r.ingredients[0].amount_text, null);
+  assert.equal(r.ingredients[0].amount_status, 'not_in_video');
+  assert.ok(r.warnings.some((w) => /"your" is not an amount/.test(w)));
+  assert.equal(r.ingredients[1].amount_text, 'some');
+  assert.equal(isNotAnAmount('the'), true);
+  assert.equal(isNotAnAmount('a cup'), false);
+  assert.equal(isNotAnAmount('some'), false);
 });

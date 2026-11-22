@@ -289,12 +289,23 @@ function linkedTo(seg, prev, next, amt, owner, names) {
   });
 }
 
+// Words the model sometimes copies as an amount from speech like "add in your rice": they say nothing about how much.
+const NOT_AN_AMOUNT = new Set([
+  'your', 'my', 'our', 'their', 'his', 'her', 'its', 'the', 'this', 'that', 'these', 'those', 'it', 'them', 'of',
+  '네', '내', '그', '이', '저',
+]);
+export const isNotAnAmount = (text) => text.toLowerCase().split(/\s+/).every((w) => NOT_AN_AMOUNT.has(w.replace(/[.,!?]+$/, '')));
+
 // One stated amount. It needs review when its text is not in the cited evidence as a whole number,
 // it is not tied to this ingredient there, or it is a bare number.
 function amountEntry(a, ctx, label, warnings) {
   const { byId, prevSpeech, nextSpeech, owner, names } = ctx;
   const copied = optional(a?.text);
   if (!copied) return null;
+  if (isNotAnAmount(copied)) {
+    warnings.push(`${label}: amount "${copied}" is not an amount, dropped`);
+    return null;
+  }
   const text = amountOnly(copied, ctx.name);
   if (text !== copied) warnings.push(`${label}: amount "${copied}" held the ingredient line, kept "${text}"`);
   const ids = citations(a.evidence, byId, `${label} amount "${text}"`, warnings);
