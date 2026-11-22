@@ -5,6 +5,8 @@
 -- - 캐시로 끝난 job(이미 있던 성공 run을 다시 쓴 것)은 파이프라인 비용이 없어서 세지 않는다.
 --   아직 처리 전인 job은 캐시로 끝날지 모르므로 센다.
 -- - "하루"는 한국 시간 0시에 바뀐다(팀·데모 기준).
+-- - service_role(팀의 추천·카드뉴스 변환)은 한도를 보지 않는다. 다만 requested_by가 비어 있어
+--   그날 로그인 전 전체 개수에는 들어간다.
 -- 넘으면 SQLSTATE PT429('daily limit: user' 또는 'daily limit: anon'). PostgREST가 HTTP 429로 돌려준다.
 
 create index jobs_anon_created_idx on public.jobs (created_at) where requested_by is null;
@@ -28,6 +30,10 @@ language plpgsql security definer set search_path = '' as $$
 declare
   v_user uuid := auth.uid();
 begin
+  -- 팀이 service_role로 넣는 홈 추천·카드뉴스 변환은 세지도 막지도 않는다(#78 수빈 리뷰)
+  if auth.role() = 'service_role' then
+    return;
+  end if;
   perform pg_advisory_xact_lock(hashtext('daily_limit:' || coalesce(v_user::text, 'anon')));
   if v_user is null then
     if public.jobs_today(null) >= 50 then

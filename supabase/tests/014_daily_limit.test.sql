@@ -1,7 +1,7 @@
 -- 하루 변환 한도: 로그인 10개, 로그인 전 전체 50개, 캐시로 끝난 job·어제 job은 세지 않는다.
 begin;
 create extension if not exists pgtap with schema extensions;
-select plan(10);
+select plan(11);
 
 insert into auth.users (id, email) values
   ('11111111-1111-1111-1111-111111111111', 'a@example.com'),
@@ -46,6 +46,12 @@ select lives_ok($$ select public.create_job('https://www.youtube.com/shorts/a50'
 select throws_ok($$ select public.create_job('https://www.youtube.com/shorts/a51') $$, 'PT429', 'daily limit: anon',
                  '로그인 전 전체 51번째는 막힌다');
 select throws_ok($$ select * from public.get_quota() $$, '42501', null, '로그인 전에는 get_quota를 못 부른다');
+
+-- 팀 추천 변환(service_role)은 로그인 전 전체가 찼어도 막지 않는다
+reset role;
+set local role service_role;
+select set_config('request.jwt.claims', '{"role": "service_role"}', true);
+select lives_ok($$ select public.create_job('https://www.youtube.com/shorts/team1') $$, 'service_role은 한도를 보지 않는다');
 
 reset role;
 select is((select count(*)::integer from public.jobs where requested_by = '11111111-1111-1111-1111-111111111111'
