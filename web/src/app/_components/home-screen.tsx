@@ -211,7 +211,7 @@ function TrendingCard({ card }: { card: RecommendationCard }) {
       <Link href={`/r/${encodeURIComponent(card.runId)}`} className="flex flex-col gap-2">
         <span className="relative block">
           <Thumb src={card.thumbnailUrl} className="h-[214px] w-full rounded-[20px]" />
-          <span className="sticker absolute top-3 left-3 bg-card text-xs">▶ Shorts</span>
+          <span className="sticker absolute top-3 left-3 bg-card text-xs">{card.platform === "instagram" ? "◎ Reels" : "▶ Shorts"}</span>
           {saves && <span className="sticker absolute right-3 bottom-3 bg-orange text-sm">{saves}</span>}
         </span>
         <span className="flex items-start justify-between gap-2">

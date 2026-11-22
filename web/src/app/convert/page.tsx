@@ -14,7 +14,7 @@ export default function ConvertPage() {
       </header>
       <section className="px-6 pt-2">
         <h1 className="text-[28px] leading-[1.15] font-bold">Convert a video</h1>
-        <p className="mt-2 text-sm text-muted">Paste a link from YouTube Shorts.</p>
+        <p className="mt-2 text-sm text-muted">Paste a link from YouTube Shorts or Instagram Reels.</p>
       </section>
       <LinkInputForm />
     </main>

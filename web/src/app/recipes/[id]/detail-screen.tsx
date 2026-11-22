@@ -8,6 +8,7 @@ import { type UserRecipe, api } from "@/lib/api";
 import { shortDate } from "@/lib/book";
 import { rememberSavedRun } from "@/lib/book-hidden";
 import { useRequireUser } from "@/lib/use-require-user";
+import { sourcePlatformLabel } from "@/lib/shorts";
 
 type Load = { kind: "loading" } | { kind: "missing" } | { kind: "ready"; recipe: UserRecipe };
 
@@ -79,7 +80,7 @@ export function DetailScreen() {
             <span className="photo size-12 shrink-0 rounded-xl" aria-hidden="true" />
             <span className="flex min-w-0 flex-1 flex-col gap-0.5">
               <span className="truncate text-sm font-medium">{recipe.title}</span>
-              <span className="text-xs text-muted">YouTube Shorts</span>
+              <span className="text-xs text-muted">{sourcePlatformLabel(recipe.sourceUrl)}</span>
             </span>
             <a href={recipe.sourceUrl} target="_blank" rel="noopener noreferrer" className="min-h-11 px-2 text-sm leading-[44px] font-bold underline underline-offset-4">
               ▶ Watch original

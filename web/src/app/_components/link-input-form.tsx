@@ -135,7 +135,7 @@ export function LinkInputForm() {
           type="url"
           inputMode="url"
           autoComplete="off"
-          placeholder="youtube.com/shorts/..."
+          placeholder="Paste a Shorts or Reels link"
           value={url}
           onChange={(e) => {
             setUrl(e.target.value);
@@ -175,7 +175,7 @@ export function LinkInputForm() {
       <p className="mt-6 text-[11px] font-bold tracking-[0.8px] text-muted uppercase">Works with</p>
       <div className="mt-2 flex flex-wrap gap-2">
         <span className="rounded-full border border-line bg-card px-3.5 py-1.5 text-[13px] font-medium">▶ YouTube Shorts</span>
-        <span className="rounded-full border border-line bg-card px-3.5 py-1.5 text-[13px] font-medium text-muted">◎ Instagram Reels · soon</span>
+        <span className="rounded-full border border-line bg-card px-3.5 py-1.5 text-[13px] font-medium">◎ Instagram Reels</span>
       </div>
       <div className="mt-5 rounded-[22px] bg-card p-3.5 text-[13px] leading-relaxed">
         <p>💬 Recipes spoken or shown in the video work best.</p>
