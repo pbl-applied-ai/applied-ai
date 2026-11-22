@@ -49,7 +49,7 @@ export const FAIL_GUIDE = {
   },
   not_a_recipe: {
     title: 'This doesn\'t look like a cooking video',
-    body: 'Paste a link to a cooking Short\nthat shows a recipe.',
+    body: 'Paste a link to a cooking Short or Reel\nthat shows a recipe.',
     actions: ['other_link'],
   },
   partial_recipe: {
@@ -70,7 +70,24 @@ export const FAIL_GUIDE = {
   // 문구표에 없음. 화면 원본(4-132)의 unsupported_source 문구를 쓴다
   unsupported_source: {
     title: 'We can\'t get this video from a link',
-    body: 'For now, we only support YouTube Shorts.',
+    body: 'For now, we only support YouTube Shorts and Instagram Reels.',
+    actions: ['upload', 'other_link'],
+  },
+  // Instagram 실패(KAN-62). docs/ux-flow.md S3 "Instagram 실패 사유별 안내". 삭제·비공개(ig_not_found·ig_blocked)는 not_playable과 같다
+  ig_not_video: {
+    title: 'We can only get Reels videos',
+    body: 'This post is a photo or a slideshow.\nTry a link to a Reel.',
+    actions: ['other_link', 'upload'],
+  },
+  no_media_no_caption: {
+    title: 'We couldn\'t read a recipe from this video',
+    body: 'There was no talking, on-screen text or caption we could use.\nTry a different video.',
+    actions: ['other_link', 'upload'],
+  },
+  // 수집 업체가 잠깐 안 되는 것(vendor_transient)을 다시 시도까지 다 쓴 경우. 영상 탓으로 보이지 않게 따로 둔다
+  instagram_down: {
+    title: 'We can\'t get Instagram videos right now',
+    body: 'Please try again in a bit.',
     actions: ['upload', 'other_link'],
   },
   // 업로드 실패(KAN-49). 화면 원본에 없어 UX 플로우 S3 "업로드한 파일 실패" 기준으로 썼다
@@ -106,6 +123,13 @@ const BY_REASON: Record<string, FailGuideKey> = {
   upload_too_large: 'upload_too_large',
   upload_unreadable: 'upload_unreadable',
   upload_missing: 'upload_unreadable',
+  ig_not_found: 'not_playable',
+  ig_blocked: 'not_playable',
+  ig_not_video: 'ig_not_video',
+  no_media_no_caption: 'no_media_no_caption',
+  vendor_transient: 'instagram_down',
+  vendor_quota: 'internal', // 업체 크레딧·키 문제. 원인은 말하지 않는다
+  vendor_config: 'internal',
 };
 
 const BY_CODE: Record<JobErrorCode, FailGuideKey> = {

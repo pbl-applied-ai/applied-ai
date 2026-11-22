@@ -86,6 +86,7 @@ interface FeaturedRow {
   creator: string | null;
   ingredient_count: number | null;
   categories?: string[] | null;
+  platform?: string | null;
   thumbnail_url?: string | null;
   save_count?: number | null;
 }
@@ -179,6 +180,7 @@ export function createSupabaseApi(base: RecipeApi, options: SupabaseOptions): Re
             creator: r.creator?.trim() || '',
             ingredientCount: r.ingredient_count ?? 0,
             categories: r.categories ?? [],
+            platform: r.platform ?? null,
             thumbnailUrl: r.thumbnail_url ?? null,
             saveCount: r.save_count ?? 0,
           })),

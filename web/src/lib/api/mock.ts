@@ -31,7 +31,10 @@ export const MOCK_LINKS = {
   partialRecipe: 'https://www.youtube.com/shorts/MockPartl01', // 조리 순서 없음 → 찾은 만큼 보기
   emptyRecipe: 'https://www.youtube.com/shorts/MockEmpty01',
   internal: 'https://www.youtube.com/shorts/MockIntrn01',
-  unsupported: 'https://www.instagram.com/reel/mock', // YouTube가 아님
+  unsupported: 'https://www.tiktok.com/@mock/video/1', // 지원 안 하는 서비스
+  reel: 'https://www.instagram.com/reel/MockReel001/', // Instagram 릴스 → 성공(KAN-62)
+  igPhoto: 'https://www.instagram.com/p/MockPhoto01/', // 사진 게시물 → ig_not_video
+  igDown: 'https://www.instagram.com/reel/MockIgDown1/', // 수집 업체 장애가 계속됨 → vendor_transient
 } as const;
 
 // error_code·reason은 docs/worker-interface.md 6번 표의 값
@@ -49,6 +52,8 @@ const FAILURES: Record<string, MockFailure> = {
   MockPartl01: { code: 'insufficient', reason: 'partial_recipe', stage: 'finalize' },
   MockEmpty01: { code: 'insufficient', reason: 'empty_recipe', stage: 'finalize' },
   MockIntrn01: { code: 'internal', reason: 'unexpected', stage: 'structure' },
+  MockPhoto01: { code: 'unsupported_source', reason: 'ig_not_video', stage: 'collect' },
+  MockIgDown1: { code: 'retryable', reason: 'vendor_transient', stage: 'collect' },
 };
 const UNSUPPORTED: MockFailure = { code: 'unsupported_source', reason: 'not_youtube', stage: 'collect' };
 
@@ -149,7 +154,7 @@ export function createMockApi(options: MockOptions = {}): RecipeApi {
       if (!/^https?:\/\//i.test(sourceUrl.trim())) throw new Error('invalid source_url');
       const state = load();
       checkLimit(state);
-      const check = checkShortsUrl(sourceUrl); // MVP는 Shorts만. 그 밖의 링크는 unsupported_source
+      const check = checkShortsUrl(sourceUrl); // Shorts·릴스만. 그 밖의 링크는 unsupported_source
       const job: StoredJob = {
         id: crypto.randomUUID(),
         sourceUrl: sourceUrl.trim(),

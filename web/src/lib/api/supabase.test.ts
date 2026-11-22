@@ -37,7 +37,7 @@ function setup(replies: Record<string, { status?: number; body: unknown }>) {
 describe('createSupabaseApi', () => {
   it('home recommendations come from list_featured as one "Trending now" group, in order (#63)', async () => {
     const rows = [
-      { run_id: RUN_ID, title: 'No Blender Salsa', creator: 'Sample Chef', ingredient_count: 7, step_count: 8, categories: ['Dessert'], thumbnail_url: 'https://i.ytimg.com/vi/x/hqdefault.jpg', save_count: 3 },
+      { run_id: RUN_ID, title: 'No Blender Salsa', creator: 'Sample Chef', ingredient_count: 7, step_count: 8, categories: ['Dessert'], platform: 'instagram', thumbnail_url: 'https://i.ytimg.com/vi/x/hqdefault.jpg', save_count: 3 },
       { run_id: JOB_ID, title: ' ', creator: null, ingredient_count: null, step_count: 0 },
     ];
     const { api, sent } = setup({ list_featured: { body: rows } });
@@ -46,8 +46,8 @@ describe('createSupabaseApi', () => {
         id: 'trending',
         title: 'Trending now',
         cards: [
-          { runId: RUN_ID, title: 'No Blender Salsa', creator: 'Sample Chef', ingredientCount: 7, categories: ['Dessert'], thumbnailUrl: 'https://i.ytimg.com/vi/x/hqdefault.jpg', saveCount: 3 },
-          { runId: JOB_ID, title: 'Untitled recipe', creator: '', ingredientCount: 0, categories: [], thumbnailUrl: null, saveCount: 0 },
+          { runId: RUN_ID, title: 'No Blender Salsa', creator: 'Sample Chef', ingredientCount: 7, categories: ['Dessert'], platform: 'instagram', thumbnailUrl: 'https://i.ytimg.com/vi/x/hqdefault.jpg', saveCount: 3 },
+          { runId: JOB_ID, title: 'Untitled recipe', creator: '', ingredientCount: 0, categories: [], platform: null, thumbnailUrl: null, saveCount: 0 },
         ],
       },
     ]);
