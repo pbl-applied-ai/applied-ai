@@ -105,6 +105,8 @@ test('speech lost to a passing failure is marked so the result is not reused; a 
     net({ audio: () => file(503), video: () => file(503) }),
     net({ audio: () => { throw new TypeError('fetch failed'); }, video: () => file(403) }),
     net({ apify: () => json(201, [{ ...apifyItem, audioUrl: null }]), asr: () => json(500, {}) }),
+    // Apify left out the audio this time and its video has no sound track (DfT-unPBAme, KAN-62).
+    net({ apify: () => json(201, [{ ...apifyItem, audioUrl: null }]), asr: () => json(400, { error: { message: 'Audio file could not be decoded.' } }) }),
   ];
   for (const n of lost) {
     const out = await reelJob(n);
@@ -115,6 +117,8 @@ test('speech lost to a passing failure is marked so the result is not reused; a 
   const lasting = [
     net({ audio: () => file(403), video: () => file(404) }),
     net({ asr: () => json(400, { error: { message: 'Invalid file format.' } }) }),
+    // ScrapeCreators never gives an audio file, so its unreadable video stays unreadable.
+    net({ apify: () => json(201, []), asr: () => json(400, { error: { message: 'Invalid file format.' } }) }),
   ];
   for (const n of lasting) {
     const out = await reelJob(n);
