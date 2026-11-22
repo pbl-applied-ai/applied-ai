@@ -37,7 +37,7 @@ function setup(replies: Record<string, { status?: number; body: unknown }>) {
 describe('createSupabaseApi', () => {
   it('home recommendations come from list_featured as one "Trending now" group, in order (#63)', async () => {
     const rows = [
-      { run_id: RUN_ID, title: 'No Blender Salsa', creator: 'Sample Chef', ingredient_count: 7, step_count: 8 },
+      { run_id: RUN_ID, title: 'No Blender Salsa', creator: 'Sample Chef', ingredient_count: 7, step_count: 8, categories: ['Dessert'], thumbnail_url: 'https://i.ytimg.com/vi/x/hqdefault.jpg', save_count: 3 },
       { run_id: JOB_ID, title: ' ', creator: null, ingredient_count: null, step_count: 0 },
     ];
     const { api, sent } = setup({ list_featured: { body: rows } });
@@ -46,8 +46,8 @@ describe('createSupabaseApi', () => {
         id: 'trending',
         title: 'Trending now',
         cards: [
-          { runId: RUN_ID, title: 'No Blender Salsa', creator: 'Sample Chef', ingredientCount: 7 },
-          { runId: JOB_ID, title: 'Untitled recipe', creator: '', ingredientCount: 0 },
+          { runId: RUN_ID, title: 'No Blender Salsa', creator: 'Sample Chef', ingredientCount: 7, categories: ['Dessert'], thumbnailUrl: 'https://i.ytimg.com/vi/x/hqdefault.jpg', saveCount: 3 },
+          { runId: JOB_ID, title: 'Untitled recipe', creator: '', ingredientCount: 0, categories: [], thumbnailUrl: null, saveCount: 0 },
         ],
       },
     ]);
@@ -85,10 +85,22 @@ describe('createSupabaseApi', () => {
     await expect(api.createJob('ftp://x')).rejects.toThrow(/rpc create_job 400: .*invalid source_url/);
   });
 
+  it('passes the card info get_run gives (#63) through to the screen', async () => {
+    const run = {
+      id: RUN_ID, source_url: 'https://www.youtube.com/shorts/Smpl0Gochu1', recipe: SAMPLE_RECIPE, partial: false, created_at: '2026-10-29T00:00:00Z',
+      creator: 'Sample Chef', platform: 'youtube', duration_ms: 21000, thumbnail_url: 'https://i.ytimg.com/vi/Smpl0Gochu1/hqdefault.jpg',
+    };
+    const got = await setup({ get_run: { body: [run] } }).api.getRun(RUN_ID);
+    expect(got).toMatchObject({ creator: 'Sample Chef', platform: 'youtube', durationMs: 21000, thumbnailUrl: run.thumbnail_url });
+  });
+
   it('reads a run and fills the source link of a recipe saved through the mock book', async () => {
     const run = { id: RUN_ID, source_url: 'https://www.youtube.com/shorts/Smpl0Gochu1', recipe: SAMPLE_RECIPE, partial: false, created_at: '2026-10-29T00:00:00Z' };
     const { api } = setup({ get_run: { body: [run] } });
-    expect(await api.getRun(RUN_ID)).toEqual({ id: RUN_ID, sourceUrl: run.source_url, recipe: SAMPLE_RECIPE, createdAt: run.created_at });
+    expect(await api.getRun(RUN_ID)).toEqual({
+      id: RUN_ID, sourceUrl: run.source_url, recipe: SAMPLE_RECIPE, createdAt: run.created_at,
+      creator: null, platform: null, durationMs: null, thumbnailUrl: null,
+    });
 
     await api.signInWithGoogle('/');
     const draft: EditableRecipe = { runId: RUN_ID, title: 't', servingsRaw: null, ingredients: [], steps: [] };

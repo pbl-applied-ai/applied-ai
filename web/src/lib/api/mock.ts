@@ -178,10 +178,12 @@ export function createMockApi(options: MockOptions = {}): RecipeApi {
       if (!videoId || (FAILURES[videoId] && FAILURES[videoId].reason !== 'partial_recipe')) return null;
       const job = Object.values(load().jobs).find((j) => j.videoId === videoId);
       const run = runFor(videoId, job?.sourceUrl ?? `https://www.youtube.com/shorts/${videoId}`);
-      // 서버(get_run)처럼 로그인했을 때만 추정값을 붙인다
-      if (!load().user) return run;
+      // 서버(get_run)처럼 로그인했을 때만 추정값을 붙이고, 로그인 전에는 있다는 표시(has_estimate)만 둔다
+      const signedIn = Boolean(load().user);
       const ingredients = run.recipe.ingredients.map((ing) =>
-        !ing.amount_raw && SAMPLE_ESTIMATES[ing.name] ? { ...ing, amount_estimate: SAMPLE_ESTIMATES[ing.name] } : ing,
+        !ing.amount_raw && SAMPLE_ESTIMATES[ing.name]
+          ? { ...ing, has_estimate: true as const, ...(signedIn ? { amount_estimate: SAMPLE_ESTIMATES[ing.name] } : {}) }
+          : ing,
       );
       return { ...run, recipe: { ...run.recipe, ingredients } };
     },

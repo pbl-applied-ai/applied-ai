@@ -5,6 +5,7 @@ import { useState } from "react";
 import type { EditableIngredient, EditableStep } from "@/lib/api";
 import { amountView, isUserAdded } from "@/lib/review";
 import { metricHint } from "@/lib/units";
+import { SourceChip } from "./recipe-source";
 
 const input = "h-11 min-w-0 rounded-xl border-2 border-foreground bg-card px-3 text-[15px] outline-none focus:border-pink";
 const primary = "h-11 shrink-0 rounded-full bg-ink px-5 text-sm font-bold text-white disabled:bg-disabled disabled:text-muted";
@@ -118,9 +119,12 @@ export function IngredientRow({
           {item.optional && <span className="ml-1.5 rounded-full bg-subtle px-2 py-0.5 text-[11px] text-muted">optional</span>}
         </button>
         {view.kind === "confirmed" && (
-          <button type="button" onClick={startEdit} aria-label={`${item.name}, ${view.text}. Edit`} className="min-h-11 px-1 text-[15px] font-bold">
-            {view.text}
-          </button>
+          <span className="flex items-center gap-2">
+            <SourceChip source={item.amount_source} />
+            <button type="button" onClick={startEdit} aria-label={`${item.name}, ${view.text}. Edit`} className="min-h-11 px-1 text-[15px] font-bold">
+              {view.text}
+            </button>
+          </span>
         )}
         {view.kind === "estimate" && (
           <button

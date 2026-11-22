@@ -64,3 +64,21 @@ export function RecipeCard({ recipe }: { recipe: RecipeSummary }) {
     </Link>
   );
 }
+
+/** 레시피북 2열 카드(시안 06). 분량을 확인할 재료가 있으면 "N to check" 스티커를 붙인다. */
+export function RecipeGridCard({ recipe }: { recipe: RecipeSummary }) {
+  return (
+    <Link href={`/recipes/${encodeURIComponent(recipe.id)}`} className="flex min-w-0 flex-col">
+      <span className="relative block">
+        <span className="photo block h-[150px] w-full rounded-[20px]" aria-hidden="true" />
+        {recipe.unconfirmedCount > 0 && (
+          <span className="sticker absolute top-2 left-2 bg-pink px-2 text-[11px]">{recipe.unconfirmedCount} to check</span>
+        )}
+      </span>
+      <span className="mt-2 line-clamp-2 text-sm leading-snug font-bold">{recipe.title}</span>
+      <span className="text-[11px] text-muted">
+        {recipe.ingredientCount} ingredients · saved {shortDate(recipe.createdAt)}
+      </span>
+    </Link>
+  );
+}

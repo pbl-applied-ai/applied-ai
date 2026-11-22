@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import { RecipeEditor } from "@/components/recipe-editor";
+import { SourceMeta, SourceThumb } from "@/components/recipe-source";
 import { RecipeView } from "@/components/recipe-view";
 import { type EditableRecipe, type Run, type User, api, canSave, toEditable } from "@/lib/api";
 import { rememberSavedRun } from "@/lib/book-hidden";
@@ -67,11 +68,36 @@ export function ReviewScreen() {
   if (!user) {
     const missing = missingParts(run);
     const notice = descriptionNotice(run);
+    // 로그인하면 볼 수 있는 추정값 수. 추정값이 없는 재료는 세지 않는다(#70 리뷰)
+    const unseen = draft.ingredients.filter((i) => !i.amount_raw && i.has_estimate).length;
+    const loginHref = `/login?next=${encodeURIComponent(`/r/${runId}`)}`;
     return (
       <div className="flex flex-1 flex-col">
-        <section className="flex flex-col gap-1.5 px-5 pt-3">
-          <div className="photo mb-3 h-44 w-full rounded-[22px]" aria-hidden="true" />
-          <h2 className="text-[26px] leading-tight font-bold">{draft.title}</h2>
+        <section className="flex flex-col gap-1.5 px-5 pt-1">
+          <div className="flex gap-3">
+            <SourceThumb run={run} />
+            <div className="flex min-w-0 flex-col justify-center gap-0.5">
+              <h2 className="text-xl leading-tight font-bold">{draft.title}</h2>
+              <SourceMeta run={run} />
+            </div>
+          </div>
+          {unseen > 0 && (
+            <p className="mt-3 flex gap-2.5 rounded-2xl bg-pink-tint px-3.5 py-3 text-[13px] leading-snug text-pink-ink">
+              <span className="text-lg leading-none" aria-hidden="true">
+                🤏
+              </span>
+              <span>
+                <b>
+                  {unseen} {unseen === 1 ? "amount isn't" : "amounts aren't"} in the video.
+                </b>
+                <br />
+                Sign in to see Pinch estimates.{" "}
+                <Link href={loginHref} className="font-bold underline">
+                  Sign in
+                </Link>
+              </span>
+            </p>
+          )}
           {notice && <p className="mt-1 text-[13px] text-muted">ⓘ {notice}</p>}
           {(missing.steps || missing.ingredients) && (
             <p className="mt-2 rounded-2xl bg-pink-tint px-3.5 py-3 text-[13px] leading-relaxed text-pink-ink">
@@ -82,15 +108,12 @@ export function ReviewScreen() {
           )}
         </section>
 
-        <RecipeView recipe={draft} />
+        <RecipeView recipe={draft} locked />
 
         <footer className="mt-auto flex flex-col gap-2.5 px-5 pt-2 pb-8">
-          <p className="text-center text-xs leading-relaxed text-muted">Sign in to fix anything that&apos;s off and save it to your recipe book.</p>
-          <Link
-            href={`/login?next=${encodeURIComponent(`/r/${runId}`)}`}
-            className="btn-primary"
-          >
-            Sign in to edit & save
+          <p className="text-center text-xs leading-relaxed text-muted">Sign in to save it, fix anything that&apos;s off and see Pinch estimates.</p>
+          <Link href={loginHref} className="btn-primary">
+            Save to recipe book
           </Link>
         </footer>
       </div>

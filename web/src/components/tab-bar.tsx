@@ -1,7 +1,7 @@
 "use client";
 
 // 하단 탭 [Home / Convert / Recipe book](docs/ux-flow.md, Pinch 시안). S6 홈·S1 레시피북에만 붙인다.
-// 떠 있는 흰 알약이고 가운데 Convert만 핑크 원이다. Convert는 홈 링크 입력칸으로 보낸다(/?new=1).
+// 떠 있는 흰 알약이고 가운데 Convert만 핑크 원이다. Convert는 링크 넣는 화면(/convert)으로 보낸다.
 // 로그인 전에 레시피북을 누르면 레시피북 화면이 로그인(S0)으로 보낸다.
 import Link from "next/link";
 import { usePathname } from "next/navigation";
@@ -45,7 +45,7 @@ export function TabBar() {
         className="fixed inset-x-0 bottom-[calc(16px+env(safe-area-inset-bottom))] z-20 mx-auto flex h-[68px] w-[calc(100%-32px)] max-w-[416px] items-center justify-around rounded-full border border-line bg-card px-4 shadow-[0_6px_20px_rgba(59,31,26,0.08)]"
       >
         <Tab href="/" label="Home" icon={ICON.home} active={pathname === "/"} />
-        <Link href="/?new=1" className="-mt-7 flex w-20 flex-col items-center gap-0.5 text-[11px] font-medium text-muted">
+        <Link href="/convert" className="-mt-7 flex w-20 flex-col items-center gap-0.5 text-[11px] font-medium text-muted">
           <span className="flex size-[58px] items-center justify-center rounded-full border-[2.5px] border-foreground bg-pink">
             <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.6" strokeLinecap="round" className="text-foreground" aria-hidden="true">
               <path d="M12 5v14M5 12h14" />

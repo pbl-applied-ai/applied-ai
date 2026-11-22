@@ -22,7 +22,7 @@ export function LinkInputForm() {
   // 업로드는 로그인한 사람만 된다. 파일을 고르기 전에 로그인으로 보내려고 미리 알아 둔다(null = 아직 모름).
   const [signedIn, setSignedIn] = useState<boolean | null>(null);
 
-  // 레시피북의 [+ 영상으로 레시피 만들기]·로그인 뒤 돌아오기는 /?new=1로 온다. 입력칸에 커서를 둔다(S1).
+  // 하단 탭 Convert·레시피북 [Convert a video]·로그인 뒤 돌아오기는 /convert?new=1로 온다. 입력칸에 커서를 둔다.
   useEffect(() => {
     if (new URLSearchParams(window.location.search).get("new") === "1") linkInput.current?.focus();
   }, []);
@@ -41,7 +41,7 @@ export function LinkInputForm() {
 
   // 로그인하고 홈으로 돌아와 입력칸에서 다시 고르게 한다.
   function goLogin() {
-    router.push(`/login?next=${encodeURIComponent("/?new=1")}`);
+    router.push(`/login?next=${encodeURIComponent("/convert?new=1")}`);
   }
 
   // 로그인 안 했으면 파일 창을 열지 않고 바로 로그인으로 보낸다. 고른 파일이 사라지지 않게.
@@ -120,11 +120,15 @@ export function LinkInputForm() {
   }
 
   return (
-    <form onSubmit={submit} className="flex flex-col px-5 pt-7" noValidate>
-      <label htmlFor="link" className="text-[15px] font-medium">
-        Cooking video link (YouTube Shorts)
+    <form onSubmit={submit} className="flex flex-1 flex-col px-6" noValidate>
+      <label htmlFor="link" className="sr-only">
+        Cooking video link
       </label>
-      <div className="mt-2 flex gap-2">
+      <div
+        className={`mt-5 flex h-[52px] items-center gap-2 rounded-2xl border-2 bg-card pr-1.5 pl-3.5 focus-within:border-pink ${
+          fieldError ? "border-danger" : "border-foreground"
+        }`}
+      >
         <input
           id="link"
           ref={linkInput}
@@ -141,17 +145,26 @@ export function LinkInputForm() {
           onPaste={() => setShowFieldError(true)}
           aria-invalid={fieldError ? true : undefined}
           aria-describedby={fieldError ? "link-error" : undefined}
-          className={`h-13 min-w-0 flex-1 rounded-2xl border-2 bg-card px-3.5 text-base outline-pink ${
-            fieldError ? "border-danger" : "border-foreground"
-          }`}
+          className="h-full min-w-0 flex-1 bg-transparent text-[15px] outline-none"
         />
-        <button
-          type="button"
-          onClick={paste}
-          className="h-13 shrink-0 rounded-full border-[1.5px] border-foreground bg-card px-4 text-sm font-bold"
-        >
-          Paste
-        </button>
+        {url ? (
+          <button
+            type="button"
+            aria-label="Clear link"
+            onClick={() => {
+              setUrl("");
+              setShowFieldError(false);
+              linkInput.current?.focus();
+            }}
+            className="flex size-10 shrink-0 items-center justify-center text-muted"
+          >
+            ✕
+          </button>
+        ) : (
+          <button type="button" onClick={paste} className="h-9 shrink-0 rounded-full bg-subtle px-3.5 text-[13px] font-bold">
+            Paste
+          </button>
+        )}
       </div>
       {fieldError && (
         <p id="link-error" className="mt-2 text-[13px] text-danger">
@@ -159,56 +172,49 @@ export function LinkInputForm() {
         </p>
       )}
 
-      <button
-        type="submit"
-        disabled={!canSubmit}
-        className="btn-primary mt-5"
-      >
-        {submitting ? "Sending…" : "Get the recipe"}
-      </button>
-      {submitError && (
-        <p role="alert" className="mt-2 text-[13px] text-danger">
-          {submitError}
-        </p>
-      )}
-
-      <div className="mt-7 flex items-center gap-3">
-        <div className="h-px flex-1 bg-line" />
-        <span className="text-[13px] text-muted">Link not working?</span>
-        <div className="h-px flex-1 bg-line" />
+      <p className="mt-6 text-[11px] font-bold tracking-[0.8px] text-muted uppercase">Works with</p>
+      <div className="mt-2 flex flex-wrap gap-2">
+        <span className="rounded-full border border-line bg-card px-3.5 py-1.5 text-[13px] font-medium">▶ YouTube Shorts</span>
+        <span className="rounded-full border border-line bg-card px-3.5 py-1.5 text-[13px] font-medium text-muted">◎ Instagram Reels · soon</span>
       </div>
-      {UPLOAD_ENABLED ? (
-        <>
-          <input ref={fileInput} type="file" accept={UPLOAD_ACCEPT} onChange={upload} hidden />
-          <button
-            type="button"
-            onClick={pickFile}
-            disabled={uploading}
-            className="btn-ghost mt-5"
-          >
-            {uploading ? "Uploading…" : "Upload a video file"}
-          </button>
-          {uploadError && (
-            <p role="alert" className="mt-2 text-[13px] text-danger">
-              {uploadError}
-            </p>
-          )}
-          <p className="mt-2 text-[13px] leading-relaxed text-muted">
-            Sign in to upload. Only upload videos you made or have the rights to use. We delete the video after making the recipe. (Up to 25 MB)
+      <div className="mt-5 rounded-[22px] bg-card p-3.5 text-[13px] leading-relaxed">
+        <p>💬 Recipes spoken or shown in the video work best.</p>
+        <p className="text-muted">⏱ This can take about a minute.</p>
+      </div>
+
+      <div className="mt-auto flex flex-col pt-8 pb-8">
+        <button type="submit" disabled={!canSubmit} className="btn-primary">
+          {submitting ? "Sending…" : "Convert to recipe"}
+        </button>
+        {submitError && (
+          <p role="alert" className="mt-2 text-center text-[13px] text-danger">
+            {submitError}
           </p>
-        </>
-      ) : (
-        <>
-          <button
-            type="button"
-            disabled
-            className="btn-ghost mt-5"
-          >
-            Upload a video file
-          </button>
-          <p className="mt-2 text-[13px] leading-relaxed text-muted">Video upload is coming soon.</p>
-        </>
-      )}
+        )}
+        {UPLOAD_ENABLED ? (
+          <>
+            <input ref={fileInput} type="file" accept={UPLOAD_ACCEPT} onChange={upload} hidden />
+            <button
+              type="button"
+              onClick={pickFile}
+              disabled={uploading}
+              className="mt-3 min-h-11 text-center text-[13px] text-muted underline underline-offset-[3px] disabled:no-underline"
+            >
+              {uploading ? "Uploading…" : "Upload a video file instead"}
+            </button>
+            {uploadError && (
+              <p role="alert" className="text-center text-[13px] text-danger">
+                {uploadError}
+              </p>
+            )}
+            <p className="mt-1 text-center text-xs leading-relaxed text-muted">
+              Sign in to upload. Only upload videos you made or have the rights to use. Up to 25 MB.
+            </p>
+          </>
+        ) : (
+          <p className="mt-3 text-center text-[13px] text-muted">Video file upload is coming soon.</p>
+        )}
+      </div>
     </form>
   );
 }

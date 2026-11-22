@@ -2,8 +2,11 @@
 import type { EditableRecipe } from "@/lib/api";
 import { amountView } from "@/lib/review";
 import { metricHint } from "@/lib/units";
+import { SourceChip } from "./recipe-source";
 
-export function RecipeView({ recipe }: { recipe: Pick<EditableRecipe, "ingredients" | "steps"> }) {
+// locked: 로그인 전 결과 화면. 추정값이 있는 재료(has_estimate)에만 "Sign in to see" 잠금 배지를 보여 준다(플로우 v3 #57, #68).
+// 추정값이 없는 재료는 로그인해도 볼 게 없으니 "Not in the video".
+export function RecipeView({ recipe, locked = false }: { recipe: Pick<EditableRecipe, "ingredients" | "steps">; locked?: boolean }) {
   return (
     <>
       <section className="flex flex-col px-5 pt-7" aria-labelledby="d-ing">
@@ -18,13 +21,21 @@ export function RecipeView({ recipe }: { recipe: Pick<EditableRecipe, "ingredien
             <div key={ing.id} className="flex min-h-12 items-center justify-between gap-3 border-t border-line">
               <span className="text-base font-medium">{ing.name}</span>
               {view.kind === "confirmed" && (
-                <span className="flex flex-col items-end">
-                  <span className="text-[15px] font-bold">{view.text}</span>
-                  {hint && <span className="text-[11px] text-muted">{hint}</span>}
+                <span className="flex items-center gap-2">
+                  <SourceChip source={ing.amount_source} />
+                  <span className="flex flex-col items-end">
+                    <span className="text-[15px] font-bold">{view.text}</span>
+                    {hint && <span className="text-[11px] text-muted">{hint}</span>}
+                  </span>
                 </span>
               )}
-              {/* 읽기 전용 화면에는 추정값이 오지 않지만(저장할 때 빼고, 로그인 전에는 서버가 뺀다) 와도 빈칸으로 둔다 */}
-              {(view.kind === "missing" || view.kind === "estimate") && <span className="shrink-0 text-[13px] whitespace-nowrap text-muted">Not in the video</span>}
+              {/* 읽기 전용 화면에는 추정값이 오지 않는다(저장할 때 빼고, 로그인 전에는 서버가 뺀다) */}
+              {(view.kind === "missing" || view.kind === "estimate") &&
+                (locked && ing.has_estimate ? (
+                  <span className="est">🔒 Sign in to see</span>
+                ) : (
+                  <span className="shrink-0 text-[13px] whitespace-nowrap text-muted">Not in the video</span>
+                ))}
               {view.kind === "user" && (
                 <span className="flex flex-col items-end">
                   <span className="text-[15px] font-bold">{view.text}</span>

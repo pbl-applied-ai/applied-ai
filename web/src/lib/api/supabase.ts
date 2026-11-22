@@ -32,6 +32,10 @@ interface RunRow {
   source_url: string;
   recipe: TeamRecipe;
   created_at: string;
+  creator?: string | null;
+  platform?: string | null;
+  duration_ms?: number | null;
+  thumbnail_url?: string | null;
 }
 
 interface MyJobRow extends JobRow {
@@ -81,6 +85,9 @@ interface FeaturedRow {
   title: string | null;
   creator: string | null;
   ingredient_count: number | null;
+  categories?: string[] | null;
+  thumbnail_url?: string | null;
+  save_count?: number | null;
 }
 
 export function createSupabaseApi(base: RecipeApi, options: SupabaseOptions): RecipeApi {
@@ -169,6 +176,9 @@ export function createSupabaseApi(base: RecipeApi, options: SupabaseOptions): Re
             title: r.title?.trim() || 'Untitled recipe',
             creator: r.creator?.trim() || '',
             ingredientCount: r.ingredient_count ?? 0,
+            categories: r.categories ?? [],
+            thumbnailUrl: r.thumbnail_url ?? null,
+            saveCount: r.save_count ?? 0,
           })),
         },
       ];
@@ -222,7 +232,16 @@ export function createSupabaseApi(base: RecipeApi, options: SupabaseOptions): Re
       if (!row) return null;
       const sourceUrl = publicSource(row.source_url);
       rememberSource(row.id, sourceUrl);
-      return { id: row.id, sourceUrl, recipe: row.recipe, createdAt: row.created_at };
+      return {
+        id: row.id,
+        sourceUrl,
+        recipe: row.recipe,
+        createdAt: row.created_at,
+        creator: row.creator ?? null,
+        platform: row.platform ?? null,
+        durationMs: row.duration_ms ?? null,
+        thumbnailUrl: row.thumbnail_url ?? null,
+      };
     },
 
     async getRecipe(id) {
