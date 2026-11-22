@@ -7,7 +7,9 @@ import { MOCK_RECOMMENDATIONS, PARTIAL_RECIPE, SAMPLE_ESTIMATES, SAMPLE_RECIPE }
 import { toSummary, withoutEstimates } from './editable';
 import { checkShortsUrl } from '../shorts';
 import { checkUploadFile } from '../upload';
+import { USER_DAILY_LIMIT, seoulDay } from '../daily-quota';
 import {
+  DailyLimitError,
   NotSignedInError,
   type EditableRecipe,
   type Job,
@@ -127,6 +129,15 @@ export function createMockApi(options: MockOptions = {}): RecipeApi {
     return { ...base, status: 'succeeded', stage: 'finalize', runId: `run-${job.videoId}` };
   }
 
+  // 실제 create_job처럼 로그인한 사람은 하루 10개까지(목은 캐시가 없어서 전부 센다)
+  function usedToday(state: State, userId: string): number {
+    const today = seoulDay(now());
+    return Object.values(state.jobs).filter((j) => j.requestedBy === userId && seoulDay(j.createdAt) === today).length;
+  }
+  function checkLimit(state: State): void {
+    if (state.user && usedToday(state, state.user.id) >= USER_DAILY_LIMIT) throw new DailyLimitError('user');
+  }
+
   function requireUser(state: State): User {
     if (!state.user) throw new NotSignedInError();
     return state.user;
@@ -137,6 +148,7 @@ export function createMockApi(options: MockOptions = {}): RecipeApi {
       await wait();
       if (!/^https?:\/\//i.test(sourceUrl.trim())) throw new Error('invalid source_url');
       const state = load();
+      checkLimit(state);
       const check = checkShortsUrl(sourceUrl); // MVP는 Shorts만. 그 밖의 링크는 unsupported_source
       const job: StoredJob = {
         id: crypto.randomUUID(),
@@ -155,6 +167,7 @@ export function createMockApi(options: MockOptions = {}): RecipeApi {
       if (!checkUploadFile(file).ok) throw new Error('invalid upload');
       const state = load();
       const user = requireUser(state);
+      checkLimit(state);
       const job: StoredJob = {
         id: crypto.randomUUID(),
         sourceUrl: '',
@@ -196,6 +209,12 @@ export function createMockApi(options: MockOptions = {}): RecipeApi {
     async getUser() {
       await wait();
       return load().user;
+    },
+
+    async getQuota() {
+      await wait();
+      const state = load();
+      return state.user ? { used: usedToday(state, state.user.id), limit: USER_DAILY_LIMIT } : null;
     },
 
     async signInWithGoogle(returnTo) {

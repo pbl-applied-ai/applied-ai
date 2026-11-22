@@ -3,7 +3,8 @@
 import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
 import { useEffect, useState, useSyncExternalStore } from "react";
-import { ACTION_LABEL, type FailAction, type Job, type JobStage, UPLOAD_ENABLED, api } from "@/lib/api";
+import { ACTION_LABEL, DailyLimitError, type FailAction, type Job, type JobStage, UPLOAD_ENABLED, api } from "@/lib/api";
+import { countBrowserJob } from "@/lib/daily-quota";
 import { failureView, stageText } from "@/lib/job-display";
 import { recallJobSource, rememberJobSource, sourceFileName } from "@/lib/job-source";
 import { rememberRecentJob } from "@/lib/recent-jobs";
@@ -100,9 +101,12 @@ export function JobProgress() {
       const { jobId } = await api.createJob(source);
       rememberJobSource(jobId, source);
       rememberRecentJob(jobId);
+      countBrowserJob();
       router.replace(`/jobs/${encodeURIComponent(jobId)}`);
-    } catch {
+    } catch (err) {
       setRetrying(false);
+      // 하루 한도면 Convert 화면에서 이유와 다음 행동(로그인·내일)을 보여 준다
+      if (err instanceof DailyLimitError) router.push("/convert");
     }
   }
 

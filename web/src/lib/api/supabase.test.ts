@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { createMockApi } from './mock';
 import { createSupabaseApi } from './supabase';
-import type { EditableRecipe } from './types';
+import { DailyLimitError, type EditableRecipe } from './types';
 import { SAMPLE_RECIPE } from './fixtures';
 
 const RUN_ID = '11111111-1111-4111-8111-111111111111';
@@ -106,5 +106,22 @@ describe('createSupabaseApi', () => {
     const draft: EditableRecipe = { runId: RUN_ID, title: 't', servingsRaw: null, ingredients: [], steps: [] };
     const { id } = await api.saveRecipe(draft);
     expect((await api.getRecipe(id))?.sourceUrl).toBe(run.source_url);
+  });
+
+  it('daily limit (PT429) becomes DailyLimitError with who hit it', async () => {
+    const user = setup({ create_job: { status: 429, body: { code: 'PT429', message: 'daily limit: user' } } });
+    const err = await user.api.createJob('https://www.youtube.com/shorts/Smpl0Gochu1').catch((e: unknown) => e);
+    expect(err).toBeInstanceOf(DailyLimitError);
+    expect((err as DailyLimitError).scope).toBe('user');
+
+    const anon = setup({ create_job: { status: 429, body: { code: 'PT429', message: 'daily limit: anon' } } });
+    const err2 = await anon.api.createJob('https://www.youtube.com/shorts/Smpl0Gochu1').catch((e: unknown) => e);
+    expect((err2 as DailyLimitError).scope).toBe('anon');
+  });
+
+  it('getQuota is null before sign-in and does not call the server', async () => {
+    const { api, sent } = setup({});
+    expect(await api.getQuota()).toBeNull();
+    expect(sent.map((s) => s.name)).not.toContain('get_quota');
   });
 });

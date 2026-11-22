@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { toEditable } from "./editable";
 import { MOCK_LINKS, createMockApi } from "./mock";
+import { DailyLimitError } from "./types";
 
 function setup() {
   let t = Date.parse("2026-10-26T00:00:00Z");
@@ -80,5 +81,17 @@ describe("createMockApi", () => {
       expect(card.creator).toBeTruthy();
       expect(await api.getRun(card.runId)).not.toBeNull();
     }
+  });
+
+  it("로그인하면 하루 10개까지, 다음 날(한국 시간)이면 다시", async () => {
+    const { api, advance } = setup();
+    expect(await api.getQuota()).toBeNull();
+    await api.signInWithGoogle("/");
+    for (let i = 0; i < 10; i++) await api.createJob(MOCK_LINKS.success);
+    expect(await api.getQuota()).toEqual({ used: 10, limit: 10 });
+    await expect(api.createJob(MOCK_LINKS.success)).rejects.toBeInstanceOf(DailyLimitError);
+    advance(24 * 60 * 60 * 1000);
+    expect(await api.getQuota()).toEqual({ used: 0, limit: 10 });
+    await expect(api.createJob(MOCK_LINKS.success)).resolves.toBeTruthy();
   });
 });
