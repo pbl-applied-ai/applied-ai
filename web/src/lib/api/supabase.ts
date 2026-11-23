@@ -4,8 +4,8 @@
 import { checkUploadFile } from '../upload';
 import { createAuth } from './auth';
 import { unconfirmedCount, withoutEstimates } from './editable';
-import { NotSignedInError } from './types';
-import type { EditableIngredient, EditableRecipe, EditableStep, Job, RecipeApi, RecipeSummary, Run, TeamRecipe, UserRecipe } from './types';
+import { DailyLimitError, NotSignedInError } from './types';
+import type { EditableIngredient, EditableRecipe, EditableStep, Job, Quota, RecipeApi, RecipeSummary, Run, TeamRecipe, UserRecipe } from './types';
 
 export interface SupabaseOptions {
   url: string;
@@ -116,6 +116,8 @@ export function createSupabaseApi(base: RecipeApi, options: SupabaseOptions): Re
     const text = await res.text();
     if (!res.ok) {
       if (signedIn && (res.status === 401 || res.status === 403)) throw new NotSignedInError();
+      // 하루 한도(SQLSTATE PT429 → HTTP 429). 메시지가 'daily limit: anon'이면 로그인 전 전체 합계
+      if (res.status === 429 || text.includes('PT429')) throw new DailyLimitError(text.includes('daily limit: anon') ? 'anon' : 'user');
       // 22P02 = uuid가 아님. 예전 목 결과 주소(/r/run-...)를 열면 여기로 온다 → 결과 없음으로 처리
       if (res.status === 400 && text.includes('22P02')) return null;
       throw new Error(`rpc ${name} ${res.status}: ${text.slice(0, 200)}`);
@@ -210,6 +212,18 @@ export function createSupabaseApi(base: RecipeApi, options: SupabaseOptions): Re
       const id = await rpc<string>('create_upload_job', { p_upload_path: path }, true);
       if (!id) throw new Error('create_upload_job returned no id');
       return { jobId: id };
+    },
+
+    async getQuota(): Promise<Quota | null> {
+      if (!(await auth?.accessToken())) return null;
+      try {
+        const rows = await rpc<{ used: number; daily_limit: number }[]>('get_quota', {}, true);
+        const row = rows?.[0];
+        return row ? { used: row.used, limit: row.daily_limit } : null;
+      } catch (err) {
+        if (err instanceof NotSignedInError) return null;
+        throw err;
+      }
     },
 
     async getJob(jobId) {

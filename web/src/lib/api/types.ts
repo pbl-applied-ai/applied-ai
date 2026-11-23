@@ -153,16 +153,33 @@ export class NotSignedInError extends Error {
   }
 }
 
+// 하루 변환 한도(20261121 마이그레이션). user = 로그인한 내 한도(10), anon = 로그인 전 전체 합계(50)
+export class DailyLimitError extends Error {
+  readonly scope: 'user' | 'anon';
+  constructor(scope: 'user' | 'anon') {
+    super('Daily limit reached');
+    this.scope = scope;
+    this.name = 'DailyLimitError';
+  }
+}
+
+export interface Quota {
+  used: number; // 오늘(한국 시간) 만든 개수. 캐시로 끝난 결과는 세지 않는다
+  limit: number;
+}
+
 export interface RecipeApi {
   // 로그인 없이
   createJob(sourceUrl: string): Promise<{ jobId: string }>;
   createUploadJob(file: File): Promise<{ jobId: string }>; // 로그인 필요(안 했으면 NotSignedInError). 영상 파일을 올리고 job을 만든다(KAN-49). 원본은 처리 뒤 지운다
+  // createJob·createUploadJob은 하루 한도를 넘으면 DailyLimitError
   getJob(jobId: string): Promise<Job | null>; // 처리 중 화면이 1~2초마다 부른다
   getRun(runId: string): Promise<Run | null>;
   listRecommendations(): Promise<RecommendationGroup[]>; // 홈 추천 묶음. 없으면 빈 목록이고 홈은 묶음 칸을 숨긴다
 
   // 로그인
   getUser(): Promise<User | null>;
+  getQuota(): Promise<Quota | null>; // 로그인한 사람의 오늘 개수·한도. 로그인 전이면 null(웹이 브라우저에서 센다)
   signInWithGoogle(returnTo: string): Promise<void>; // 페이지를 떠났다가 returnTo로 돌아온다
   completeSignIn(code: string): Promise<string>; // /auth/callback이 부른다. 돌아갈 주소를 돌려준다
   signInReturnTo(): Promise<string | null>; // 진행 중인 로그인이 돌아갈 주소. 취소·실패 뒤 다시 로그인할 때 쓴다

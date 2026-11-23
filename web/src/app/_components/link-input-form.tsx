@@ -2,7 +2,8 @@
 
 import { useRouter } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
-import { NotSignedInError, UPLOAD_ENABLED, api } from "@/lib/api";
+import { DailyLimitError, NotSignedInError, UPLOAD_ENABLED, api } from "@/lib/api";
+import { BROWSER_DAILY_LIMIT, browserUsedToday, countBrowserJob } from "@/lib/daily-quota";
 import { fileSource, rememberJobSource } from "@/lib/job-source";
 import { rememberRecentJob } from "@/lib/recent-jobs";
 import { SHORTS_ERROR_TEXT, checkShortsUrl } from "@/lib/shorts";
@@ -21,6 +22,10 @@ export function LinkInputForm() {
   const [uploadError, setUploadError] = useState<string | null>(null);
   // 업로드는 로그인한 사람만 된다. 파일을 고르기 전에 로그인으로 보내려고 미리 알아 둔다(null = 아직 모름).
   const [signedIn, setSignedIn] = useState<boolean | null>(null);
+  // 하루 한도. 로그인했으면 서버(get_quota) 10개, 아니면 이 브라우저 3개. null = 아직 모름
+  const [quota, setQuota] = useState<{ used: number; limit: number } | null>(null);
+  // 로그인 전 전체 합계(서버 50개)가 찼을 때
+  const [anonBusy, setAnonBusy] = useState(false);
 
   // 하단 탭 Convert·레시피북 [Convert a video]·로그인 뒤 돌아오기는 /convert?new=1로 온다. 입력칸에 커서를 둔다.
   useEffect(() => {
@@ -28,16 +33,34 @@ export function LinkInputForm() {
   }, []);
 
   useEffect(() => {
-    if (!UPLOAD_ENABLED) return;
     let alive = true;
-    api.getUser().then(
-      (user) => alive && setSignedIn(user != null),
-      () => alive && setSignedIn(null),
-    );
+    (async () => {
+      try {
+        const user = await api.getUser();
+        if (!alive) return;
+        setSignedIn(user != null);
+        const next = user ? await api.getQuota() : { used: browserUsedToday(), limit: BROWSER_DAILY_LIMIT };
+        if (alive) setQuota(next);
+      } catch {
+        if (alive) setSignedIn(null);
+      }
+    })();
     return () => {
       alive = false;
     };
   }, []);
+
+  // 작업을 하나 만들었을 때. 화면 상태가 이동 뒤에도 남아서(cacheComponents) 개수를 바로 올려 둔다.
+  function counted() {
+    countBrowserJob();
+    setQuota((q) => (q ? { ...q, used: q.used + 1 } : q));
+  }
+
+  // 서버가 한도로 막았을 때. 내 한도면 다 쓴 것으로 표시하고, 로그인 전 전체 합계면 로그인을 권한다.
+  function limited(err: DailyLimitError) {
+    if (err.scope === "anon") setAnonBusy(true);
+    else setQuota((q) => ({ used: q?.limit ?? 10, limit: q?.limit ?? 10 }));
+  }
 
   // 로그인하고 홈으로 돌아와 입력칸에서 다시 고르게 한다.
   function goLogin() {
@@ -57,7 +80,8 @@ export function LinkInputForm() {
   const check = checkShortsUrl(url);
   const fieldError =
     showFieldError && !check.ok && check.reason !== "empty" ? SHORTS_ERROR_TEXT[check.reason] : null;
-  const canSubmit = check.ok && !submitting;
+  const limitReached = quota != null && quota.used >= quota.limit;
+  const canSubmit = check.ok && !submitting && !limitReached;
 
   async function paste() {
     try {
@@ -78,15 +102,20 @@ export function LinkInputForm() {
       const { jobId } = await api.createJob(check.url);
       rememberJobSource(jobId, check.url);
       rememberRecentJob(jobId);
+      counted();
       router.push(`/jobs/${encodeURIComponent(jobId)}`);
       // 이 화면은 이동 뒤에도 상태가 남는다(cacheComponents). [다른 링크 넣기]·뒤로 가기로 오면
       // 빈 입력칸에서 다시 시작하도록 비우고 버튼도 푼다. 보낸 링크는 처리 중 화면에 보인다.
       setUrl("");
       setShowFieldError(false);
       setSubmitting(false);
-    } catch {
-      setSubmitError("Something went wrong. Please try again.");
+    } catch (err) {
       setSubmitting(false);
+      if (err instanceof DailyLimitError) {
+        limited(err);
+        return;
+      }
+      setSubmitError("Something went wrong. Please try again.");
     }
   }
 
@@ -106,6 +135,7 @@ export function LinkInputForm() {
       const { jobId } = await api.createUploadJob(file);
       rememberJobSource(jobId, fileSource(file.name));
       rememberRecentJob(jobId);
+      counted();
       router.push(`/jobs/${encodeURIComponent(jobId)}`);
       setUploading(false);
     } catch (err) {
@@ -113,6 +143,10 @@ export function LinkInputForm() {
       // 고르는 사이 로그인이 끊긴 경우. 로그인하고 이 화면으로 돌아와서 다시 고르게 한다.
       if (err instanceof NotSignedInError) {
         goLogin();
+        return;
+      }
+      if (err instanceof DailyLimitError) {
+        limited(err);
         return;
       }
       setUploadError("Couldn't upload the file. Please try again.");
@@ -191,13 +225,14 @@ export function LinkInputForm() {
             {submitError}
           </p>
         )}
+        <DailyLimitNote quota={quota} signedIn={signedIn === true} anonBusy={anonBusy} onSignIn={goLogin} />
         {UPLOAD_ENABLED ? (
           <>
             <input ref={fileInput} type="file" accept={UPLOAD_ACCEPT} onChange={upload} hidden />
             <button
               type="button"
               onClick={pickFile}
-              disabled={uploading}
+              disabled={uploading || (signedIn === true && limitReached)}
               className="mt-3 min-h-11 text-center text-[13px] text-muted underline underline-offset-[3px] disabled:no-underline"
             >
               {uploading ? "Uploading…" : "Upload a video file instead"}
@@ -216,5 +251,47 @@ export function LinkInputForm() {
         )}
       </div>
     </form>
+  );
+}
+
+// 버튼 아래 하루 한도 안내. 평소에는 "1 of 3 today", 다 쓰면 이유와 다음 행동.
+function DailyLimitNote({
+  quota,
+  signedIn,
+  anonBusy,
+  onSignIn,
+}: {
+  quota: { used: number; limit: number } | null;
+  signedIn: boolean;
+  anonBusy: boolean;
+  onSignIn: () => void;
+}) {
+  const reached = quota != null && quota.used >= quota.limit;
+  if (!signedIn && (reached || anonBusy)) {
+    return (
+      <div role="status" className="mt-2 text-center text-[13px]">
+        <p className="text-danger">
+          {reached
+            ? `You've used today's ${quota.limit} free conversions.`
+            : "Lots of people are converting right now."}
+        </p>
+        <button type="button" onClick={onSignIn} className="mt-1 min-h-11 font-bold underline underline-offset-[3px]">
+          Sign in to convert up to 10 a day
+        </button>
+      </div>
+    );
+  }
+  if (reached) {
+    return (
+      <p role="status" className="mt-2 text-center text-[13px] text-danger">
+        You&apos;ve used all {quota.limit} conversions for today. Come back tomorrow.
+      </p>
+    );
+  }
+  if (!quota) return null;
+  return (
+    <p className="mt-2 text-center text-xs text-muted">
+      {Math.min(quota.used, quota.limit)} of {quota.limit} today
+    </p>
   );
 }

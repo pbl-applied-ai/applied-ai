@@ -60,7 +60,8 @@ select set_eq(
        join pg_catalog.pg_namespace n on n.oid = p.pronamespace
       where n.nspname = 'public' and has_function_privilege('authenticated', p.oid, 'execute') $$,
   array['create_job', 'create_upload_job', 'get_job', 'get_run', 'save_recipe', 'update_recipe', 'get_recipe',
-        'list_featured', 'list_recipes', 'list_categories', 'create_category', 'set_recipe_categories'],
+        'list_featured', 'list_recipes', 'list_categories', 'create_category', 'set_recipe_categories',
+        'get_quota'],
   'authenticated가 실행할 수 있는 public 함수 목록'
 );
 
