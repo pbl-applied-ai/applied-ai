@@ -155,7 +155,8 @@ export async function runJob(input, { onStage = () => {}, env = process.env, fet
       // No lookup asks for this value, so a result missing speech only because of a passing failure is not reused.
       extractor_version: {
         ...version,
-        ...(result.meta.speech_lost && { speech: 'lost' }),
+        // A video with no sound track is 'no_audio': the worker may keep it once it is read silent twice.
+        ...(result.meta.speech_lost && { speech: result.meta.no_audio ? 'no_audio' : 'lost' }),
         ...(result.meta.ocr_lost && { ocr: 'lost' }),
         ...(result.meta.fewshot_lost && { fewshot: 'lost' }),
       },
