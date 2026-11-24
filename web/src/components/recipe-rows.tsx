@@ -4,7 +4,7 @@
 import { useState } from "react";
 import type { EditableIngredient, EditableStep } from "@/lib/api";
 import { amountView, isUserAdded } from "@/lib/review";
-import { metricHint } from "@/lib/units";
+import { metricHint, usFirst } from "@/lib/units";
 import { SourceChip } from "./recipe-source";
 
 const input = "h-11 min-w-0 rounded-xl border-2 border-foreground bg-card px-3 text-[15px] outline-none focus:border-pink";
@@ -54,7 +54,9 @@ export function IngredientRow({
   onRemove: () => void;
 }) {
   const [name, setName] = useState(item.name);
-  const [amount, setAmount] = useState(item.amount_raw ?? "");
+  // 입력칸도 화면 표시처럼 미국 단위를 앞에 둔다(#84 리뷰). 그대로 저장하면 원래 값을 보내서 "직접 입력"이 되지 않게 한다.
+  const shown = (text: string | null | undefined) => (text ? usFirst(text) : "");
+  const [amount, setAmount] = useState(shown(item.amount_raw));
   const view = amountView(item);
   // 추정값은 영상 값이 아니라서 ml/g 참고값을 붙이지 않는다
   const hint = view.kind === "missing" || view.kind === "estimate" ? null : metricHint(view.text, item.name);
@@ -63,7 +65,7 @@ export function IngredientRow({
   const startEdit = () => {
     setName(item.name);
     // 추정값이 있으면 입력칸에 미리 채운다. [확인]을 누르면 그 값을 쓴 것("직접 입력")이 된다.
-    setAmount(item.amount_raw ?? item.amount_estimate?.text ?? "");
+    setAmount(shown(item.amount_raw ?? item.amount_estimate?.text));
     onStartEdit();
   };
 
@@ -74,7 +76,9 @@ export function IngredientRow({
         onSubmit={(e) => {
           e.preventDefault();
           if (!name.trim()) return;
-          onSave({ name: name.trim(), amount_raw: amount.trim() || null });
+          const typed = amount.trim();
+          const unchanged = item.amount_raw != null && typed === shown(item.amount_raw).trim();
+          onSave({ name: name.trim(), amount_raw: unchanged ? item.amount_raw : typed || null });
         }}
       >
         <div className="flex gap-2">
