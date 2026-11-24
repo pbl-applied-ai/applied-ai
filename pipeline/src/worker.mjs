@@ -81,14 +81,27 @@ export function supabaseRpc({ url, key, fetchImpl = fetch }) {
   };
 }
 
+// Apify sometimes leaves out a reel's audio and gives a video with no sound track. That can pass, so the
+// first silent result is not reused ('no_audio'). But a reel that has no sound at all would then be read
+// again on every request, so when an earlier read of the same version was silent too, this one is kept
+// ('none', which the lookup above asks for). (#81 review)
+const SILENT = 'none';
+async function silentRead(out, key, db) {
+  if (out.status !== 'succeeded' || out.extractor_version?.speech !== 'no_audio') return out;
+  const before = await db.findCachedRun(key, out.extractor_version);
+  return before ? { ...out, extractor_version: { ...out.extractor_version, speech: SILENT } } : out;
+}
+
 // Processes one claimed job. Returns what happened, for logs and tests.
 export async function processJob(job, { db, env = process.env, fetchImpl = fetch, log = console.log, run = runJob } = {}) {
   const key = canonicalKey(job.source_url);
   const version = jobVersion(job.source_url, env);
 
   // An upload is never in the cache (its key is the upload ID), so it skips the lookup.
-  if (key && !job.upload_path && !isDevVersion(version)) {
-    const cached = await db.findCachedRun(key, version);
+  const cacheable = key && !job.upload_path && !isDevVersion(version);
+  if (cacheable) {
+    // A reel read silent twice (silentRead below) is kept as it is, so it is not read and paid for every time.
+    const cached = (await db.findCachedRun(key, version)) ?? (await db.findCachedRun(key, { ...version, speech: SILENT }));
     if (cached) {
       const done = await db.completeFromCache(job, cached);
       return { outcome: done ? 'cached' : 'lost', run_id: cached };
@@ -116,6 +129,7 @@ export async function processJob(job, { db, env = process.env, fetchImpl = fetch
   }
   out ??= await run(input, { onStage, env, fetchImpl });
   await writes;
+  if (cacheable) out = await silentRead(out, key, db);
 
   const result = await save(job, out, db);
   // The file is deleted once the job is over. A retry still needs it, a lost job belongs to another attempt,

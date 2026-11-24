@@ -108,11 +108,12 @@ test('speech lost to a passing failure is marked so the result is not reused; a 
     // Apify left out the audio this time and its video has no sound track (DfT-unPBAme, KAN-62).
     net({ apify: () => json(201, [{ ...apifyItem, audioUrl: null }]), asr: () => json(400, { error: { message: 'Audio file could not be decoded.' } }) }),
   ];
-  for (const n of lost) {
+  for (const [i, n] of lost.entries()) {
     const out = await reelJob(n);
     assert.equal(out.status, 'succeeded', out.message);
     assert.equal(out.description_only, true);
-    assert.equal(out.extractor_version.speech, 'lost');
+    // The silent video is marked apart, so the worker can keep it after a second silent read.
+    assert.equal(out.extractor_version.speech, i === lost.length - 1 ? 'no_audio' : 'lost');
   }
   const lasting = [
     net({ audio: () => file(403), video: () => file(404) }),
@@ -175,6 +176,32 @@ test('a result missing speech for now is not served from the cache', async () =>
   assert.equal((await processJob(reelTask, { db, env, fetchImpl: fresh.fetchImpl, run: workerRun, log: () => {} })).outcome, 'succeeded');
   assert.ok(fresh.seen.includes('https://cdn/a'), 'the reel is read again');
   assert.equal(db.runs.length, 2);
+});
+
+test('a reel read silent twice is kept, so the third request is served from the cache (#81 review)', async () => {
+  const db = cacheDb();
+  const env = { ...ENV, PIPELINE_TREE: 'abc1234' };
+  const silent = () => net({ apify: () => json(201, [{ ...apifyItem, audioUrl: null }]), asr: () => json(400, { error: { message: 'Audio file could not be decoded.' } }) });
+  assert.equal((await processJob(reelTask, { db, env, fetchImpl: silent().fetchImpl, run: workerRun, log: () => {} })).outcome, 'succeeded');
+  assert.equal(db.runs[0].version.speech, 'no_audio');
+  // The first silent read may have been a passing loss, so the reel is read once more.
+  const second = silent();
+  assert.equal((await processJob(reelTask, { db, env, fetchImpl: second.fetchImpl, run: workerRun, log: () => {} })).outcome, 'succeeded');
+  assert.ok(second.seen.length > 0, 'the reel is read again');
+  assert.equal(db.runs[1].version.speech, 'none');
+  const third = await processJob(reelTask, { db, env, fetchImpl: () => assert.fail('fetched'), run: workerRun, log: () => {} });
+  assert.deepEqual(third, { outcome: 'cached', run_id: 'run-2' });
+});
+
+test('a silent read followed by one with sound is cached as a normal result', async () => {
+  const db = cacheDb();
+  const env = { ...ENV, PIPELINE_TREE: 'abc1234' };
+  const silent = net({ apify: () => json(201, [{ ...apifyItem, audioUrl: null }]), asr: () => json(400, { error: { message: 'Audio file could not be decoded.' } }) });
+  await processJob(reelTask, { db, env, fetchImpl: silent.fetchImpl, run: workerRun, log: () => {} });
+  await processJob(reelTask, { db, env, fetchImpl: net().fetchImpl, run: workerRun, log: () => {} });
+  assert.deepEqual(db.runs[1].version, jobVersion(SOURCE, env));
+  const again = await processJob(reelTask, { db, env, fetchImpl: () => assert.fail('fetched'), run: workerRun, log: () => {} });
+  assert.deepEqual(again, { outcome: 'cached', run_id: 'run-2' });
 });
 
 test('Apify failing or finding nothing goes to ScrapeCreators, and its video is transcribed', async () => {
