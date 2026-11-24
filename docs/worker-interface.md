@@ -116,7 +116,7 @@ jobs의 claim·complete·fail은 Supabase RPC로 한다. 동시 claim 방지는 
 - `metrics`는 실행 기록(처리 시간·비용) 집계에 쓴다. `runs.metrics`에 저장된다.
   - `usage`: 레시피 추출 호출의 토큰(예전과 같음).
   - `usage_by_step`: LLM 호출별 토큰과 모델. 호출하지 않은 단계(OCR 꺼짐, 추정할 분량 없음)는 빠진다. OpenAI는 `prompt_tokens`·`completion_tokens`, Anthropic은 `input_tokens`·`output_tokens`로 온다.
-  - `tokens`: 모든 호출의 입력·출력 토큰 합계. 모델 호출이 하나도 없으면(테스트용 고정 출력) `usage_by_step`·`tokens`가 없다.
+  - `tokens`: 모든 호출의 입력·출력 토큰 합계. gpt-4.1과 gpt-4.1-mini를 섞어 더한 값이라 **비용은 `usage_by_step`에서 모델별 단가로 계산**한다. 모델 호출이 하나도 없으면(테스트용 고정 출력) `usage_by_step`·`tokens`가 없다.
   - 음성 인식(Whisper)은 토큰이 아니라 길이로 과금돼서 여기엔 없다.
 
 ### 실패

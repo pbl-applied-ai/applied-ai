@@ -70,11 +70,9 @@ function exportRun(result, warnings, { partial = false } = {}) {
   return { bundle: toEvidenceBundle(result), recipe, internal: result };
 }
 
-// The version a run of this link is saved under. The worker looks up the cache with the same value,
-// and find_cached_run compares it exactly, so the two must not be worked out separately.
 // Tokens per LLM call (structure = recipe, ocr = on-screen text, estimate = suggested amounts), for cost
-// records. `usage` above stays the structure call alone, as before. OpenAI counts prompt/completion tokens,
-// Anthropic input/output; `tokens` adds them up either way.
+// records. `metrics.usage` stays the structure call alone, as before. OpenAI counts prompt/completion tokens,
+// Anthropic input/output; `tokens` adds them up either way, across models, so cost is worked out per step.
 export function usageBySteps(meta) {
   const steps = {};
   if (meta?.usage) steps.structure = { model: meta.model ?? null, ...meta.usage };
@@ -93,6 +91,8 @@ function tokenMetrics(steps) {
   return { usage_by_step: steps, tokens };
 }
 
+// The version a run of this link is saved under. The worker looks up the cache with the same value,
+// and find_cached_run compares it exactly, so the two must not be worked out separately.
 export function jobVersion(sourceUrl, env = process.env) {
   const key = canonicalKey(sourceUrl);
   return {
