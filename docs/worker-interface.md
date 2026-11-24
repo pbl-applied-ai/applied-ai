@@ -1,7 +1,8 @@
-# 워커 ↔ 파이프라인 호출 방식 v0.9
+# 워커 ↔ 파이프라인 호출 방식 v0.10
 
 작성: 전수빈 · 2026-10-24 · 선규 합의용
-수정일: 2026-11-11
+수정일: 2026-11-23
+변경(v0.10, #81 리뷰): Apify가 음성 파일을 빼고 준 영상이 소리 트랙이 없어 못 읽힌 결과는 `speech: "no_audio"`로 따로 표시한다. 같은 버전으로 두 번 연속 소리가 없으면 두 번째 결과를 `speech: "none"`으로 저장하고, 그다음 요청부터는 캐시에서 다시 쓴다. 원래 소리가 없는 릴스를 넣을 때마다 Apify·LLM 비용이 나가지 않게 하기 위해서다.
 변경(v0.9, KAN-51): `ocr` 단계 구현. `OCR=on`이면 영상(YouTube·릴스·업로드)에서 1초마다 프레임을 뽑아 화면 글자를 읽고 `ocr` 근거로 넣는다. 실패해도 job은 계속하고 `skipped`에 이유를 남긴다(`ocr_off`·`no_video`·`video_too_large`·`ocr_tool_missing`·`ocr_unreadable`·`ocr_transient`·`ocr_config`). 일시 오류로 못 읽은 결과는 캐시에서 다시 쓰지 않는다(`ocr: "lost"`). 켜면 `extractor_version`에 `ocr`(모델 이름)가 붙는다. 다른 근거가 없어도 화면 글자가 있으면 진행한다.
 변경(v0.8, KAN-50): 개발용 릴스 12편 실측으로 `no_speech` 판단을 고침. Instagram은 캡션이 한국어면 음성 인식 언어를 한국어로 지정, 흔한 헛인식 문구 구간 제거, 한글이 대부분이면 다른 언어로 잡혀도 말소리로 봄, 확신이 매우 낮은 짧은 글자뿐이면 말소리 없음.
 변경(v0.7): 영상 파일 업로드는 로그인한 사람만(`create_upload_job` anon 권한 회수, `uploads` 올리기 정책 authenticated만). 업로드는 캐시를 안 써서 건마다 비용이 나가기 때문(#32 배포 조건).
@@ -68,6 +69,7 @@ jobs의 claim·complete·fail은 Supabase RPC로 한다. 동시 claim 방지는 
 
 - **확인 위치는 워커다.** job을 claim한 뒤, `runJob`을 부르기 전에 같은 `canonical_key` + 같은 `extractor_version`의 **성공 run**(`partial = false`)이 있으면 LLM을 부르지 않고 그 run으로 바로 complete한다. 조회와 저장은 같은 버전 값을 쓴다(`jobVersion`).
 - **Instagram 말소리를 일시 오류로 못 읽은 결과**(음성·영상 다운로드 5xx·429·시간 초과, 영상 음성 인식 일시 오류)는 캡션 기반으로 보여 주되, `extractor_version`에 `speech: "lost"`를 붙여 저장해서 다시 쓰지 않는다. 같은 릴스를 다시 넣으면 새로 처리한다.
+- **소리 트랙 없는 영상**(Apify가 음성 파일을 빼고 준 영상을 음성 인식이 못 읽은 경우)은 `speech: "no_audio"`로 저장해 첫 번째는 다시 쓰지 않는다. 다음 요청에서 다시 읽었는데 또 소리가 없으면(같은 버전의 `no_audio` run이 이미 있으면) `speech: "none"`으로 저장한다. 워커는 캐시를 찾을 때 같은 버전 다음으로 `speech: "none"`인 run도 찾아서 다시 쓴다. 그래서 같은 릴스는 최대 두 번만 읽는다.
 - 그래서 이미 처리된 영상도 처리 중 화면(S3)이 잠깐(폴링 1~2번) 보였다가 결과로 넘어간다. MVP는 이것으로 충분하다.
 - API(`create_job`)에서 확인해 S3를 아예 건너뛰는 건 MVP 이후로 둔다. 그때는 워커가 시작할 때 현재 `extractor_version`을 설정 테이블에 써 두고 `create_job`이 그 값을 읽는다. API 서버가 워커 환경 변수를 따로 알 필요가 없게 하기 위해서다.
 - **같은 영상 동시 요청**: 두 사람이 거의 동시에 같은 영상을 넣으면 둘 다 캐시를 못 찾아 LLM이 두 번 돈다. MVP에서는 허용한다(비용 한 번 더). 줄여야 하면 claim할 때 같은 `canonical_key`의 `running` job이 있으면 `next_run_at`을 미뤄 기다리게 한다.
