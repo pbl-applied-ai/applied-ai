@@ -88,7 +88,7 @@ YouTube URL
 | `src/worker.mjs` | Supabase jobs를 가져와 `runJob`을 돌리고 runs·jobs에 저장하는 워커 |
 | `src/team-schema.mjs` | `toEvidenceBundle`, `toTeamRecipe`, `teamIdMap`: 파이프라인 결과 → 팀 스키마 v0.1 (아래 참고) |
 | `src/print.mjs` | 출력 포맷: 요약 줄, 출처별 분량, 상태 표시 |
-| `src/cli.mjs` | CLI 옵션: `--out`, `--transcript`, `--llm-output`, `--lang`(기본 `ko,en`), `--captions-only`, `--json`, `--team-out` |
+| `src/cli.mjs` | CLI 옵션: `--out`, `--transcript`, `--llm-output`, `--lang`(기본 `ko,en`. 자동 더빙 영상은 원본 오디오 언어 자막이 먼저), `--captions-only`, `--json`, `--team-out` |
 | `scripts/compare-models.mjs` | 같은 자막으로 여러 모델 실행. 결과는 `compare/<버전>/<영상ID>/<모델>.json` |
 | `scripts/repeat-model.mjs` | 같은 모델을 N번 실행해 실행 간 편차 확인. 결과는 `.../repeat/` |
 | `test/pipeline.test.mjs` | 단위 테스트 (`node --test`). LLM 호출은 `fetch`를 모킹한다 |
