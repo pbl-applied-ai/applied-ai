@@ -1,7 +1,8 @@
-# 워커 ↔ 파이프라인 호출 방식 v0.9
+# 워커 ↔ 파이프라인 호출 방식 v0.10
 
 작성: 전수빈 · 2026-10-24 · 선규 합의용
-수정일: 2026-11-11
+수정일: 2026-11-23
+변경(v0.10): `metrics`에 LLM 호출별 토큰(`usage_by_step`: `structure` 레시피·`ocr` 화면 글자·`estimate` 추정 분량)과 합계(`tokens`)를 남긴다. `usage`는 지금처럼 레시피 호출만이다. 비용 집계·발표용.
 변경(v0.9, KAN-51): `ocr` 단계 구현. `OCR=on`이면 영상(YouTube·릴스·업로드)에서 1초마다 프레임을 뽑아 화면 글자를 읽고 `ocr` 근거로 넣는다. 실패해도 job은 계속하고 `skipped`에 이유를 남긴다(`ocr_off`·`no_video`·`video_too_large`·`ocr_tool_missing`·`ocr_unreadable`·`ocr_transient`·`ocr_config`). 일시 오류로 못 읽은 결과는 캐시에서 다시 쓰지 않는다(`ocr: "lost"`). 켜면 `extractor_version`에 `ocr`(모델 이름)가 붙는다. 다른 근거가 없어도 화면 글자가 있으면 진행한다.
 변경(v0.8, KAN-50): 개발용 릴스 12편 실측으로 `no_speech` 판단을 고침. Instagram은 캡션이 한국어면 음성 인식 언어를 한국어로 지정, 흔한 헛인식 문구 구간 제거, 한글이 대부분이면 다른 언어로 잡혀도 말소리로 봄, 확신이 매우 낮은 짧은 글자뿐이면 말소리 없음.
 변경(v0.7): 영상 파일 업로드는 로그인한 사람만(`create_upload_job` anon 권한 회수, `uploads` 올리기 정책 authenticated만). 업로드는 캐시를 안 써서 건마다 비용이 나가기 때문(#32 배포 조건).
@@ -97,7 +98,13 @@ jobs의 claim·complete·fail은 Supabase RPC로 한다. 동시 claim 방지는 
       { "stage": "structure", "state": "done", "ms": 3700 },
       { "stage": "finalize", "state": "done", "ms": 4 }
     ],
-    "usage": { "input_tokens": 2400, "output_tokens": 680 }
+    "usage": { "prompt_tokens": 2400, "completion_tokens": 680, "total_tokens": 3080 },
+    "usage_by_step": {
+      "structure": { "model": "openai:gpt-4.1", "prompt_tokens": 2400, "completion_tokens": 680, "total_tokens": 3080 },
+      "ocr": { "model": "gpt-4.1-mini", "prompt_tokens": 9800, "completion_tokens": 310, "total_tokens": 10110 },
+      "estimate": { "model": "openai:gpt-4.1", "prompt_tokens": 650, "completion_tokens": 120, "total_tokens": 770 }
+    },
+    "tokens": { "input": 12850, "output": 1110 }
   },
   "warnings": []
 }
@@ -106,7 +113,11 @@ jobs의 claim·complete·fail은 Supabase RPC로 한다. 동시 claim 방지는 
 - **`extractor_version.pipeline`**: `pipeline/package.json`의 버전 + **`pipeline/` 폴더의 트리 해시** 앞 7자(`git rev-parse HEAD:pipeline`, 배포 때 `PIPELINE_TREE` 환경 변수로 넣음). 모노레포라 레포 전체 커밋 SHA를 쓰면 `web/`·`docs/`만 바뀌어도 값이 바뀌어 캐시가 전부 무효가 된다. 트리 해시는 #12처럼 `pipeline/` 안의 후처리(`resolve`)가 바뀔 때만 달라진다. 값이 없는 로컬 실행은 `0.1.0+dev`이고 캐시에 저장하지 않는다.
 - `bundle`·`recipe`는 #13의 어댑터(`toEvidenceBundle`, `toTeamRecipe`) 결과 그대로다. run(추출 결과)으로 저장하고 고치지 않는다.
 - `internal`은 run과 분리한 **별도 테이블**(`run_internals`)에 두고 서버에서만 읽는다. 평가·디버깅용이고 화면에는 쓰지 않는다.
-- `metrics`는 실행 기록(처리 시간·비용) 집계에 쓴다. 저장 위치는 선규가 실행 기록 쪽에서 정한다.
+- `metrics`는 실행 기록(처리 시간·비용) 집계에 쓴다. `runs.metrics`에 저장된다.
+  - `usage`: 레시피 추출 호출의 토큰(예전과 같음).
+  - `usage_by_step`: LLM 호출별 토큰과 모델. 호출하지 않은 단계(OCR 꺼짐, 추정할 분량 없음)는 빠진다. OpenAI는 `prompt_tokens`·`completion_tokens`, Anthropic은 `input_tokens`·`output_tokens`로 온다.
+  - `tokens`: 모든 호출의 입력·출력 토큰 합계. 모델 호출이 하나도 없으면(테스트용 고정 출력) `usage_by_step`·`tokens`가 없다.
+  - 음성 인식(Whisper)은 토큰이 아니라 길이로 과금돼서 여기엔 없다.
 
 ### 실패
 
