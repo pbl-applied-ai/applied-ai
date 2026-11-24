@@ -109,6 +109,8 @@ async function collectInstagram(code, { env, fetchImpl, onStage }) {
         const silentVideo = err?.reason === 'upload_unreadable' && media.filename === 'video.mp4' && reel.vendor === 'apify';
         if (!rejected && !videoStuck) throw err;
         if (videoStuck || silentVideo) source.speechLost = true;
+        // The worker reads a silent video once more, then keeps the second silent result (worker.mjs).
+        if (silentVideo) source.noAudio = true;
       }
     });
   } else {
@@ -236,6 +238,7 @@ export async function runPipeline({ url, upload, transcriptFile, languages, env 
       ...(fewshotFailed && { fewshot_lost: true }),
       ...(source.commentNote && { comment_note: source.commentNote }),
       ...(source.speechLost && { speech_lost: true }),
+      ...(source.noAudio && { no_audio: true }),
       ...(screen.info && { ocr: screen.info }),
       ...(screen.lost && { ocr_lost: true }),
       ...(estimate && { estimate: { prompt_version: ESTIMATE_PROMPT_VERSION, applied: estimate.applied, usage: estimate.usage } }),
