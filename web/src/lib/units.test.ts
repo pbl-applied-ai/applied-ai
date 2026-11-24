@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { metricHint } from "./units";
+import { metricHint, usFirst } from "./units";
 
 describe("metricHint", () => {
   it("미국식 부피 단위를 ml로 바꾼다", () => {
@@ -44,5 +44,22 @@ describe("metricHint", () => {
     expect(metricHint("to taste")).toBeNull();
     expect(metricHint("2 cloves")).toBeNull();
     expect(metricHint(null)).toBeNull();
+  });
+});
+
+describe("usFirst", () => {
+  it("puts the US unit first when the metric one leads", () => {
+    expect(usFirst("1360g (48oz)")).toBe("48oz (1360g)");
+    expect(usFirst("200ml (3/4 cup) milk")).toBe("3/4 cup (200ml) milk");
+    expect(usFirst("about 450 g (1 lb)")).toBe("1 lb (about 450 g)");
+    expect(usFirst("1.5 kg (3.3 lbs)")).toBe("3.3 lbs (1.5 kg)");
+  });
+  it("leaves other amounts as they are", () => {
+    expect(usFirst("48oz (1360g)")).toBe("48oz (1360g)");
+    expect(usFirst("1 can (15 oz)")).toBe("1 can (15 oz)");
+    expect(usFirst("500g")).toBe("500g");
+    expect(usFirst("2 tbsp")).toBe("2 tbsp");
+    expect(usFirst("100g (about half a pack)")).toBe("100g (about half a pack)");
+    expect(usFirst("to taste")).toBe("to taste");
   });
 });

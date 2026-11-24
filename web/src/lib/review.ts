@@ -1,5 +1,6 @@
 // S4 확인·수정 화면의 표시 규칙. 편집 자체는 @/lib/api의 editable.ts가 한다.
 import type { EditableIngredient, EditableRecipe, Run } from "@/lib/api";
+import { usFirst } from "@/lib/units";
 
 /** 근거가 모두 영상 설명·제목·작성자 고정 댓글뿐이면 "설명 기반" 결과다(docs/ux-flow.md S4). 음성·화면 글자는 보지 않은 결과다. */
 export function isDescriptionOnly(run: Run): boolean {
@@ -44,13 +45,14 @@ export type AmountView =
 export function amountView(ing: EditableIngredient): AmountView {
   if (!ing.amount_raw) {
     // 추정값은 영상 값이 아니라서 따로 "추정"으로 보여 준다. 쓰기 전까지는 분량이 빈 상태다.
-    if (ing.amount_estimate?.text) return { kind: "estimate", text: ing.amount_estimate.text, basis: ing.amount_estimate.basis?.trim() || null };
+    if (ing.amount_estimate?.text) return { kind: "estimate", text: usFirst(ing.amount_estimate.text), basis: ing.amount_estimate.basis?.trim() || null };
     return { kind: "missing" };
   }
   // 사용자가 채웠거나 고친 분량은 영상에서 확인한 값이 아니다(editIngredient가 user_entered를 붙인다).
   // 이름만 고친 재료의 분량은 그대로 영상에서 확인한 값이다.
-  if (ing.user_entered) return { kind: "user", text: ing.amount_raw };
-  return { kind: "confirmed", text: ing.amount_raw };
+  // 두 단위 분량은 미국 단위를 앞에 보여 준다(저장된 값은 그대로).
+  if (ing.user_entered) return { kind: "user", text: usFirst(ing.amount_raw) };
+  return { kind: "confirmed", text: usFirst(ing.amount_raw) };
 }
 
 /** 사용자가 추가한 항목은 되돌릴 원본이 없어 [삭제]만 보인다. */

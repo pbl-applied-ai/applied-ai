@@ -86,3 +86,21 @@ export function metricHint(amount: string | null | undefined, name?: string | nu
   if (b == null) return `about ${format(a * conv.factor, conv.to)}`;
   return `about ${formatRange(a * conv.factor, b * conv.factor, conv.to)}`;
 }
+
+// 두 단위로 적힌 분량("1360g (48oz)")은 미국 단위를 앞에 둔다(11/22 수빈 결정: 미국 단위 1순위).
+// 앞이 미터법, 괄호 안이 미국 단위일 때만 자리를 바꾼다. "1 can (15 oz)" 같은 통 크기나 괄호 뒤 글자는 그대로.
+const QTY = String.raw`(?:about\s+|around\s+|approx\.?\s+|~\s*)?(?:\d+\s+\d+\/\d+|\d+\s*[½⅓⅔¼¾]|\d+(?:[.,]\d+)?(?:\/\d+)?|[½⅓⅔¼¾])(?:\s*(?:-|–|to)\s*(?:\d+(?:[.,]\d+)?(?:\/\d+)?))?`;
+const METRIC_UNIT = String.raw`(?:g|grams?|kg|kilograms?|mg|ml|milliliters?|millilitres?|l|liters?|litres?)`;
+const US_UNIT = String.raw`(?:fl\.?\s*oz|fluid\s+ounces?|oz|ounces?|lbs?|pounds?|cups?|c|tbsps?|tablespoons?|tsps?|teaspoons?|pints?|pt|quarts?|qt|gallons?|gal|sticks?)`;
+const METRIC_THEN_US = new RegExp(
+  String.raw`^(\s*${QTY}\s*${METRIC_UNIT}\.?)\s*\(\s*(${QTY}\s*${US_UNIT}\.?)\s*\)`,
+  "i",
+);
+
+/** "1360g (48oz)" → "48oz (1360g)", "200ml (3/4 cup) milk" → "3/4 cup (200ml) milk". 바꿀 게 없으면 그대로. */
+export function usFirst(amount: string): string {
+  const m = amount.match(METRIC_THEN_US);
+  if (!m) return amount;
+  const lead = m[1].match(/^\s*/)?.[0] ?? "";
+  return `${lead}${m[2].trim()} (${m[1].trim()})${amount.slice(m[0].length)}`;
+}
