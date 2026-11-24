@@ -47,6 +47,11 @@ describe("formatQuantity", () => {
     expect(formatQuantity(0.4)).toBe("0.4");
     expect(formatQuantity(12.4)).toBe("12");
     expect(formatQuantity(3)).toBe("3");
+    // 아주 작은 값은 1/8로 올리지 않는다(#83 리뷰)
+    expect(formatQuantity(1 / 16)).toBe("1/16");
+    expect(formatQuantity(0.03)).toBe("0.03");
+    expect(formatQuantity(2 + 1 / 16)).toBe("2");
+    expect(scaleAmount("1/4 tsp", 0.25)).toBe("1/16 tsp");
   });
 });
 

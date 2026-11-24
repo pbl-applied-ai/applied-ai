@@ -60,7 +60,7 @@ function ServingsStepper({ scale }: { scale: ReturnType<typeof useScale> }) {
           </button>
         )}
       </div>
-      {scale.factor !== 1 && <p className="text-[11px] text-muted">{scale.note}. Amounts without a number stay the same.</p>}
+      {scale.factor !== 1 && <p className="text-[11px] text-muted">{scale.note}. Amounts without a number stay the same. Steps keep the video&apos;s amounts.</p>}
     </div>
   );
 }
@@ -87,15 +87,18 @@ export function RecipeView({
           const view = amountView(ing);
           const text = view.kind === "confirmed" || view.kind === "user" ? scaleAmount(view.text, scale.factor) : null;
           const hint = text == null ? null : metricHint(text, ing.name);
+          // 바꾼 분량은 영상이 말한 값이 아니라서 출처 칩을 숨기고 원래 값을 작게 보여 준다(#83 리뷰)
+          const scaled = text != null && view.kind !== "missing" && view.kind !== "estimate" && text !== view.text;
           return (
             <div key={ing.id} className="flex min-h-12 items-center justify-between gap-3 border-t border-line">
               <span className="text-base font-medium">{ing.name}</span>
               {view.kind === "confirmed" && (
                 <span className="flex items-center gap-2">
-                  <SourceChip source={ing.amount_source} />
+                  {!scaled && <SourceChip source={ing.amount_source} />}
                   <span className="flex flex-col items-end">
                     <span className="text-[15px] font-bold">{text}</span>
                     {hint && <span className="text-[11px] text-muted">{hint}</span>}
+                    {scaled && <span className="text-[11px] text-muted">Video: {view.text}</span>}
                   </span>
                 </span>
               )}
@@ -110,7 +113,11 @@ export function RecipeView({
                 <span className="flex flex-col items-end">
                   <span className="text-[15px] font-bold">{text}</span>
                   {hint && <span className="text-[11px] text-muted">{hint}</span>}
-                  <span className="src-chip mt-0.5">You entered</span>
+                  {scaled ? (
+                    <span className="text-[11px] text-muted">You entered: {view.text}</span>
+                  ) : (
+                    <span className="src-chip mt-0.5">You entered</span>
+                  )}
                 </span>
               )}
             </div>

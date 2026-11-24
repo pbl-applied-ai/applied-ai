@@ -42,7 +42,7 @@ function toNumber(raw: string): number | null {
 }
 
 const NICE: [number, string][] = [
-  [1 / 8, "1/8"], [1 / 4, "1/4"], [1 / 3, "1/3"], [1 / 2, "1/2"], [2 / 3, "2/3"], [3 / 4, "3/4"],
+  [1 / 16, "1/16"], [1 / 8, "1/8"], [1 / 4, "1/4"], [1 / 3, "1/3"], [1 / 2, "1/2"], [2 / 3, "2/3"], [3 / 4, "3/4"],
 ];
 
 /** 숫자를 레시피에 쓰는 모양으로. 미국 단위는 1/2·1/3 같은 분수, 미터법(g·ml)은 정수로 반올림한다. */
@@ -53,12 +53,15 @@ export function formatQuantity(value: number, metric = false): string {
   }
   const whole = Math.floor(value);
   const rest = value - whole;
-  if (rest < 0.06) return String(whole || NICE[0][1]);
+  // 아주 작은 값을 1/8 같은 큰 분수로 올리지 않는다(#83 리뷰): 1/4 tsp의 1/4배는 1/16, 그보다 작으면 소수.
+  if (!whole && value < 0.045) return String(Math.round(value * 100) / 100 || 0.01);
+  if (whole && rest < 0.06) return String(whole);
   if (rest > 0.94) return String(whole + 1);
   const [, frac] = NICE.reduce((best, cur) => (Math.abs(cur[0] - rest) < Math.abs(best[0] - rest) ? cur : best));
   // 가까운 분수가 없으면(0.4 같은 값) 소수 한 자리
-  const near = NICE.some(([v]) => Math.abs(v - rest) < 0.05);
+  const near = NICE.some(([v]) => Math.abs(v - rest) < Math.min(0.05, v / 3));
   if (!near) return (Math.round(value * 10) / 10).toString();
+  if (whole && frac === "1/16") return String(whole);
   return whole ? `${whole} ${frac}` : frac;
 }
 
