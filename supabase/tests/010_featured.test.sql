@@ -29,8 +29,8 @@ insert into public.runs (id, canonical_key, source_url, extractor_version, bundl
 
 -- 2번이 먼저(position 1), 1번이 다음(position 2). 3번은 추천이 아니다.
 insert into public.featured_runs (run_id, categories, position) values
-  ('aaaaaaaa-0000-0000-0000-000000000001', '{quick,budget}', 2),
-  ('aaaaaaaa-0000-0000-0000-000000000002', '{christmas}', 1);
+  ('aaaaaaaa-0000-0000-0000-000000000001', '{late_night,dessert}', 2),
+  ('aaaaaaaa-0000-0000-0000-000000000002', '{vegan}', 1);
 
 -- 저장 수: 1번 run을 두 사람이 저장
 insert into public.user_recipes (user_id, run_id, title, ingredients, steps) values
@@ -38,8 +38,8 @@ insert into public.user_recipes (user_id, run_id, title, ingredients, steps) val
   ('22222222-2222-2222-2222-222222222222', 'aaaaaaaa-0000-0000-0000-000000000001', 'r', '[]', '[]');
 
 select throws_ok(
-  $$ insert into public.featured_runs (run_id, categories) values ('aaaaaaaa-0000-0000-0000-000000000003', '{pasta}') $$,
-  '23514', null, '정한 카테고리 4개 밖은 넣을 수 없다');
+  $$ insert into public.featured_runs (run_id, categories) values ('aaaaaaaa-0000-0000-0000-000000000003', '{christmas}') $$,
+  '23514', null, '정한 칩 태그 4개 밖은 넣을 수 없다(옛 태그 christmas도)');
 
 set local role anon;
 select set_config('request.jwt.claims', '', true);
@@ -72,7 +72,7 @@ select is((select ingredient_names from public.list_featured() where run_id = 'a
 select is((select array[ingredient_count, step_count] from public.list_featured() where run_id = 'aaaaaaaa-0000-0000-0000-000000000001'),
   array[3, 2], '재료 수·단계 수');
 select is((select categories from public.list_featured() where run_id = 'aaaaaaaa-0000-0000-0000-000000000001'),
-  array['quick', 'budget'], '카테고리');
+  array['late_night', 'dessert'], '카테고리');
 select is((select array_agg(save_count order by position) from public.list_featured() f
              join (values ('aaaaaaaa-0000-0000-0000-000000000002'::uuid, 1), ('aaaaaaaa-0000-0000-0000-000000000001'::uuid, 2)) p(run_id, position)
                using (run_id)),

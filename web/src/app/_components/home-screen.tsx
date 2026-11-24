@@ -1,7 +1,9 @@
 "use client";
 
 // S6 한 화면 홈(Pinch 시안 01). 로그인 전·후 같은 홈을 쓴다.
-// 위에서부터 로고·설정 → 제목 → 검색 → 카테고리 → Trending 카드 → 시즌 특집 → 주제별 줄 → "만드는 중" 카드 → 내 최근 레시피.
+// 위에서부터 로고·설정 → 제목 → 검색 → 취향 칩 → 시즌 특집 → Trending → 주제별 줄 → "만드는 중" 카드 → 내 최근 레시피.
+// 11/24 홈 A안: 칩은 필터다. All이면 시즌 특집·Trending·주제별 줄이 다 보이고, 칩(또는 검색)을 쓰면 편집 영역을 숨기고
+// 거른 레시피만 보여 준다. 시즌·원팟 같은 묶음은 칩이 아니라 갈아 끼우는 편집 영역(content/home.ts)이다.
 // 링크 넣기는 하단 탭 가운데 Convert(/convert)로 옮겼다.
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
@@ -20,6 +22,8 @@ import { recentJobIds } from "@/lib/recent-jobs";
 
 const POLL_MS = 3000;
 const RECENT_COUNT = 3;
+// All 홈의 Trending 줄에 적어도 보여 줄 카드 수
+const TRENDING_MIN = 4;
 // 로그인 전 실패 카드 [닫기]는 이 브라우저에만 남긴다
 const GUEST = "guest";
 
@@ -88,24 +92,33 @@ export function HomeScreen() {
   );
 
   // 검색은 추천 목록 안에서만 거른다(웹에서, #64 리뷰). 요리명·크리에이터로 찾는다.
-  // 거르지 않을 때 Trending은 편집 영역에 나온 레시피를 빼고 보여 준다(같은 카드가 두 번 안 나오게).
-  // 칩·검색을 쓰면 편집 영역 레시피까지 모두에서 찾는다
+  // All: Trending은 편집 영역에 나온 레시피를 빼고 보여 주되, 모자라면 편집 영역 레시피로 채워 줄이 비지 않게 한다.
+  // 칩·검색: 편집 영역 레시피까지 모두에서 찾고, 줄 제목을 칩 이름("Vegan")이나 "Results"로 바꾼다.
+  const filtering = query.trim() !== "" || category !== "all";
   const shown = useMemo(() => {
     const q = query.trim().toLowerCase();
-    const searching = q !== "" || category !== "all";
+    if (filtering) {
+      const chip = FEATURED_CHIPS.find((c) => c.id === category);
+      return groups
+        .map((g) => ({
+          ...g,
+          title: category === "all" ? "Results" : (chip?.label ?? g.title),
+          cards: g.cards.filter(
+            (c) =>
+              (category === "all" || (c.categories ?? []).includes(category)) &&
+              (!q || c.title.toLowerCase().includes(q) || c.creator.toLowerCase().includes(q)),
+          ),
+        }))
+        .filter((g) => g.cards.length > 0);
+    }
     return groups
-      .map((g) => ({
-        ...g,
-        cards: g.cards.filter(
-          (c) =>
-            (searching || !editorial.usedRunIds.has(c.runId)) &&
-            (category === "all" || (c.categories ?? []).includes(category)) &&
-            (!q || c.title.toLowerCase().includes(q) || c.creator.toLowerCase().includes(q)),
-        ),
-      }))
+      .map((g) => {
+        const fresh = g.cards.filter((c) => !editorial.usedRunIds.has(c.runId));
+        const fill = fresh.length >= TRENDING_MIN ? [] : g.cards.filter((c) => editorial.usedRunIds.has(c.runId));
+        return { ...g, cards: [...fresh, ...fill].slice(0, Math.max(TRENDING_MIN, fresh.length)) };
+      })
       .filter((g) => g.cards.length > 0);
-  }, [groups, query, category, editorial]);
-  const filtering = query.trim() !== "" || category !== "all";
+  }, [groups, query, category, editorial, filtering]);
 
   const cards = mine ? jobCards(mine.jobs, mine.recipes, mine.hidden) : [];
   const recent = mine?.recipes.slice(0, RECENT_COUNT) ?? [];
@@ -167,17 +180,15 @@ export function HomeScreen() {
         })}
       </nav>
 
+      {!filtering && editorial.issue && <IssueHero issue={editorial.issue} />}
       {shown.map((group) => (
         <RecipeRow key={group.id} id={`reco-${group.id}`} title={group.title} cards={group.cards} />
       ))}
       {filtering && shown.length === 0 && groups.length > 0 && (
         <p className="px-6 pt-6 text-sm text-muted">No recipes match. Try another word or category.</p>
       )}
-
-      {editorial.issue && <IssueHero issue={editorial.issue} />}
-      {editorial.shelves.map((shelf, i) => (
-        <RecipeRow key={shelf.title} id={`shelf-${i}`} title={shelf.title} cards={shelf.cards} />
-      ))}
+      {!filtering &&
+        editorial.shelves.map((shelf, i) => <RecipeRow key={shelf.title} id={`shelf-${i}`} title={shelf.title} cards={shelf.cards} />)}
 
       {cards.length > 0 && (
         <section aria-label="Recipes in progress" className="flex flex-col gap-3 px-6 pt-8">
