@@ -1,7 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
-import { canonicalKey, extractorVersion, isDevVersion, runJob } from '../src/job.mjs';
+import { canonicalKey, extractorVersion, isDevVersion, runJob, usageBySteps } from '../src/job.mjs';
 import { processJob, supabaseRpc } from '../src/worker.mjs';
 
 const fixture = (name) => new URL(`./fixtures/${name}`, import.meta.url);
@@ -296,4 +296,42 @@ test('worker fails an unsupported link without running the pipeline further', as
   assert.deepEqual(db.calls.map(([k, v]) => (k === 'stage' ? v : k)), ['collect', 'fail']);
   const out = last(db)[1];
   assert.deepEqual({ stage: out.stage, error_code: out.error_code, reason: out.reason }, { stage: 'collect', error_code: 'unsupported_source', reason: 'not_youtube' });
+});
+
+test('metrics keep the tokens of each LLM call: recipe, on-screen text and suggested amounts', () => {
+  const meta = {
+    model: 'openai:gpt-4.1',
+    usage: { prompt_tokens: 1000, completion_tokens: 300, total_tokens: 1300 },
+    ocr: { model: 'gpt-4.1-mini', frames: 20, usage: { prompt_tokens: 5000, completion_tokens: 200, total_tokens: 5200 } },
+    estimate: { applied: 3, usage: { prompt_tokens: 400, completion_tokens: 80, total_tokens: 480 } },
+  };
+  assert.deepEqual(usageBySteps(meta), {
+    structure: { model: 'openai:gpt-4.1', prompt_tokens: 1000, completion_tokens: 300, total_tokens: 1300 },
+    ocr: { model: 'gpt-4.1-mini', prompt_tokens: 5000, completion_tokens: 200, total_tokens: 5200 },
+    estimate: { model: 'openai:gpt-4.1', prompt_tokens: 400, completion_tokens: 80, total_tokens: 480 },
+  });
+  // OCR off and no amounts to suggest: only the recipe call.
+  assert.deepEqual(Object.keys(usageBySteps({ model: 'anthropic:x', usage: { input_tokens: 1, output_tokens: 2 }, estimate: { applied: 0, usage: null } })), ['structure']);
+  assert.deepEqual(usageBySteps({}), {});
+});
+
+test('a job run with the model adds up its tokens in metrics', async () => {
+  const fetchImpl = async (url, init) => {
+    if (!url.includes('api.openai.com')) return youtube()(url, init);
+    if (url.includes('/embeddings')) return { ok: false, status: 500, headers: { get: () => 'application/json' }, json: async () => ({}) };
+    const body = { choices: [{ message: { content: JSON.stringify(llmFixture) } }], usage: { prompt_tokens: 100, completion_tokens: 20, total_tokens: 120 } };
+    return { ok: true, status: 200, headers: { get: () => 'application/json' }, json: async () => body };
+  };
+  const out = await runJob({ source_url: URL_OK }, { fetchImpl, env: OPENAI });
+  assert.equal(out.status, 'succeeded', out.message);
+  assert.deepEqual(out.metrics.usage, { prompt_tokens: 100, completion_tokens: 20, total_tokens: 120 });
+  assert.equal(out.metrics.usage_by_step.structure.prompt_tokens, 100);
+  const calls = Object.keys(out.metrics.usage_by_step).length;
+  assert.deepEqual(out.metrics.tokens, { input: 100 * calls, output: 20 * calls });
+});
+
+test('a job with no model call has no token metrics', async () => {
+  const out = await sampleJob();
+  assert.equal('usage_by_step' in out.metrics, false);
+  assert.equal('tokens' in out.metrics, false);
 });

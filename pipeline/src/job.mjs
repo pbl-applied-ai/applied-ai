@@ -70,6 +70,27 @@ function exportRun(result, warnings, { partial = false } = {}) {
   return { bundle: toEvidenceBundle(result), recipe, internal: result };
 }
 
+// Tokens per LLM call (structure = recipe, ocr = on-screen text, estimate = suggested amounts), for cost
+// records. `metrics.usage` stays the structure call alone, as before. OpenAI counts prompt/completion tokens,
+// Anthropic input/output; `tokens` adds them up either way, across models, so cost is worked out per step.
+export function usageBySteps(meta) {
+  const steps = {};
+  if (meta?.usage) steps.structure = { model: meta.model ?? null, ...meta.usage };
+  if (meta?.ocr?.usage) steps.ocr = { model: meta.ocr.model ?? null, ...meta.ocr.usage };
+  if (meta?.estimate?.usage) steps.estimate = { model: meta.model ?? null, ...meta.estimate.usage };
+  return steps;
+}
+
+function tokenMetrics(steps) {
+  if (!steps || !Object.keys(steps).length) return {};
+  const tokens = { input: 0, output: 0 };
+  for (const u of Object.values(steps)) {
+    tokens.input += u.prompt_tokens ?? u.input_tokens ?? 0;
+    tokens.output += u.completion_tokens ?? u.output_tokens ?? 0;
+  }
+  return { usage_by_step: steps, tokens };
+}
+
 // The version a run of this link is saved under. The worker looks up the cache with the same value,
 // and find_cached_run compares it exactly, so the two must not be worked out separately.
 export function jobVersion(sourceUrl, env = process.env) {
@@ -106,6 +127,7 @@ export async function runJob(input, { onStage = () => {}, env = process.env, fet
   };
   const isOpen = () => current && !stages.some((s) => s.stage === current);
   let usage = null;
+  let stepUsage = null;
   let partial = null;
 
   try {
@@ -129,6 +151,7 @@ export async function runJob(input, { onStage = () => {}, env = process.env, fet
       onStage: report,
     });
     usage = result.meta.usage;
+    stepUsage = usageBySteps(result.meta);
 
     // runPipeline left finalize open; the checks below decide how it ends.
     const descriptionOnly = !result.evidence.some((e) => e.kind !== 'description');
@@ -162,7 +185,7 @@ export async function runJob(input, { onStage = () => {}, env = process.env, fet
       },
       ...run,
       description_only: descriptionOnly,
-      metrics: { stages, usage },
+      metrics: { stages, usage, ...tokenMetrics(stepUsage) },
       warnings,
     };
   } catch (err) {
@@ -178,7 +201,7 @@ export async function runJob(input, { onStage = () => {}, env = process.env, fet
       retry: known ? err.retry : false,
       message: String(err?.message ?? err),
       partial,
-      metrics: { stages, usage },
+      metrics: { stages, usage, ...tokenMetrics(stepUsage) },
     };
   }
 }
