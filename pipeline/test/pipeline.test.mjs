@@ -5,7 +5,7 @@ import { existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'no
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { decodeCaptionText, fetchTranscript, parseCaptionXml, parseVideoId, watchUrl } from '../src/youtube.mjs';
+import { decodeCaptionText, fetchTranscript, parseCaptionXml, parseVideoId, pickTrack, watchUrl } from '../src/youtube.mjs';
 import { descriptionSegments, normalizeSegments, renderForPrompt } from '../src/segments.mjs';
 import { parseAmount } from '../src/ingredients.mjs';
 import { amountOnly, isNotAnAmount, resolveRecipe } from '../src/resolve.mjs';
@@ -730,6 +730,27 @@ test('caption HTTP errors are reported when every client fails', async () => {
     fetchTranscript('Smpl0Gochu1', { fetchImpl: youtubeFetch([403, 429]) }),
     /ANDROID: track ko caption HTTP 403; IOS: track ko caption HTTP 429/,
   );
+});
+
+// Shape of an auto-dubbed Short (11/24): one auto caption per dubbed language, original audio "en-US.4".
+const dubbedTracks = ['nl-NL', 'ko', 'en', 'ja'].map((languageCode) => ({ languageCode, kind: 'asr' }));
+const dubbedRenderer = {
+  audioTracks: [{ audioTrackId: 'ko.10' }, { audioTrackId: 'en-US.4' }, { audioTrackId: 'ja.10' }],
+  defaultAudioTrackIndex: 1,
+};
+
+test('an auto-dubbed video is read from its original-language caption, not the preferred language', () => {
+  assert.equal(pickTrack(dubbedTracks, ['ko', 'en'], dubbedRenderer).languageCode, 'en');
+});
+
+test('a hand-made caption in the original language beats its auto caption', () => {
+  const tracks = [...dubbedTracks, { languageCode: 'en-US', kind: undefined }];
+  assert.equal(pickTrack(tracks, ['ko', 'en'], dubbedRenderer).languageCode, 'en-US');
+});
+
+test('without audio track info the preferred-language order is kept', () => {
+  assert.equal(pickTrack(dubbedTracks, ['ko', 'en']).languageCode, 'ko');
+  assert.equal(pickTrack(dubbedTracks, ['ko', 'en'], { audioTracks: [{ audioTrackId: 'fr.4' }] }).languageCode, 'ko');
 });
 
 const sampleRun = () =>
