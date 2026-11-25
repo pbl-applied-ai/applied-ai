@@ -4,7 +4,7 @@
 import { checkUploadFile } from '../upload';
 import { resolveThumbnail, thumbnailForSource } from '../thumbnail';
 import { createAuth } from './auth';
-import { unconfirmedCount, withoutEstimates } from './editable';
+import { withoutEstimates } from './editable';
 import { DailyLimitError, NotSignedInError } from './types';
 import type { EditableIngredient, EditableRecipe, EditableStep, Job, Quota, RecipeApi, RecipeSummary, Run, TeamRecipe, UserRecipe } from './types';
 
@@ -55,11 +55,15 @@ interface RecipeRow {
   updated_at: string;
 }
 
+// list_recipes 한 줄(20261117120000_kan73_read_apis.sql). 썸네일·폴더(category_ids)가 같이 온다.
 interface RecipeListRow {
   id: string;
   run_id: string;
   title: string;
-  ingredients: EditableIngredient[];
+  ingredient_count: number;
+  unconfirmed_count: number;
+  thumbnail_url: string | null;
+  category_ids: string[] | null;
   created_at: string;
 }
 
@@ -299,13 +303,16 @@ export function createSupabaseApi(base: RecipeApi, options: SupabaseOptions): Re
     },
 
     async listRecipes(): Promise<RecipeSummary[]> {
-      const rows = await table<RecipeListRow[]>('user_recipes?select=id,run_id,title,ingredients,created_at&order=created_at.desc');
+      // 표(user_recipes)는 원본(runs)을 못 읽어서 썸네일이 없다 → RPC로 받는다
+      const rows = (await rpc<RecipeListRow[]>('list_recipes', {}, true)) ?? [];
       return rows.map((row) => ({
         id: row.id,
         runId: row.run_id,
         title: row.title,
-        ingredientCount: row.ingredients.length,
-        unconfirmedCount: unconfirmedCount({ ingredients: row.ingredients }),
+        ingredientCount: row.ingredient_count,
+        unconfirmedCount: row.unconfirmed_count,
+        thumbnailUrl: resolveThumbnail(row.thumbnail_url, apiBase),
+        categoryIds: row.category_ids ?? [],
         createdAt: row.created_at,
       }));
     },

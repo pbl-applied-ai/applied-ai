@@ -2,6 +2,7 @@
 import Link from "next/link";
 import type { RecipeSummary } from "@/lib/api";
 import { type JobCard, shortDate } from "@/lib/book";
+import { Thumb } from "./thumb";
 
 export function JobCardList({ cards, onHide }: { cards: JobCard[]; onHide: (jobId: string) => void }) {
   return cards.map((card) => (
@@ -54,7 +55,7 @@ export function JobCardList({ cards, onHide }: { cards: JobCard[]; onHide: (jobI
 export function RecipeCard({ recipe }: { recipe: RecipeSummary }) {
   return (
     <Link href={`/recipes/${encodeURIComponent(recipe.id)}`} className="flex gap-3 rounded-[22px] bg-card p-3">
-      <span className="photo size-16 shrink-0 rounded-2xl" aria-hidden="true" />
+      <Thumb src={recipe.thumbnailUrl} className="size-16 shrink-0 rounded-2xl" />
       <span className="flex min-w-0 flex-1 flex-col justify-center gap-1.5">
         <span className="truncate text-base font-bold">{recipe.title}</span>
         <span className="text-[13px] text-muted">
@@ -70,7 +71,7 @@ export function RecipeGridCard({ recipe }: { recipe: RecipeSummary }) {
   return (
     <Link href={`/recipes/${encodeURIComponent(recipe.id)}`} className="flex min-w-0 flex-col">
       <span className="relative block">
-        <span className="photo block h-[150px] w-full rounded-[20px]" aria-hidden="true" />
+        <Thumb src={recipe.thumbnailUrl} className="h-[150px] w-full rounded-[20px]" />
         {recipe.unconfirmedCount > 0 && (
           <span className="sticker absolute top-2 left-2 bg-pink px-2 text-[11px]">{recipe.unconfirmedCount} to check</span>
         )}

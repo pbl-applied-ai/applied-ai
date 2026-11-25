@@ -119,6 +119,8 @@ export interface RecipeSummary {
   title: string;
   ingredientCount: number;
   unconfirmedCount: number; // "분량 확인 필요 N"
+  thumbnailUrl?: string | null;
+  categoryIds?: string[]; // 들어 있는 폴더(categories) id
   createdAt: string;
 }
 

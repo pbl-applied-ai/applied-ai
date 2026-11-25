@@ -131,7 +131,7 @@ describe('session refresh', () => {
   }
 
   it('gets a new token once when it is about to end, even with calls at the same time', async () => {
-    const ctx = await signedIn({ '/auth/v1/token?grant_type=refresh_token': { body: tokenReply('new') }, '/rest/v1/user_recipes': { body: [] } });
+    const ctx = await signedIn({ '/auth/v1/token?grant_type=refresh_token': { body: tokenReply('new') }, '/rest/v1/rpc/list_recipes': { body: [] } });
     expire(ctx.storage);
     await Promise.all([ctx.api.listRecipes(), ctx.api.getUser()]);
     expect(ctx.sent.filter((s) => s.url.includes('refresh_token'))).toHaveLength(1);
@@ -187,13 +187,19 @@ describe('recipe book', () => {
     expect(ctx.sent[1]).toMatchObject({ url: '/rest/v1/rpc/update_recipe', body: { p_id: RECIPE_ID, p_title: '덮밥' } });
   });
 
-  it('lists recipes as cards with the count of missing amounts', async () => {
-    const ingredients = [draft.ingredients[0], { ...draft.ingredients[0], id: 'ing-2', amount_raw: null }];
-    const row = { id: RECIPE_ID, run_id: RUN_ID, title: '덮밥', ingredients, created_at: '2026-11-06T00:00:00Z' };
-    const ctx = await signedIn({ '/rest/v1/user_recipes': { body: [row] } });
+  it('lists recipes from list_recipes as cards with thumbnails, folders and missing amounts', async () => {
+    const row = {
+      id: RECIPE_ID, run_id: RUN_ID, title: '덮밥', ingredient_count: 2, unconfirmed_count: 1,
+      thumbnail_url: '/storage/v1/object/public/thumbnails/instagram/Abc_12.jpg', category_ids: ['cat-1'], created_at: '2026-11-06T00:00:00Z',
+    };
+    const ctx = await signedIn({ '/rest/v1/rpc/list_recipes': { body: [row] } });
     expect(await ctx.api.listRecipes()).toEqual([
-      { id: RECIPE_ID, runId: RUN_ID, title: '덮밥', ingredientCount: 2, unconfirmedCount: 1, createdAt: row.created_at },
+      {
+        id: RECIPE_ID, runId: RUN_ID, title: '덮밥', ingredientCount: 2, unconfirmedCount: 1,
+        thumbnailUrl: 'https://demo.supabase.co/storage/v1/object/public/thumbnails/instagram/Abc_12.jpg', categoryIds: ['cat-1'], createdAt: row.created_at,
+      },
     ]);
+    expect(ctx.sent[0]).toMatchObject({ url: '/rest/v1/rpc/list_recipes', authorization: 'Bearer tok' });
   });
 
   it('maps a recipe, and hides the link of an uploaded video but shows its stored frame', async () => {
@@ -220,7 +226,7 @@ describe('recipe book', () => {
   });
 
   it('treats a rejected token as signed out and reports other errors', async () => {
-    const denied = await signedIn({ '/rest/v1/rpc/save_recipe': { status: 401, body: {} }, '/rest/v1/user_recipes': { status: 401, body: {} } });
+    const denied = await signedIn({ '/rest/v1/rpc/save_recipe': { status: 401, body: {} }, '/rest/v1/rpc/list_recipes': { status: 401, body: {} } });
     await expect(denied.api.saveRecipe(draft)).rejects.toBeInstanceOf(NotSignedInError);
     await expect(denied.api.listRecipes()).rejects.toBeInstanceOf(NotSignedInError);
     const broken = await signedIn({ '/rest/v1/rpc/save_recipe': { status: 400, body: { code: '22023' } } });
