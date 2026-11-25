@@ -10,6 +10,7 @@ import { checkUploadFile } from '../upload';
 import { USER_DAILY_LIMIT, seoulDay } from '../daily-quota';
 import {
   DailyLimitError,
+  FolderError,
   NotSignedInError,
   type EditableRecipe,
   type Job,
@@ -73,6 +74,8 @@ interface State {
   user: User | null;
   jobs: Record<string, StoredJob>;
   recipes: Record<string, UserRecipe>;
+  folders?: Record<string, { id: string; name: string; emoji: string | null; createdAt: string }>;
+  recipeFolders?: Record<string, string[]>; // recipeId → folderIds
 }
 
 export interface MockOptions {
@@ -276,7 +279,7 @@ export function createMockApi(options: MockOptions = {}): RecipeApi {
       requireUser(state);
       return Object.values(state.recipes)
         .sort((a, b) => b.createdAt.localeCompare(a.createdAt))
-        .map(toSummary);
+        .map((r) => ({ ...toSummary(r), categoryIds: state.recipeFolders?.[r.id] ?? [] }));
     },
 
     async getRecipe(id) {
@@ -302,7 +305,42 @@ export function createMockApi(options: MockOptions = {}): RecipeApi {
       requireUser(state);
       const recipes = { ...state.recipes };
       delete recipes[id];
-      save({ ...state, recipes });
+      const recipeFolders = { ...state.recipeFolders };
+      delete recipeFolders[id];
+      save({ ...state, recipes, recipeFolders });
+    },
+
+    async listFolders() {
+      await wait();
+      const state = load();
+      requireUser(state);
+      const links = Object.values(state.recipeFolders ?? {}).flat();
+      return Object.values(state.folders ?? {})
+        .sort((a, b) => a.createdAt.localeCompare(b.createdAt))
+        .map((f) => ({ id: f.id, name: f.name, emoji: f.emoji, recipeCount: links.filter((id) => id === f.id).length }));
+    },
+
+    async createFolder(name, emoji = null) {
+      await wait();
+      const state = load();
+      requireUser(state);
+      const clean = name.trim();
+      const folders = state.folders ?? {};
+      if (clean.length < 1 || clean.length > 30) throw new FolderError('invalid');
+      if (Object.values(folders).some((f) => f.name.toLowerCase() === clean.toLowerCase())) throw new FolderError('duplicate');
+      if (Object.keys(folders).length >= 20) throw new FolderError('too_many');
+      const folder = { id: crypto.randomUUID(), name: clean, emoji: emoji?.trim() || null, createdAt: iso(now()) };
+      save({ ...state, folders: { ...folders, [folder.id]: folder } });
+      return { id: folder.id, name: folder.name, emoji: folder.emoji, recipeCount: 0 };
+    },
+
+    async setRecipeFolders(recipeId, folderIds) {
+      await wait();
+      const state = load();
+      requireUser(state);
+      if (!state.recipes[recipeId]) throw new Error('recipe not found');
+      const ids = [...new Set(folderIds)].filter((id) => state.folders?.[id]);
+      save({ ...state, recipeFolders: { ...state.recipeFolders, [recipeId]: ids } });
     },
   };
 }

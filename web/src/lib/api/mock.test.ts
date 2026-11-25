@@ -61,6 +61,21 @@ describe("createMockApi", () => {
     expect(saved!.ingredients.some((i) => "has_estimate" in i)).toBe(false);
   });
 
+  it("폴더를 만들고 레시피를 넣으면 목록·개수에 나온다(11/24)", async () => {
+    const { api } = setup();
+    await api.signInWithGoogle("/");
+    const run = await api.getRun("run-Smpl0Gochu1");
+    const { id } = await api.saveRecipe(toEditable(run!));
+    const pasta = await api.createFolder("Pasta");
+    await expect(api.createFolder(" pasta ")).rejects.toMatchObject({ reason: "duplicate" });
+    await expect(api.createFolder("  ")).rejects.toMatchObject({ reason: "invalid" });
+    await api.setRecipeFolders(id, [pasta.id, pasta.id]);
+    expect((await api.listFolders()).map((f) => [f.name, f.recipeCount])).toEqual([["Pasta", 1]]);
+    expect((await api.listRecipes())[0].categoryIds).toEqual([pasta.id]);
+    await api.setRecipeFolders(id, []);
+    expect((await api.listFolders())[0].recipeCount).toBe(0);
+  });
+
   it("Shorts가 아닌 YouTube 링크는 unsupported_source", async () => {
     const { api, advance } = setup();
     const { jobId } = await api.createJob("https://www.youtube.com/watch?v=AbCdEfGhIj0");

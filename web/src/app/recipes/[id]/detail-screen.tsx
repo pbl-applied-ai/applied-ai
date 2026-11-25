@@ -4,7 +4,8 @@ import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import { RecipeView } from "@/components/recipe-view";
-import { type UserRecipe, api } from "@/lib/api";
+import { type Folder, type UserRecipe, api } from "@/lib/api";
+import { FOLDER_EMOJI, FolderSheet } from "@/components/folder-sheet";
 import { shortDate } from "@/lib/book";
 import { rememberSavedRun } from "@/lib/book-hidden";
 import { useRequireUser } from "@/lib/use-require-user";
@@ -20,6 +21,12 @@ export function DetailScreen() {
   const [load, setLoad] = useState<Load>({ kind: "loading" });
   const [confirming, setConfirming] = useState(false);
   const [deleting, setDeleting] = useState(false);
+  // 이 레시피가 든 폴더. get_recipe는 폴더를 안 줘서 목록(list_recipes)에서 찾는다. 못 읽으면 줄을 숨긴다
+  const [folders, setFolders] = useState<Folder[] | null>(null);
+  const [inFolders, setInFolders] = useState<string[]>([]);
+  const [picking, setPicking] = useState(false);
+  const [movingError, setMovingError] = useState<string | null>(null);
+  const [moving, setMoving] = useState(false);
 
   useEffect(() => {
     if (!user) return;
@@ -28,6 +35,14 @@ export function DetailScreen() {
       .getRecipe(id)
       .then((recipe) => !cancelled && setLoad(recipe ? { kind: "ready", recipe } : { kind: "missing" }))
       .catch(() => !cancelled && setLoad({ kind: "missing" }));
+    Promise.all([api.listFolders(), api.listRecipes()]).then(
+      ([list, recipes]) => {
+        if (cancelled) return;
+        setFolders(list);
+        setInFolders(recipes.find((r) => r.id === id)?.categoryIds ?? []);
+      },
+      () => {},
+    );
     return () => {
       cancelled = true;
     };
@@ -72,7 +87,7 @@ export function DetailScreen() {
       </header>
 
       <section className="flex flex-col gap-2 px-5 pt-1">
-        {/* YouTube는 원본 썸네일 주소를 그대로 보여 준다(#57). Instagram·업로드는 줄무늬 상자 */}
+        {/* YouTube는 원본 썸네일, Instagram·업로드는 워커가 저장한 이미지(11/24). 없으면 줄무늬 상자 */}
         <Thumb src={recipe.thumbnailUrl ?? sourceThumbnail(recipe.sourceUrl)} className="mb-2 h-48 w-full rounded-[22px]" />
         <h1 className="text-[26px] leading-tight font-bold">{recipe.title}</h1>
         <span className="text-[13px] text-muted">Saved {shortDate(recipe.createdAt)}</span>
@@ -89,9 +104,50 @@ export function DetailScreen() {
             </a>
           </div>
         )}
+        {folders && (
+          <button
+            type="button"
+            onClick={() => setPicking(true)}
+            className="mt-1 flex min-h-12 items-center gap-2 rounded-[18px] bg-card px-4 text-left text-sm"
+          >
+            <span aria-hidden="true">{FOLDER_EMOJI}</span>
+            <span className="min-w-0 flex-1 truncate">
+              {inFolders.length
+                ? folders.filter((f) => inFolders.includes(f.id)).map((f) => f.name).join(", ")
+                : "Not in a folder"}
+            </span>
+            <span className="font-bold underline underline-offset-4">Folders</span>
+          </button>
+        )}
       </section>
 
       <RecipeView recipe={recipe} />
+
+      {picking && (
+        <FolderSheet
+          title="Folders for this recipe"
+          confirmLabel="Done"
+          initial={inFolders}
+          busy={moving}
+          error={movingError}
+          onCancel={() => !moving && setPicking(false)}
+          onConfirm={async (ids) => {
+            setMoving(true);
+            setMovingError(null);
+            try {
+              await api.setRecipeFolders(recipe.id, ids);
+              setInFolders(ids);
+              // 시트에서 새로 만든 폴더 이름도 줄에 보이게 다시 읽는다
+              setFolders(await api.listFolders().catch(() => folders));
+              setPicking(false);
+            } catch {
+              setMovingError("Couldn't update the folders. Please try again.");
+            } finally {
+              setMoving(false);
+            }
+          }}
+        />
+      )}
 
       {confirming && (
         <div className="fixed inset-0 z-30 flex items-end bg-[rgba(59,31,26,0.45)]">

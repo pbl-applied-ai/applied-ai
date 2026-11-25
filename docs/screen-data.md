@@ -1,8 +1,9 @@
-# 화면별 정보 v0.8 (KAN-72)
+# 화면별 정보 v0.9 (KAN-72)
 
 작성: 김선규 · 2026-11-14 · 수정: 2026-11-24 · 팀 검토용
 기준: **확정 플로우 "applied ai 플로우 v3"**(14장, 앱 이름 pinch, 영어 화면), `web/src/lib/api/types.ts`, `supabase/migrations/`, 스키마 v0.2.
 변경(v0.2): v0.1은 UX v0.7(한 화면 홈)을 기준으로 썼다. 확정 플로우 v3에 맞춰 화면 목록·정보·API를 다시 썼다. v3가 기존 결정과 다른 곳은 [3절](#3-기존-결정과-다른-곳-팀-확인)에 모았다.
+변경(v0.9, 11/24): K 폴더 시트·B 폴더 칩을 웹에 붙임(수빈 요청). 화면에서는 카테고리를 **folder**라고 부른다("Save to a folder", "New folder"). DB·RPC 이름(categories·list_categories 등)은 그대로. 저장할 때 K 시트를 띄우고, 레시피 상세에 "Folders" 줄을 둬서 나중에 바꿀 수 있게 함(v3에 없던 것). 레시피북 목록은 `list_recipes()`로 받아 썸네일·폴더가 같이 온다. 2절 K·B 상태 고침.
 변경(v0.8, 11/24): 썸네일을 저장한다(수빈 결정, 5절 "받아 저장하지 않는다"를 바꿈). Instagram은 업체가 준 커버 이미지, 업로드는 화면 글자 읽기 때 뽑은 프레임 하나를 워커가 공개 버킷 `thumbnails`에 둔다. `thumbnail_url`은 YouTube면 지금처럼 `i.ytimg.com` 주소, Instagram·업로드면 `/storage/v1/object/public/thumbnails/...` 상대 경로(화면이 Supabase 주소를 붙임). 파일이 없으면(예전 run) 줄무늬 칸. 2절 H 사진·4절 썸네일·5절 고침. v0.7은 #83(인분 조절).
 변경(v0.6, 11/21): 홈 편집 파일 `web/src/content/home.ts`와 시즌 특집·특집 페이지 `/issue/<slug>`·주제별 줄을 만듦(크리스마스 특집 5편, "One pot, zero mess" 5편 — Nutrient Matters 1편은 #79 병합 뒤 추가). 거르지 않을 때 Trending은 편집 영역에 나온 레시피를 빼고 보여 주고, 칩·검색은 편집 영역 레시피까지 찾는다. 편집 파일 타입은 `web/src/lib/home-editorial.ts`에 둠. 2절 H·7절 5번 고침.
 변경(v0.5, 11/20): Home을 에디토리얼 구성으로 바꿈(수빈 결정, NYT Cooking 홈의 순서만 참고하고 디자인은 Pinch). 칩은 시즌 묶음이 아니라 **취향 칩**(All / Vegan / Late night / Dessert / High protein), 시즌(크리스마스 등)은 홈을 내리면 나오는 **시즌 특집**으로. 편집 내용(특집·에디터 노트·줄·컬렉션)은 웹 정적 파일, 레시피 자체는 `list_featured()`. 3절 8번, 4절 1·11번, 5절, 7절 1·5번 같이 고침. #74 리뷰(선규): Halal 칩은 영상만으로 판단할 수 없어서 **Dessert**로 바꿈, 취향 태그를 붙이는 기준과 조회수 배지 기준을 2절 H에 적음.
@@ -130,15 +131,15 @@ Recipe book 카드 ─▶ 저장한 레시피(R과 같은 배치, 고치기)
 
 | 보여 줄 것 | 데이터 | API | 상태 |
 |---|---|---|---|
-| 내 카테고리 목록: 이모지, 이름, 레시피 수, 체크 | `categories(id, name, emoji)` + 개수 | `list_categories()` | 없음 |
-| + New category | 이름·이모지 | `create_category(name, emoji)` | 없음 |
+| 내 카테고리 목록: 이모지, 이름, 레시피 수, 체크 | `categories(id, name, emoji)` + 개수 | `list_categories()` | 있음(11/24, `folder-sheet.tsx`) |
+| + New category | 이름·이모지 | `create_category(name, emoji)` | 있음(이름만, 이모지는 📁) |
 | [Save] | 레시피 + 고른 카테고리(0개도 됨) | `save_recipe` → 이어서 `set_recipe_categories(recipe_id, category_ids)` | 있음(KAN-73 후속) |
 
 ### B Recipe book
 
 | 보여 줄 것 | 데이터 | API | 상태 |
 |---|---|---|---|
-| 전체 수 "12", 칩 "All 12 / Pasta 4 / Dessert 3 …" | 카테고리별 개수 | `list_categories()` | 없음 |
+| 전체 수 "12", 칩 "All 12 / Pasta 4 / Dessert 3 …" | 카테고리별 개수 | `list_categories()` | 있음(11/24). 칩 끝에 "+ New folder" |
 | 정렬 "Recently saved ▾", 격자/목록 전환 | 저장일·수정일·이름 | 웹에서 정렬 | 있음 |
 | 카드: 사진, 요리명, "10 min · YouTube Shorts", **"3 to check"** | `thumbnail_url`, `title`, 플랫폼, 아직 확인 안 한 분량 수(`unconfirmedCount`), 시간 | `list_recipes()` | **바꿈**: `sourceUrl`·플랫폼·카테고리·썸네일 추가 (4절 3번). 시간은 3절 5번 |
 | 변환 중 카드: "62% Reading captions…", 요리명, "Converting · YouTube Shorts" | `Job` + 미리보기 제목 | `listMyJobs()` | 있음 (제목은 웹이 기억) |

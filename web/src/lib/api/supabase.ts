@@ -6,7 +6,8 @@ import { resolveThumbnail, thumbnailForSource } from '../thumbnail';
 import { createAuth } from './auth';
 import { withoutEstimates } from './editable';
 import { DailyLimitError, NotSignedInError } from './types';
-import type { EditableIngredient, EditableRecipe, EditableStep, Job, Quota, RecipeApi, RecipeSummary, Run, TeamRecipe, UserRecipe } from './types';
+import type { EditableIngredient, EditableRecipe, EditableStep, Folder, Job, Quota, RecipeApi, RecipeSummary, Run, TeamRecipe, UserRecipe } from './types';
+import { FolderError } from './types';
 
 export interface SupabaseOptions {
   url: string;
@@ -342,8 +343,41 @@ export function createSupabaseApi(base: RecipeApi, options: SupabaseOptions): Re
     async deleteRecipe(id) {
       await table<null>(`user_recipes?id=eq.${encodeURIComponent(id)}`, 'DELETE');
     },
+
+    // 폴더 = DB categories (list_categories·create_category·set_recipe_categories, 20261117130000)
+    async listFolders() {
+      const rows = (await rpc<FolderRow[]>('list_categories', {}, true)) ?? [];
+      return rows.map(toFolder);
+    },
+
+    async createFolder(name, emoji = null) {
+      try {
+        const row = (await rpc<FolderRow[]>('create_category', { p_name: name, p_emoji: emoji }, true))?.[0];
+        if (!row) throw new Error('create_category returned nothing');
+        return toFolder(row);
+      } catch (err) {
+        const text = String((err as Error)?.message ?? '');
+        if (text.includes('23505')) throw new FolderError('duplicate');
+        if (text.includes('too many categories')) throw new FolderError('too_many');
+        if (text.includes('22023')) throw new FolderError('invalid');
+        throw err;
+      }
+    },
+
+    async setRecipeFolders(recipeId, folderIds) {
+      await rpc<null>('set_recipe_categories', { p_recipe_id: recipeId, p_category_ids: folderIds }, true);
+    },
   };
 }
+
+interface FolderRow {
+  id: string;
+  name: string;
+  emoji: string | null;
+  recipe_count: number;
+}
+
+const toFolder = (row: FolderRow): Folder => ({ id: row.id, name: row.name, emoji: row.emoji, recipeCount: row.recipe_count ?? 0 });
 
 function browserStorage(): Storage | null {
   try {
