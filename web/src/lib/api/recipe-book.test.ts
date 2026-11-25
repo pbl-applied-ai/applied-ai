@@ -196,14 +196,15 @@ describe('recipe book', () => {
     ]);
   });
 
-  it('maps a recipe, and hides the link of an uploaded video', async () => {
+  it('maps a recipe, and hides the link of an uploaded video but shows its stored frame', async () => {
     const row = {
-      id: RECIPE_ID, run_id: RUN_ID, source_url: 'upload:abc', title: '덮밥', servings_raw: '2인분',
+      id: RECIPE_ID, run_id: RUN_ID, source_url: 'upload:cccccccc-0000-0000-0000-000000000002', title: '덮밥', servings_raw: '2인분',
       ingredients: draft.ingredients, steps: draft.steps, created_at: 'c', updated_at: 'u',
     };
     const ctx = await signedIn({ '/rest/v1/rpc/get_recipe': { body: [row] } });
     expect(await ctx.api.getRecipe(RECIPE_ID)).toEqual({
       id: RECIPE_ID, runId: RUN_ID, sourceUrl: '', title: '덮밥', servingsRaw: '2인분',
+      thumbnailUrl: 'https://demo.supabase.co/storage/v1/object/public/thumbnails/upload/cccccccc-0000-0000-0000-000000000002.jpg',
       ingredients: draft.ingredients, steps: draft.steps, createdAt: 'c', updatedAt: 'u',
     });
     const none = await signedIn({ '/rest/v1/rpc/get_recipe': { body: [] } });

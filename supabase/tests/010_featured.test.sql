@@ -59,7 +59,8 @@ select is((select source_url from public.list_featured() where run_id = 'aaaaaaa
 select is((select duration_ms from public.list_featured() where run_id = 'aaaaaaaa-0000-0000-0000-000000000001'), 21000::bigint, '영상 길이');
 select is((select thumbnail_url from public.list_featured() where run_id = 'aaaaaaaa-0000-0000-0000-000000000001'),
   'https://i.ytimg.com/vi/Smpl0Ramen1/hqdefault.jpg', 'YouTube는 썸네일 주소를 만든다');
-select is((select thumbnail_url from public.list_featured() where run_id = 'aaaaaaaa-0000-0000-0000-000000000002'), null, 'Instagram은 썸네일 없음');
+select is((select thumbnail_url from public.list_featured() where run_id = 'aaaaaaaa-0000-0000-0000-000000000002'),
+  '/storage/v1/object/public/thumbnails/instagram/Smpl0Reel02.jpg', 'Instagram은 워커가 저장한 썸네일 경로(20261125120000)');
 reset role;
 insert into public.featured_runs (run_id, categories, position) values ('aaaaaaaa-0000-0000-0000-000000000003', '{}', 9);
 update public.runs set canonical_key = 'upload:cccccccc-0000-0000-0000-000000000003', source_url = 'upload:cccccccc-0000-0000-0000-000000000003'

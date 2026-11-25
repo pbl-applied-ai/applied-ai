@@ -91,6 +91,7 @@ YouTube URL
 | `src/cli.mjs` | CLI 옵션: `--out`, `--transcript`, `--llm-output`, `--lang`(기본 `ko,en`), `--captions-only`, `--json`, `--team-out` |
 | `scripts/compare-models.mjs` | 같은 자막으로 여러 모델 실행. 결과는 `compare/<버전>/<영상ID>/<모델>.json` |
 | `scripts/repeat-model.mjs` | 같은 모델을 N번 실행해 실행 간 편차 확인. 결과는 `.../repeat/` |
+| `scripts/backfill-thumbnails.mjs` | 11/24 전에 변환한 Instagram run의 커버를 `thumbnails` 버킷에 채움(릴스당 Apify 1번, 이미 있으면 건너뜀). `--dry`는 올리지 않고 세기만 |
 | `test/pipeline.test.mjs` | 단위 테스트 (`node --test`). LLM 호출은 `fetch`를 모킹한다 |
 | `test/ocr.test.mjs` | 화면 글자 병합·배치·영상 형식 선택, 업로드에서 화면 글자만으로 레시피 만들기, OCR 실패·영상 없음·꺼짐. ffmpeg·API는 가짜 |
 | `test/job.test.mjs` | `runJob`의 실패 분류(워커 문서 6번 표)와 워커 저장 흐름. YouTube·LLM·DB 모두 가짜 |

@@ -2,6 +2,7 @@
 // 로그인·저장·레시피북은 recipeBook이 켜졌을 때만 실제로 부르고(KAN-23·24), 꺼져 있으면 목(base)을 그대로 쓴다.
 // supabase-js 없이 PostgREST를 fetch로 부른다. anon 키는 공개해도 되는 키다(권한은 RLS·RPC grant가 막는다).
 import { checkUploadFile } from '../upload';
+import { resolveThumbnail, thumbnailForSource } from '../thumbnail';
 import { createAuth } from './auth';
 import { unconfirmedCount, withoutEstimates } from './editable';
 import { DailyLimitError, NotSignedInError } from './types';
@@ -181,7 +182,7 @@ export function createSupabaseApi(base: RecipeApi, options: SupabaseOptions): Re
             ingredientCount: r.ingredient_count ?? 0,
             categories: r.categories ?? [],
             platform: r.platform ?? null,
-            thumbnailUrl: r.thumbnail_url ?? null,
+            thumbnailUrl: resolveThumbnail(r.thumbnail_url, apiBase),
             saveCount: r.save_count ?? 0,
           })),
         },
@@ -256,7 +257,7 @@ export function createSupabaseApi(base: RecipeApi, options: SupabaseOptions): Re
         creator: row.creator ?? null,
         platform: row.platform ?? null,
         durationMs: row.duration_ms ?? null,
-        thumbnailUrl: row.thumbnail_url ?? null,
+        thumbnailUrl: resolveThumbnail(row.thumbnail_url, apiBase),
       };
     },
 
@@ -316,6 +317,8 @@ export function createSupabaseApi(base: RecipeApi, options: SupabaseOptions): Re
         id: row.id,
         runId: row.run_id,
         sourceUrl: publicSource(row.source_url),
+        // 업로드는 링크를 숨기지만 저장한 프레임은 보여 준다 → 원래 값(upload:<id>)으로 만든다
+        thumbnailUrl: thumbnailForSource(row.source_url, apiBase),
         title: row.title,
         servingsRaw: row.servings_raw,
         ingredients: row.ingredients,

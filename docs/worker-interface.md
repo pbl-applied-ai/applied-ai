@@ -1,7 +1,8 @@
-# 워커 ↔ 파이프라인 호출 방식 v0.11
+# 워커 ↔ 파이프라인 호출 방식 v0.12
 
 작성: 전수빈 · 2026-10-24 · 선규 합의용
 수정일: 2026-11-24
+변경(v0.12): 성공한 Instagram·업로드 job은 썸네일 한 장을 공개 버킷 `thumbnails`에 올린다(`instagram/<code>.jpg`: 업체가 준 커버, `upload/<id>.jpg`: OCR 때 뽑은 프레임 중 4분의 1 지점). `runJob` 결과의 `thumbnail`(`{ bytes, mime }` 또는 null)로 받고, run 행(`internal`)에는 넣지 않는다. 올리기에 실패해도 job은 성공으로 두고 로그만 남긴다. 캐시에서 다시 쓴 job은 올리지 않는다. YouTube는 저장하지 않는다.
 변경(v0.11): `metrics`에 LLM 호출별 토큰(`usage_by_step`: `structure` 레시피·`ocr` 화면 글자·`estimate` 추정 분량)과 합계(`tokens`)를 남긴다. `usage`는 지금처럼 레시피 호출만이다. 비용 집계·발표용.
 변경(v0.10, #81 리뷰): Apify가 음성 파일을 빼고 준 영상이 소리 트랙이 없어 못 읽힌 결과는 `speech: "no_audio"`로 따로 표시한다. 같은 버전으로 두 번 연속 소리가 없으면 두 번째 결과를 `speech: "none"`으로 저장하고, 그다음 요청부터는 캐시에서 다시 쓴다. 원래 소리가 없는 릴스를 넣을 때마다 Apify·LLM 비용이 나가지 않게 하기 위해서다.
 변경(v0.9, KAN-51): `ocr` 단계 구현. `OCR=on`이면 영상(YouTube·릴스·업로드)에서 1초마다 프레임을 뽑아 화면 글자를 읽고 `ocr` 근거로 넣는다. 실패해도 job은 계속하고 `skipped`에 이유를 남긴다(`ocr_off`·`no_video`·`video_too_large`·`ocr_tool_missing`·`ocr_unreadable`·`ocr_transient`·`ocr_config`). 일시 오류로 못 읽은 결과는 캐시에서 다시 쓰지 않는다(`ocr: "lost"`). 켜면 `extractor_version`에 `ocr`(모델 이름)가 붙는다. 다른 근거가 없어도 화면 글자가 있으면 진행한다.

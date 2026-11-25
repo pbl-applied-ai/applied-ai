@@ -214,3 +214,8 @@ test('without OCR=on the stage is skipped as ocr_off and nothing is downloaded',
   await runPipeline({ upload, env: { OPENAI_API_KEY: 'k' }, llmOutput: llm, fetchImpl: uploadFetch(speechWhisper, []), onStage: log(events) });
   assert.ok(events.includes('ocr:skipped:ocr_off'), events.join(' '));
 });
+
+test('readScreenText hands back a frame a quarter of the way in as the upload thumbnail', async () => {
+  const out = await readScreenText({ bytes: new Uint8Array(1) }, { env: OCR_ENV, fetchImpl: vision(Array(20).fill(''), []), sample: async () => frames(20) });
+  assert.deepEqual(out.cover, new Uint8Array([5]));
+});

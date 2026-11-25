@@ -15,6 +15,15 @@ import { canonicalKey, extractorVersion, isDevVersion, jobVersion, runJob } from
 const POLL_MS = 2000;
 const LEASE = '10 minutes';
 const UPLOAD_BUCKET = 'uploads';
+// Public bucket read by run_thumbnail in SQL (20261125120000_stored_thumbnails.sql).
+const THUMBNAIL_BUCKET = 'thumbnails';
+
+// Where a run's thumbnail is kept: 'instagram:<code>' → 'instagram/<code>.jpg', 'upload:<id>' → 'upload/<id>.jpg'.
+// YouTube has none (its thumbnail link is built from the video ID). Must match run_thumbnail.
+export function thumbnailPath(key) {
+  const m = /^(instagram|upload):([A-Za-z0-9_-]+)$/.exec(key ?? '');
+  return m ? `${m[1]}/${m[2]}.jpg` : null;
+}
 // The transcription API picks the format from the file name and takes mp4 and webm, not mov or m4v.
 // mov and m4v are the same ISO-BMFF family as mp4 (iPhone videos are mov), so they go as upload.mp4.
 const ASR_FILE_BY_EXT = { mp4: 'mp4', m4v: 'mp4', mov: 'mp4', webm: 'webm' };
@@ -37,7 +46,7 @@ export function supabaseRpc({ url, key, fetchImpl = fetch }) {
   // Storage answers a missing object with 400 and a not_found body, but also answers key and request
   // errors with 400, so only the body decides: anything else is an error and the job is retried.
   const isMissing = async (res) => res.status === 404 || (res.status === 400 && /not_found|not found/i.test(await res.clone().text()));
-  const object = (path) => `${url.replace(/\/$/, '')}/storage/v1/object/${UPLOAD_BUCKET}/${path.split('/').map(encodeURIComponent).join('/')}`;
+  const object = (path, bucket = UPLOAD_BUCKET) => `${url.replace(/\/$/, '')}/storage/v1/object/${bucket}/${path.split('/').map(encodeURIComponent).join('/')}`;
   const auth = { apikey: key, authorization: `Bearer ${key}` };
   return {
     downloadUpload: async (path) => {
@@ -51,6 +60,15 @@ export function supabaseRpc({ url, key, fetchImpl = fetch }) {
     deleteUpload: async (path) => {
       const res = await fetchImpl(object(path), { method: 'DELETE', headers: auth });
       if (!res.ok && !(await isMissing(res))) throw new Error(`Supabase storage delete ${res.status}: ${(await res.text()).slice(0, 300)}`);
+    },
+    // Overwrites: the same reel converted again gets the newer cover.
+    uploadThumbnail: async (path, { bytes, mime }) => {
+      const res = await fetchImpl(object(path, THUMBNAIL_BUCKET), {
+        method: 'POST',
+        headers: { ...auth, 'content-type': mime, 'x-upsert': 'true', 'cache-control': '86400' },
+        body: bytes,
+      });
+      if (!res.ok) throw new Error(`Supabase storage put ${res.status}: ${(await res.text()).slice(0, 300)}`);
     },
     claimJob: async () => (await rpc('claim_next_job', { p_lease: LEASE }))?.[0] ?? null,
     setStage: (job, stage) => rpc('set_job_stage', { p_job_id: job.id, p_attempt: job.attempts, p_stage: stage }),
@@ -132,6 +150,15 @@ export async function processJob(job, { db, env = process.env, fetchImpl = fetch
   if (cacheable) out = await silentRead(out, key, db);
 
   const result = await save(job, out, db);
+  // A thumbnail only makes the card nicer, so a failed upload is logged and the job stays done.
+  const thumbPath = thumbnailPath(key);
+  if (result.outcome === 'succeeded' && out.thumbnail && thumbPath && db.uploadThumbnail) {
+    try {
+      await db.uploadThumbnail(thumbPath, out.thumbnail);
+    } catch (err) {
+      log(`job ${job.id}: thumbnail upload failed: ${err.message}`);
+    }
+  }
   // The file is deleted once the job is over. A retry still needs it, a lost job belongs to another attempt,
   // and a file the worker could not read (storage or key error) is kept so the job can be run again.
   if (job.upload_path && !unread && (result.outcome === 'succeeded' || result.outcome === 'failed')) {

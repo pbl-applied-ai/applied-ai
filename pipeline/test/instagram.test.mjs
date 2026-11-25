@@ -4,7 +4,7 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { canonicalKey, jobVersion, runJob } from '../src/job.mjs';
 import { parseReelCode } from '../src/instagram.mjs';
-import { processJob } from '../src/worker.mjs';
+import { processJob, thumbnailPath } from '../src/worker.mjs';
 
 const fixture = (name) => new URL(`./fixtures/${name}`, import.meta.url);
 const llmFixture = JSON.parse(readFileSync(fixture('sample-gochujang-bowl.llm.json'), 'utf8'));
@@ -24,7 +24,7 @@ const apifyItem = { shortCode: CODE, type: 'Video', caption: '고추장 2큰술'
 const scBody = { data: { xdt_shortcode_media: { is_video: true, video_url: 'https://cdn/v', video_duration: 39, owner: { username: 'cook' }, edge_media_to_caption: { edges: [{ node: { text: '고추장 2큰술' } }] } } } };
 
 // Fake network, one answer per service. Records the URLs asked for.
-const net = ({ apify = () => json(201, [apifyItem]), sc = () => json(200, scBody), audio = () => file(), video = () => file(), asr = () => json(200, whisper) } = {}) => {
+const net = ({ apify = () => json(201, [apifyItem]), sc = () => json(200, scBody), audio = () => file(), video = () => file(), asr = () => json(200, whisper), cover = () => file() } = {}) => {
   const seen = [];
   const fetchImpl = async (url) => {
     seen.push(String(url));
@@ -32,6 +32,7 @@ const net = ({ apify = () => json(201, [apifyItem]), sc = () => json(200, scBody
     if (String(url).includes('scrapecreators')) return sc();
     if (url === 'https://cdn/a') return audio();
     if (url === 'https://cdn/v') return video();
+    if (url === 'https://cdn/c') return cover();
     if (String(url).includes('audio/transcriptions')) return asr();
     throw new Error(`unexpected ${url}`);
   };
@@ -249,4 +250,50 @@ test('a caption that yields no recipe, with no speech, is no_media_no_caption', 
 test('without vendor keys Instagram stays unsupported and calls nothing', async () => {
   const out = await reelJob({ fetchImpl: () => assert.fail('fetched') }, { OPENAI_API_KEY: 'test-key' });
   assert.deepEqual(failure(out), { stage: 'collect', error_code: 'unsupported_source', reason: 'not_youtube', retry: false });
+});
+
+// Thumbnails (11/24): the reel's cover is kept in the public thumbnails bucket, since the vendor link expires.
+const thumbDb = (upload = async () => {}) => {
+  const db = cacheDb();
+  db.thumbnails = [];
+  db.uploadThumbnail = async (path, image) => {
+    db.thumbnails.push({ path, mime: image.mime, size: image.bytes.byteLength });
+    return upload();
+  };
+  return db;
+};
+const withCover = () => net({ apify: () => json(201, [{ ...apifyItem, displayUrl: 'https://cdn/c' }]) });
+
+test('a reel cover is stored as the run thumbnail, and kept out of the saved run', async () => {
+  const db = thumbDb();
+  let saved = null;
+  const complete = db.complete;
+  db.complete = async (job, out) => ((saved = out), complete(job, out));
+  const res = await processJob(reelTask, { db, env: ENV, fetchImpl: withCover().fetchImpl, run: workerRun, log: () => {} });
+  assert.equal(res.outcome, 'succeeded');
+  assert.deepEqual(db.thumbnails, [{ path: `instagram/${CODE}.jpg`, mime: 'image/jpeg', size: 3 }]);
+  assert.equal(JSON.stringify(saved.internal).includes('thumbnail'), false);
+});
+
+test('a failed thumbnail upload is logged and the job still succeeds', async () => {
+  const db = thumbDb(async () => { throw new Error('storage down'); });
+  const logs = [];
+  const res = await processJob(reelTask, { db, env: ENV, fetchImpl: withCover().fetchImpl, run: workerRun, log: (l) => logs.push(l) });
+  assert.equal(res.outcome, 'succeeded');
+  assert.match(logs.join(' '), /thumbnail upload failed: storage down/);
+});
+
+test('a reel without a cover link, or with a dead one, stores no thumbnail', async () => {
+  for (const fetchImpl of [net().fetchImpl, net({ apify: () => json(201, [{ ...apifyItem, displayUrl: 'https://cdn/c' }]), cover: () => file(403) }).fetchImpl]) {
+    const db = thumbDb();
+    assert.equal((await processJob(reelTask, { db, env: ENV, fetchImpl, run: workerRun, log: () => {} })).outcome, 'succeeded');
+    assert.deepEqual(db.thumbnails, []);
+  }
+});
+
+test('thumbnail paths match run_thumbnail in SQL; YouTube has none', () => {
+  assert.equal(thumbnailPath(`instagram:${CODE}`), `instagram/${CODE}.jpg`);
+  assert.equal(thumbnailPath('upload:0b5c3f0e-1111-4222-8333-944445555666'), 'upload/0b5c3f0e-1111-4222-8333-944445555666.jpg');
+  assert.equal(thumbnailPath('youtube:Smpl0Gochu1'), null);
+  assert.equal(thumbnailPath(null), null);
 });
