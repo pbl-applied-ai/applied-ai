@@ -112,6 +112,23 @@ export interface UserRecipe extends EditableRecipe {
   updatedAt: string;
 }
 
+// 내 폴더(화면 K·B). DB 이름은 categories(supabase/migrations/20261117120000·130000). 화면에서는 "folder"라고 부른다(11/24 수빈).
+export interface Folder {
+  id: string;
+  name: string; // 1~30자, 내 폴더 안에서 대소문자 무시하고 겹치지 않음
+  emoji: string | null;
+  recipeCount: number;
+}
+
+export class FolderError extends Error {
+  readonly reason: 'duplicate' | 'invalid' | 'too_many';
+  constructor(reason: 'duplicate' | 'invalid' | 'too_many') {
+    super(reason === 'duplicate' ? 'You already have a folder with that name.' : reason === 'too_many' ? 'You can make up to 20 folders.' : 'Folder names need 1 to 30 characters.');
+    this.reason = reason;
+    this.name = 'FolderError';
+  }
+}
+
 // 레시피북 목록 카드(S1)
 export interface RecipeSummary {
   id: string;
@@ -195,4 +212,7 @@ export interface RecipeApi {
   getRecipe(id: string): Promise<UserRecipe | null>;
   updateRecipe(id: string, draft: EditableRecipe): Promise<void>;
   deleteRecipe(id: string): Promise<void>;
+  listFolders(): Promise<Folder[]>; // 만든 순서, 레시피 수 포함
+  createFolder(name: string, emoji?: string | null): Promise<Folder>; // 같은 이름·빈 이름·20개 넘으면 FolderError
+  setRecipeFolders(recipeId: string, folderIds: string[]): Promise<void>; // 통째로 바꾼다. 빈 배열이면 다 뺀다
 }

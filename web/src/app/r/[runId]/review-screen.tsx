@@ -8,6 +8,7 @@ import { SourceMeta, SourceThumb } from "@/components/recipe-source";
 import { RecipeView } from "@/components/recipe-view";
 import { type EditableRecipe, type Run, type User, api, canSave, toEditable } from "@/lib/api";
 import { rememberSavedRun } from "@/lib/book-hidden";
+import { FolderSheet } from "@/components/folder-sheet";
 import { descriptionNotice, missingParts } from "@/lib/review";
 import { useUnsavedWarning } from "@/lib/use-unsaved-warning";
 
@@ -24,6 +25,7 @@ export function ReviewScreen() {
   const [draft, setDraft] = useState<EditableRecipe | null>(null);
   const [saving, setSaving] = useState(false);
   const [saveError, setSaveError] = useState<string | null>(null);
+  const [picking, setPicking] = useState(false); // K 폴더 시트
   const [dirty, setDirty] = useState(false);
   useUnsavedWarning(dirty && !saving);
 
@@ -120,13 +122,17 @@ export function ReviewScreen() {
     );
   }
 
-  async function save() {
+  // 저장 → 고른 폴더에 넣기(save_recipe 뒤 set_recipe_categories, screen-data K).
+  // 폴더 넣기가 실패해도 레시피는 저장됐으니 넘어간다. 폴더는 상세에서 다시 고를 수 있다.
+  async function save(folderIds: string[]) {
     if (!draft || !user || !canSave(draft) || saving) return;
     setSaving(true);
     setSaveError(null);
     try {
       const { id } = await api.saveRecipe(draft);
+      if (folderIds.length) await api.setRecipeFolders(id, folderIds).catch(() => {});
       rememberSavedRun(user.id, draft.runId);
+      setPicking(false);
       setDirty(false);
       router.push(`/recipes/${encodeURIComponent(id)}`);
       // 화면 상태가 남아 있어서(cacheComponents) 뒤로 오면 "저장하는 중…"에 멈추지 않게 푼다
@@ -138,18 +144,32 @@ export function ReviewScreen() {
   }
 
   return (
-    <RecipeEditor
-      run={run}
-      draft={draft}
-      onChange={(next) => {
-        setDraft(next);
-        setDirty(true);
-        setSaveError(null);
-      }}
-      onSave={save}
-      saving={saving}
-      saveError={saveError}
-      saveLabel="Save to recipe book"
-    />
+    <>
+      <RecipeEditor
+        run={run}
+        draft={draft}
+        onChange={(next) => {
+          setDraft(next);
+          setDirty(true);
+          setSaveError(null);
+        }}
+        onSave={() => {
+          if (draft && canSave(draft)) setPicking(true);
+        }}
+        saving={saving}
+        saveError={picking ? null : saveError}
+        saveLabel="Save to recipe book"
+      />
+      {picking && (
+        <FolderSheet
+          title="Save to a folder"
+          confirmLabel="Save"
+          busy={saving}
+          error={saveError}
+          onCancel={() => !saving && setPicking(false)}
+          onConfirm={save}
+        />
+      )}
+    </>
   );
 }

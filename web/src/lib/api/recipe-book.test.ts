@@ -217,6 +217,26 @@ describe('recipe book', () => {
     expect(await none.api.getRecipe(RECIPE_ID)).toBeNull();
   });
 
+  it('folders go through the category RPCs and name errors become FolderError', async () => {
+    const folder = { id: 'cat-1', name: 'Pasta', emoji: null, recipe_count: 2, created_at: 'c' };
+    const ctx = await signedIn({
+      '/rest/v1/rpc/list_categories': { body: [folder] },
+      '/rest/v1/rpc/create_category': { body: [{ ...folder, recipe_count: 0 }] },
+      '/rest/v1/rpc/set_recipe_categories': { body: null },
+    });
+    expect(await ctx.api.listFolders()).toEqual([{ id: 'cat-1', name: 'Pasta', emoji: null, recipeCount: 2 }]);
+    expect(await ctx.api.createFolder('Pasta')).toMatchObject({ id: 'cat-1', recipeCount: 0 });
+    await ctx.api.setRecipeFolders(RECIPE_ID, ['cat-1']);
+    expect(ctx.sent.find((s) => s.url.endsWith('set_recipe_categories'))).toMatchObject({
+      body: { p_recipe_id: RECIPE_ID, p_category_ids: ['cat-1'] },
+      authorization: 'Bearer tok',
+    });
+    const taken = await signedIn({ '/rest/v1/rpc/create_category': { status: 409, body: { code: '23505', message: 'duplicate key' } } });
+    await expect(taken.api.createFolder('Pasta')).rejects.toMatchObject({ name: 'FolderError', reason: 'duplicate' });
+    const full = await signedIn({ '/rest/v1/rpc/create_category': { status: 400, body: { code: '22023', message: 'too many categories' } } });
+    await expect(full.api.createFolder('One more')).rejects.toMatchObject({ reason: 'too_many' });
+  });
+
   it('reads my jobs and deletes a recipe by its id', async () => {
     const job = { id: 'j', source_url: 'https://a', status: 'queued', stage: null, error_code: null, reason: null, run_id: null, created_at: 'c' };
     const ctx = await signedIn({ '/rest/v1/jobs': { body: [job] } });
