@@ -748,6 +748,11 @@ test('a hand-made caption in the original language beats its auto caption', () =
   assert.equal(pickTrack(tracks, ['ko', 'en'], dubbedRenderer).languageCode, 'en-US');
 });
 
+test('the original ".4" audio track wins when a dub is the default for the region', () => {
+  const dubDefault = { ...dubbedRenderer, defaultAudioTrackIndex: 0 }; // "ko.10"
+  assert.equal(pickTrack(dubbedTracks, ['ko', 'en'], dubDefault).languageCode, 'en');
+});
+
 test('without audio track info the preferred-language order is kept', () => {
   assert.equal(pickTrack(dubbedTracks, ['ko', 'en']).languageCode, 'ko');
   assert.equal(pickTrack(dubbedTracks, ['ko', 'en'], { audioTracks: [{ audioTrackId: 'fr.4' }] }).languageCode, 'ko');

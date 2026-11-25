@@ -80,10 +80,14 @@ export function parseCaptionXml(xml) {
 const baseLang = (code) => String(code || '').split(/[-_]/)[0].toLowerCase();
 
 // A video with auto-dubbed audio lists one auto caption per dubbed language ("ko.10"), so the
-// preferred-language order would read a Korean translation of an English video. The default audio
-// track is the original one; its language's caption is used before any preference.
+// preferred-language order would read a Korean translation of an English video. The original audio
+// track's language caption is used before any preference. The original track ID ends in ".4" and
+// dubbed ones in ".10"; YouTube may make a dub the default for the viewer's region, so the ".4" track
+// wins over the default one (#88 review).
+const ORIGINAL_AUDIO = /\.4$/;
 export function pickTrack(tracks, preferredLangs, renderer = {}) {
-  const audio = renderer.audioTracks?.[renderer.defaultAudioTrackIndex ?? 0];
+  const audioTracks = renderer.audioTracks ?? [];
+  const audio = audioTracks.find((t) => ORIGINAL_AUDIO.test(t.audioTrackId ?? '')) ?? audioTracks[renderer.defaultAudioTrackIndex ?? 0];
   const original = baseLang(audio?.audioTrackId?.split('.')[0]);
   if (original) {
     const same = tracks.filter((t) => baseLang(t.languageCode) === original);
