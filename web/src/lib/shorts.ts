@@ -59,3 +59,10 @@ export const SHORTS_ERROR_TEXT: Record<"not_shorts" | "unsupported", string> = {
   not_shorts: "That's not a YouTube Shorts or Instagram Reels link. Please check the URL.",
   unsupported: "For now, we only support YouTube Shorts and Instagram Reels.",
 };
+
+/** YouTube 원본이면 썸네일 주소(서버 get_run·list_featured와 같은 hqdefault). Instagram·업로드는 고정 주소가 없어서 null. */
+export function sourceThumbnail(sourceUrl: string | null | undefined): string | null {
+  if (!sourceUrl) return null;
+  const check = checkShortsUrl(sourceUrl);
+  return check.ok && check.platform === "youtube" ? `https://i.ytimg.com/vi/${check.videoId}/hqdefault.jpg` : null;
+}

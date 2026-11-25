@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { checkShortsUrl } from "./shorts";
+import { checkShortsUrl, sourceThumbnail } from "./shorts";
 
 describe("checkShortsUrl", () => {
   it("Shorts 링크를 받고 주소를 정리한다", () => {
@@ -62,5 +62,14 @@ describe("checkShortsUrl", () => {
     ]) {
       expect(checkShortsUrl(input)).toEqual({ ok: false, reason: "unsupported" });
     }
+  });
+});
+
+describe("sourceThumbnail", () => {
+  it("YouTube 원본이면 썸네일 주소, 아니면 null", () => {
+    expect(sourceThumbnail("https://www.youtube.com/shorts/eR1i6g4zoQ0")).toBe("https://i.ytimg.com/vi/eR1i6g4zoQ0/hqdefault.jpg");
+    expect(sourceThumbnail("https://www.instagram.com/reel/DaxJiqXRshs/")).toBeNull();
+    expect(sourceThumbnail("")).toBeNull();
+    expect(sourceThumbnail(null)).toBeNull();
   });
 });
