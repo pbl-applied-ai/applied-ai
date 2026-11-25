@@ -77,7 +77,19 @@ export function parseCaptionXml(xml) {
   return segments.filter((s) => s.text);
 }
 
-function pickTrack(tracks, preferredLangs) {
+const baseLang = (code) => String(code || '').split(/[-_]/)[0].toLowerCase();
+
+// A video with auto-dubbed audio lists one auto caption per dubbed language ("ko.10"), so the
+// preferred-language order would read a Korean translation of an English video. The default audio
+// track is the original one; its language's caption is used before any preference.
+export function pickTrack(tracks, preferredLangs, renderer = {}) {
+  const audio = renderer.audioTracks?.[renderer.defaultAudioTrackIndex ?? 0];
+  const original = baseLang(audio?.audioTrackId?.split('.')[0]);
+  if (original) {
+    const same = tracks.filter((t) => baseLang(t.languageCode) === original);
+    const track = same.find((t) => t.kind !== 'asr') || same[0];
+    if (track) return track;
+  }
   for (const lang of preferredLangs) {
     const manual = tracks.find((t) => t.languageCode === lang && t.kind !== 'asr');
     if (manual) return manual;
@@ -150,14 +162,15 @@ export async function fetchTranscript(videoId, { languages = ['ko', 'en'], fetch
     }
     const player = await res.json();
     const status = player.playabilityStatus?.status;
-    const tracks = player.captions?.playerCaptionsTracklistRenderer?.captionTracks || [];
+    const renderer = player.captions?.playerCaptionsTracklistRenderer || {};
+    const tracks = renderer.captionTracks || [];
     if (!tracks.length) {
       attempts.push(`${client.name}: playability=${status}, no caption tracks`);
       if (status === 'OK') noCaptions ??= player;
       else failures.push({ kind: 'not_playable' });
       continue;
     }
-    const track = pickTrack(tracks, languages);
+    const track = pickTrack(tracks, languages, renderer);
     const caption = await request(fetchImpl, track.baseUrl, { headers: { 'user-agent': client.userAgent } }, timeoutMs);
     if (caption.error) {
       fail('caption_transient', `${client.name}: track ${track.languageCode} caption ${caption.error}`);
