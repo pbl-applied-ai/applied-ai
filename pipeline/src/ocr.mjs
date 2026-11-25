@@ -201,5 +201,7 @@ export async function readScreenText(video, { env = process.env, fetchImpl = fet
     texts.push(...out.texts);
     for (const k of Object.keys(usage)) usage[k] += out.usage?.[k] ?? 0;
   }
-  return { segments: ocrSegments(mergeFrameTexts(texts, everyMs)), model, frames: frames.length, everyMs, usage };
+  // A frame a quarter of the way in is the thumbnail of an upload: the first frames are often a black intro.
+  const cover = frames[Math.min(frames.length - 1, Math.floor(frames.length / 4))]?.jpeg ?? null;
+  return { segments: ocrSegments(mergeFrameTexts(texts, everyMs)), model, frames: frames.length, everyMs, usage, cover };
 }

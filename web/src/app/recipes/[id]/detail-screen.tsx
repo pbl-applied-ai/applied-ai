@@ -73,13 +73,13 @@ export function DetailScreen() {
 
       <section className="flex flex-col gap-2 px-5 pt-1">
         {/* YouTube는 원본 썸네일 주소를 그대로 보여 준다(#57). Instagram·업로드는 줄무늬 상자 */}
-        <Thumb src={sourceThumbnail(recipe.sourceUrl)} className="mb-2 h-48 w-full rounded-[22px]" />
+        <Thumb src={recipe.thumbnailUrl ?? sourceThumbnail(recipe.sourceUrl)} className="mb-2 h-48 w-full rounded-[22px]" />
         <h1 className="text-[26px] leading-tight font-bold">{recipe.title}</h1>
         <span className="text-[13px] text-muted">Saved {shortDate(recipe.createdAt)}</span>
         {/* 업로드로 만든 레시피는 원본을 보관하지 않아서 sourceUrl이 비어 있다 → 카드 숨김 */}
         {recipe.sourceUrl && (
           <div className="mt-2 flex items-center gap-3 rounded-[22px] bg-card p-3">
-            <Thumb src={sourceThumbnail(recipe.sourceUrl)} className="size-12 shrink-0 rounded-xl" />
+            <Thumb src={recipe.thumbnailUrl ?? sourceThumbnail(recipe.sourceUrl)} className="size-12 shrink-0 rounded-xl" />
             <span className="flex min-w-0 flex-1 flex-col gap-0.5">
               <span className="truncate text-sm font-medium">{recipe.title}</span>
               <span className="text-xs text-muted">{sourcePlatformLabel(recipe.sourceUrl)}</span>

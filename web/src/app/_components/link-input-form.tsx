@@ -244,6 +244,9 @@ export function LinkInputForm() {
             )}
             <p className="mt-1 text-center text-xs leading-relaxed text-muted">
               Sign in to upload. Only upload videos you made or have the rights to use. Up to 25 MB.
+              <br />
+              {/* 업로드 프레임은 공개 버킷에 저장돼 공개 링크로 보일 수 있다(#89 선규 리뷰) */}
+              A frame from your video becomes the recipe photo.
             </p>
           </>
         ) : (

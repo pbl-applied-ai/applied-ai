@@ -55,7 +55,8 @@ select is((select source_url from public.list_recipes() where id = 'bbbbbbbb-000
 select is((select platform from public.list_recipes() where id = 'bbbbbbbb-0000-0000-0000-000000000002'), 'upload', '업로드는 platform upload');
 select is((select thumbnail_url from public.list_recipes() where id = 'bbbbbbbb-0000-0000-0000-000000000001'),
   'https://i.ytimg.com/vi/Smpl0Gochu1/hqdefault.jpg', 'YouTube 썸네일');
-select is((select thumbnail_url from public.list_recipes() where id = 'bbbbbbbb-0000-0000-0000-000000000002'), null, '업로드는 썸네일 없음');
+select is((select thumbnail_url from public.list_recipes() where id = 'bbbbbbbb-0000-0000-0000-000000000002'),
+  '/storage/v1/object/public/thumbnails/upload/cccccccc-0000-0000-0000-000000000002.jpg', '업로드는 워커가 저장한 프레임 경로');
 select is((select category_ids from public.list_recipes() where id = 'bbbbbbbb-0000-0000-0000-000000000001'),
   array['dddddddd-0000-0000-0000-000000000001'::uuid], '카테고리 ID');
 select is((select updated_at from public.list_recipes() where id = 'bbbbbbbb-0000-0000-0000-000000000001'),

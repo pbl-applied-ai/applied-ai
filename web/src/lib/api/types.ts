@@ -69,7 +69,7 @@ export interface Run {
   creator?: string | null;
   platform?: string | null;
   durationMs?: number | null;
-  thumbnailUrl?: string | null; // YouTube만. 이미지를 받아 저장하지 않고 원본 주소로 보여 준다(#57)
+  thumbnailUrl?: string | null; // YouTube는 원본 주소, Instagram·업로드는 워커가 저장한 파일(11/24, src/lib/thumbnail.ts)
 }
 
 // ── 사용자 레시피(레시피북) ─────────────────────────────────
@@ -107,6 +107,7 @@ export interface EditableRecipe {
 export interface UserRecipe extends EditableRecipe {
   id: string;
   sourceUrl: string;
+  thumbnailUrl?: string | null; // 없으면 화면이 sourceUrl로 만든다(YouTube만)
   createdAt: string;
   updatedAt: string;
 }
@@ -118,6 +119,8 @@ export interface RecipeSummary {
   title: string;
   ingredientCount: number;
   unconfirmedCount: number; // "분량 확인 필요 N"
+  thumbnailUrl?: string | null;
+  categoryIds?: string[]; // 들어 있는 폴더(categories) id
   createdAt: string;
 }
 

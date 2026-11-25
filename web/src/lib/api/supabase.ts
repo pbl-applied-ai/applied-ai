@@ -2,8 +2,9 @@
 // 로그인·저장·레시피북은 recipeBook이 켜졌을 때만 실제로 부르고(KAN-23·24), 꺼져 있으면 목(base)을 그대로 쓴다.
 // supabase-js 없이 PostgREST를 fetch로 부른다. anon 키는 공개해도 되는 키다(권한은 RLS·RPC grant가 막는다).
 import { checkUploadFile } from '../upload';
+import { resolveThumbnail, thumbnailForSource } from '../thumbnail';
 import { createAuth } from './auth';
-import { unconfirmedCount, withoutEstimates } from './editable';
+import { withoutEstimates } from './editable';
 import { DailyLimitError, NotSignedInError } from './types';
 import type { EditableIngredient, EditableRecipe, EditableStep, Job, Quota, RecipeApi, RecipeSummary, Run, TeamRecipe, UserRecipe } from './types';
 
@@ -54,11 +55,15 @@ interface RecipeRow {
   updated_at: string;
 }
 
+// list_recipes 한 줄(20261117120000_kan73_read_apis.sql). 썸네일·폴더(category_ids)가 같이 온다.
 interface RecipeListRow {
   id: string;
   run_id: string;
   title: string;
-  ingredients: EditableIngredient[];
+  ingredient_count: number;
+  unconfirmed_count: number;
+  thumbnail_url: string | null;
+  category_ids: string[] | null;
   created_at: string;
 }
 
@@ -181,7 +186,7 @@ export function createSupabaseApi(base: RecipeApi, options: SupabaseOptions): Re
             ingredientCount: r.ingredient_count ?? 0,
             categories: r.categories ?? [],
             platform: r.platform ?? null,
-            thumbnailUrl: r.thumbnail_url ?? null,
+            thumbnailUrl: resolveThumbnail(r.thumbnail_url, apiBase),
             saveCount: r.save_count ?? 0,
           })),
         },
@@ -256,7 +261,7 @@ export function createSupabaseApi(base: RecipeApi, options: SupabaseOptions): Re
         creator: row.creator ?? null,
         platform: row.platform ?? null,
         durationMs: row.duration_ms ?? null,
-        thumbnailUrl: row.thumbnail_url ?? null,
+        thumbnailUrl: resolveThumbnail(row.thumbnail_url, apiBase),
       };
     },
 
@@ -298,13 +303,16 @@ export function createSupabaseApi(base: RecipeApi, options: SupabaseOptions): Re
     },
 
     async listRecipes(): Promise<RecipeSummary[]> {
-      const rows = await table<RecipeListRow[]>('user_recipes?select=id,run_id,title,ingredients,created_at&order=created_at.desc');
+      // 표(user_recipes)는 원본(runs)을 못 읽어서 썸네일이 없다 → RPC로 받는다
+      const rows = (await rpc<RecipeListRow[]>('list_recipes', {}, true)) ?? [];
       return rows.map((row) => ({
         id: row.id,
         runId: row.run_id,
         title: row.title,
-        ingredientCount: row.ingredients.length,
-        unconfirmedCount: unconfirmedCount({ ingredients: row.ingredients }),
+        ingredientCount: row.ingredient_count,
+        unconfirmedCount: row.unconfirmed_count,
+        thumbnailUrl: resolveThumbnail(row.thumbnail_url, apiBase),
+        categoryIds: row.category_ids ?? [],
         createdAt: row.created_at,
       }));
     },
@@ -316,6 +324,8 @@ export function createSupabaseApi(base: RecipeApi, options: SupabaseOptions): Re
         id: row.id,
         runId: row.run_id,
         sourceUrl: publicSource(row.source_url),
+        // 업로드는 링크를 숨기지만 저장한 프레임은 보여 준다 → 원래 값(upload:<id>)으로 만든다
+        thumbnailUrl: thumbnailForSource(row.source_url, apiBase),
         title: row.title,
         servingsRaw: row.servings_raw,
         ingredients: row.ingredients,

@@ -74,6 +74,7 @@ async function askApify(code, { env, fetchImpl }) {
     durationMs: item.videoDuration != null ? Math.round(item.videoDuration * 1000) : null,
     audioUrl: item.audioUrl ?? null,
     videoUrl: item.videoUrl ?? null,
+    coverUrl: item.displayUrl ?? null,
   };
 }
 
@@ -93,6 +94,7 @@ async function askScrapeCreators(code, { env, fetchImpl }) {
     durationMs: media.video_duration != null ? Math.round(media.video_duration * 1000) : null,
     audioUrl: null,
     videoUrl: media.video_url ?? null,
+    coverUrl: media.display_url ?? null,
   };
 }
 
@@ -156,4 +158,13 @@ export async function reelVideo(reel, { media = null, fetchImpl = fetch } = {}) 
   const out = await download(reel.videoUrl, fetchImpl, MAX_REEL_VIDEO_BYTES);
   if (out.bytes) return { video: { bytes: out.bytes, filename: 'video.mp4', mime: 'video/mp4' } };
   return { video: null, reason: 'no_video', ...(out.transient && { lost: true }) };
+}
+
+// The reel's cover image as JPEG bytes for the recipe's thumbnail, or null. The vendor's link expires,
+// so the worker keeps a copy (11/24 수빈 결정). A missing cover never fails the job.
+const MAX_COVER_BYTES = 2 * 1024 * 1024;
+export async function reelCover(reel, { fetchImpl = fetch } = {}) {
+  if (!reel?.coverUrl) return null;
+  const { bytes } = await download(reel.coverUrl, fetchImpl, MAX_COVER_BYTES);
+  return bytes ? { bytes, mime: 'image/jpeg' } : null;
 }

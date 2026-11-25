@@ -1,7 +1,7 @@
 import { readFile } from 'node:fs/promises';
 import { PipelineError } from './errors.mjs';
 import { ASR_MODEL, hangulLanguage, transcribeUpload } from './asr.mjs';
-import { fetchReel, instagramEnabled, parseReelCode, reelMedia, reelVideo } from './instagram.mjs';
+import { fetchReel, instagramEnabled, parseReelCode, reelCover, reelMedia, reelVideo } from './instagram.mjs';
 import { fetchTranscript, fetchVideoFile, parseVideoId, watchUrl } from './youtube.mjs';
 import { ocrEnabled, readScreenText } from './ocr.mjs';
 import { fetchPinnedComment } from './comments.mjs';
@@ -118,7 +118,7 @@ async function collectInstagram(code, { env, fetchImpl, onStage }) {
   }
   const evidence = [...normalizeSegments(source.segments), ...descriptionSegments(source.video.description)];
   const empty = new PipelineError(`No speech or caption in reel ${code}`, { stage: 'asr', errorCode: 'unavailable', reason: 'no_media_no_caption' });
-  return { source, evidence, empty, video: () => reelVideo(reel, { media, fetchImpl }) };
+  return { source, evidence, empty, video: () => reelVideo(reel, { media, fetchImpl }), cover: () => reelCover(reel, { fetchImpl }) };
 }
 
 // On-screen text (KAN-51). Never fails the job: without a video, the tool or a working request the stage is
@@ -127,7 +127,7 @@ async function collectInstagram(code, { env, fetchImpl, onStage }) {
 async function screenText({ video, env, fetchImpl, onStage, durationMs, ocr }) {
   const skip = (reason, lost = false) => {
     onStage({ stage: 'ocr', state: 'skipped', reason });
-    return { segments: [], info: null, lost };
+    return { segments: [], info: null, lost, cover: null };
   };
   if (ocr === false || !ocrEnabled(env)) return skip('ocr_off');
   onStage({ stage: 'ocr', state: 'started' });
@@ -137,7 +137,7 @@ async function screenText({ video, env, fetchImpl, onStage, durationMs, ocr }) {
     if (!got.video) return skip(got.reason ?? 'no_video', Boolean(got.lost));
     const out = await readScreenText(got.video, { env, fetchImpl, durationMs, ...(ocr?.sample && { sample: ocr.sample }) });
     onStage({ stage: 'ocr', state: 'done', ms: Date.now() - t0 });
-    return { segments: out.segments, info: { model: out.model, frames: out.frames, every_ms: out.everyMs, usage: out.usage } };
+    return { segments: out.segments, info: { model: out.model, frames: out.frames, every_ms: out.everyMs, usage: out.usage }, cover: out.cover ?? null };
   } catch (err) {
     // Anything else (a broken download, an odd reply) must not fail the job either. We cannot tell
     // whether it would pass on a retry, so the run is marked and not reused from the cache.
@@ -153,11 +153,12 @@ export async function runPipeline({ url, upload, transcriptFile, languages, env 
   let evidence;
   let empty = null;
   let video = async () => ({ video: null, reason: 'no_video' });
+  let cover = async () => null;
   const reelCode = url && !transcriptFile ? parseReelCode(url) : null;
   if (upload) {
     ({ source, evidence, empty, video } = await collectUpload(upload, { env, fetchImpl, onStage }));
   } else if (reelCode) {
-    ({ source, evidence, empty, video } = await collectInstagram(reelCode, { env, fetchImpl, onStage }));
+    ({ source, evidence, empty, video, cover } = await collectInstagram(reelCode, { env, fetchImpl, onStage }));
   } else {
     ({ source, evidence } = await inStage(onStage, 'collect', async () => {
       const source = await loadSource({ url, transcriptFile, languages, fetchImpl, comments });
@@ -223,7 +224,10 @@ export async function runPipeline({ url, upload, transcriptFile, languages, env 
     item.watch_url = item.start_ms != null && videoId ? watchUrl(videoId, item.start_ms / 1000) : null;
   }
 
-  return {
+  // YouTube thumbnails are built from the video ID (run_thumbnail in SQL), so only reels and uploads carry one.
+  const thumbnail = upload ? (screen.cover ? { bytes: screen.cover, mime: 'image/jpeg' } : null) : await cover().catch(() => null);
+
+  const result = {
     source: { ...source.video, caption: source.caption, source_url: url ?? null },
     evidence,
     recipe,
@@ -244,4 +248,7 @@ export async function runPipeline({ url, upload, transcriptFile, languages, env 
       ...(estimate && { estimate: { prompt_version: ESTIMATE_PROMPT_VERSION, applied: estimate.applied, usage: estimate.usage } }),
     },
   };
+  // Not enumerable, so the image bytes stay out of the saved run (job.mjs stores the result as internal) and CLI JSON.
+  Object.defineProperty(result, 'thumbnail', { value: thumbnail, enumerable: false });
+  return result;
 }

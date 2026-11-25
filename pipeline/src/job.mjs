@@ -187,6 +187,8 @@ export async function runJob(input, { onStage = () => {}, env = process.env, fet
       description_only: descriptionOnly,
       metrics: { stages, usage, ...tokenMetrics(stepUsage) },
       warnings,
+      // { bytes, mime } or null. The worker stores it in the thumbnails bucket; it is not part of the run row.
+      thumbnail: result.thumbnail ?? null,
     };
   } catch (err) {
     if (isOpen()) report({ stage: current, state: 'failed', ms: Date.now() - startedAt });
